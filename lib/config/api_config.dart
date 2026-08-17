@@ -1,6 +1,6 @@
 class ApiConfig {
-  // static const String baseUrl = 'http://10.0.2.2:8000/api';
-  static const String baseUrl = 'http://192.168.100.4:8000/api';
+  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  // static const String baseUrl = 'http://192.168.100.4:8000/api';
   // static const String baseUrl =
   //     'http://10.0.2.2:8000';
 
@@ -10,4 +10,6 @@ class ApiConfig {
 
   static const String charges = '$baseUrl/charges/';
   static const String paymentHistory = '$baseUrl/payments/history/';
+  static const String announcements = '$baseUrl/announcements/';
+  static const String polls = '$baseUrl/polls/';
 }
