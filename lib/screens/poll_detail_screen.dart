@@ -1,10 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import '../config/api_config.dart';
-import '../storage/token_storage.dart';
+import '../services/poll_service.dart';
 
 class PollDetailScreen extends StatefulWidget {
   final int pollId;
@@ -29,17 +25,20 @@ class _PollDetailScreenState
 
   Map<String, dynamic>? poll;
 
-  final Map<int, dynamic> answers = {};
+  // پاسخ‌های انتخاب‌شده
+  final Map<int, List<int>> selectedChoices = {};
 
   @override
   void initState() {
     super.initState();
+
     loadPoll();
   }
 
   // =====================================================
-  // دریافت جزئیات نظرسنجی
+  // دریافت نظرسنجی
   // =====================================================
+
 
   Future<void> loadPoll() async {
     setState(() {
@@ -48,67 +47,59 @@ class _PollDetailScreenState
     });
 
     try {
-      final token =
-      await TokenStorage.getAccessToken();
-
-      if (token == null || token.isEmpty) {
-        throw Exception(
-          'توکن ورود پیدا نشد.',
-        );
-      }
-
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.polls}${widget.pollId}/',
-        ),
-        headers: {
-          'Authorization':
-          'Bearer $token',
-          'Content-Type':
-          'application/json',
-        },
+      debugPrint(
+          '========== POLL FLUTTER DEBUG =========='
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(
-          utf8.decode(
-            response.bodyBytes,
-          ),
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          poll =
-          Map<String, dynamic>.from(
-            data['poll'] ?? data,
-          );
-
-          isLoading = false;
-        });
-
-        return;
-      }
-
-      if (response.statusCode == 401) {
-        throw Exception(
-          'نشست کاربر منقضی شده است.',
-        );
-      }
-
-      throw Exception(
-        'خطا در دریافت نظرسنجی.',
+      debugPrint(
+        'POLL ID: ${widget.pollId}',
       );
-    } catch (e) {
+
+      final result =
+      await PollService.getPoll(
+        widget.pollId,
+      );
+
+      debugPrint(
+        'POLL RESULT: $result',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        poll = result;
+        isLoading = false;
+      });
+
+    } catch (e, stackTrace) {
+
+      debugPrint(
+          '========== POLL ERROR =========='
+      );
+
+      debugPrint(
+        'ERROR: $e',
+      );
+
+      debugPrint(
+        'STACK: $stackTrace',
+      );
+
       if (!mounted) return;
 
       setState(() {
         isLoading = false;
+
         errorMessage =
-        'دریافت نظرسنجی با خطا مواجه شد.';
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            );
       });
     }
   }
+
+
 
   // =====================================================
   // تبدیل اعداد
@@ -129,22 +120,167 @@ class _PollDetailScreenState
   }
 
   // =====================================================
-  // سؤالات
+  // ثبت انتخاب گزینه
   // =====================================================
 
-  List<dynamic> get questions {
-    return (poll?['questions'] as List?) ?? [];
+  void selectChoice({
+    required int questionId,
+    required int choiceId,
+    required String questionType,
+  }) {
+    // اگر نظرسنجی قبلاً پاسخ داده شده
+    // دیگر اجازه تغییر نمی‌دهیم.
+    if (poll?['has_voted'] == true) {
+      return;
+    }
+
+    setState(() {
+      if (questionType == 'multi') {
+        final current =
+            selectedChoices[questionId] ?? [];
+
+        if (current.contains(choiceId)) {
+          current.remove(choiceId);
+        } else {
+          current.add(choiceId);
+        }
+
+        selectedChoices[questionId] =
+        List<int>.from(current);
+
+      } else {
+        selectedChoices[questionId] = [
+          choiceId,
+        ];
+      }
+    });
   }
 
   // =====================================================
-  // صفحه
+  // بررسی کامل بودن پاسخ‌ها
+  // =====================================================
+
+  bool validateAnswers() {
+    final questions =
+    List<Map<String, dynamic>>.from(
+      poll?['questions'] ?? [],
+    );
+
+    for (final question in questions) {
+      final questionId =
+      int.parse(question['id'].toString());
+
+      final type =
+      question['question_type']
+          ?.toString();
+
+      final selected =
+          selectedChoices[questionId] ?? [];
+
+      if (type == 'multi') {
+        if (selected.isEmpty) {
+          return false;
+        }
+      } else {
+        if (selected.length != 1) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  // =====================================================
+  // ثبت رأی
+  // =====================================================
+
+  Future<void> submitVote() async {
+    // امنیت سمت Flutter
+    if (poll?['has_voted'] == true) {
+      return;
+    }
+
+    if (!validateAnswers()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'لطفاً به همه سؤال‌ها پاسخ دهید.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    final answers =
+    selectedChoices.entries.map((entry) {
+      return {
+        'question_id': entry.key,
+        'choice_ids': entry.value,
+      };
+    }).toList();
+
+    try {
+      await PollService.submitVote(
+        pollId: widget.pollId,
+        answers: answers,
+      );
+
+      // بعد از ثبت رأی، اطلاعات جدید را
+      // دوباره از سرور می‌گیریم.
+      final result =
+      await PollService.getPoll(widget.pollId);
+
+      if (!mounted) return;
+
+      setState(() {
+        poll = result;
+        isSubmitting = false;
+        selectedChoices.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'رأی شما با موفقیت ثبت شد.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // =====================================================
+  // Build
   // =====================================================
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection:
-      TextDirection.rtl,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor:
         const Color(0xffF5F8FA),
@@ -152,8 +288,7 @@ class _PollDetailScreenState
         appBar: AppBar(
           backgroundColor:
           const Color(0xff00ACC1),
-          foregroundColor:
-          Colors.white,
+          foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
 
@@ -161,8 +296,7 @@ class _PollDetailScreenState
             'نظرسنجی',
             style: TextStyle(
               fontSize: 18,
-              fontWeight:
-              FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
@@ -179,10 +313,8 @@ class _PollDetailScreenState
   Widget _buildBody() {
     if (isLoading) {
       return const Center(
-        child:
-        CircularProgressIndicator(
-          color:
-          Color(0xff00ACC1),
+        child: CircularProgressIndicator(
+          color: Color(0xff00ACC1),
         ),
       );
     }
@@ -190,46 +322,33 @@ class _PollDetailScreenState
     if (errorMessage != null) {
       return Center(
         child: Column(
-          mainAxisSize:
-          MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
-
             const Icon(
               Icons.error_outline_rounded,
-              size: 50,
+              size: 55,
               color: Colors.grey,
             ),
 
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
 
             Text(
               errorMessage!,
-              style:
-              const TextStyle(
+              style: const TextStyle(
                 color: Colors.grey,
               ),
             ),
 
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
 
             ElevatedButton(
-              onPressed:
-              loadPoll,
-              style:
-              ElevatedButton.styleFrom(
+              onPressed: loadPoll,
+              style: ElevatedButton.styleFrom(
                 backgroundColor:
-                const Color(
-                  0xff00ACC1,
-                ),
-                foregroundColor:
-                Colors.white,
+                const Color(0xff00ACC1),
+                foregroundColor: Colors.white,
               ),
-              child:
-              const Text(
+              child: const Text(
                 'تلاش مجدد',
               ),
             ),
@@ -241,239 +360,234 @@ class _PollDetailScreenState
     if (poll == null) {
       return const Center(
         child: Text(
-          'اطلاعات نظرسنجی پیدا نشد.',
+          'نظرسنجی پیدا نشد.',
         ),
       );
     }
 
-    final title =
-        poll!['title']
-            ?.toString() ??
-            '-';
+    final hasVoted =
+        poll!['has_voted'] == true;
 
-    final description =
-    poll!['description']
-        ?.toString();
+    return RefreshIndicator(
+      color: const Color(0xff00ACC1),
+      onRefresh: loadPoll,
 
-    if (questions.isEmpty) {
-      return Center(
-        child: Text(
-          'برای این نظرسنجی سؤالی ثبت نشده است.',
-          style:
-          const TextStyle(
-            color: Colors.grey,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          18,
+          20,
+          18,
+          35,
+        ),
+
+        children: [
+          _buildPollHeader(),
+
+          const SizedBox(height: 20),
+
+          if (hasVoted)
+            _buildVotedMessage(),
+
+          const SizedBox(height: 10),
+
+          _buildQuestions(
+            showResults: hasVoted,
           ),
-        ),
-      );
-    }
 
-    return SingleChildScrollView(
-      padding:
-      const EdgeInsets.fromLTRB(
-        18,
-        20,
-        18,
-        30,
+          if (!hasVoted) ...[
+            const SizedBox(height: 25),
+
+            SizedBox(
+              height: 52,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                isSubmitting
+                    ? null
+                    : submitVote,
+
+                style:
+                ElevatedButton.styleFrom(
+                  backgroundColor:
+                  const Color(0xff00ACC1),
+                  foregroundColor:
+                  Colors.white,
+
+                  elevation: 0,
+
+                  shape:
+                  RoundedRectangleBorder(
+                    borderRadius:
+                    BorderRadius.circular(
+                      16,
+                    ),
+                  ),
+                ),
+
+                child: isSubmitting
+                    ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child:
+                  CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  'ثبت رأی',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // Header
+  // =====================================================
+
+  Widget _buildPollHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(22),
+
+        boxShadow: [
+          BoxShadow(
+            color:
+            Colors.black.withOpacity(
+              0.05,
+            ),
+            blurRadius: 12,
+            offset:
+            const Offset(0, 5),
+          ),
+        ],
       ),
 
       child: Column(
         crossAxisAlignment:
-        CrossAxisAlignment.stretch,
+        CrossAxisAlignment.start,
 
         children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
 
-          // =================================================
-          // اطلاعات نظرسنجی
-          // =================================================
+                decoration: BoxDecoration(
+                  color: Colors.amber
+                      .withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
 
-          Container(
-            padding:
-            const EdgeInsets.all(20),
-
-            decoration:
-            BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-              BorderRadius.circular(
-                22,
+                child: const Icon(
+                  Icons.poll_outlined,
+                  color: Colors.amber,
+                  size: 28,
+                ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black
-                      .withOpacity(0.05),
-                  blurRadius: 10,
-                  offset:
-                  const Offset(0, 4),
-                ),
-              ],
-            ),
 
-            child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              const SizedBox(width: 14),
 
-              children: [
+              Expanded(
+                child: Text(
+                  poll?['title']
+                      ?.toString() ??
+                      '-',
 
-                Row(
-                  children: [
-
-                    Container(
-                      width: 50,
-                      height: 50,
-
-                      decoration:
-                      BoxDecoration(
-                        color: Colors.amber
-                            .withOpacity(
-                          0.15,
-                        ),
-                        shape:
-                        BoxShape.circle,
-                      ),
-
-                      child:
-                      const Icon(
-                        Icons.poll_outlined,
-                        color:
-                        Colors.amber,
-                        size: 28,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      width: 14,
-                    ),
-
-                    Expanded(
-                      child: Text(
-                        title,
-                        style:
-                        const TextStyle(
-                          fontSize: 18,
-                          fontWeight:
-                          FontWeight.bold,
-                          color:
-                          Color(
-                            0xff263238,
-                          ),
-                          height: 1.7,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (description !=
-                    null &&
-                    description
-                        .trim()
-                        .isNotEmpty) ...[
-
-                  const SizedBox(
-                    height: 15,
+                  style:
+                  const TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                    FontWeight.bold,
+                    color:
+                    Color(0xff263238),
+                    height: 1.7,
                   ),
-
-                  Text(
-                    description,
-                    style:
-                    const TextStyle(
-                      fontSize: 14,
-                      color:
-                      Colors.grey,
-                      height: 1.8,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(
-            height: 18,
-          ),
+          if (poll?['description'] != null &&
+              poll!['description']
+                  .toString()
+                  .trim()
+                  .isNotEmpty) ...[
+            const SizedBox(height: 15),
 
-          // =================================================
-          // سؤالات
-          // =================================================
-
-          ...questions
-              .asMap()
-              .entries
-              .map(
-                (entry) {
-
-              final index =
-                  entry.key;
-
-              final question =
-              Map<String, dynamic>
-                  .from(
-                entry.value,
-              );
-
-              return _buildQuestion(
-                question,
-                index,
-              );
-            },
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          // =================================================
-          // ثبت پاسخ
-          // =================================================
-
-          SizedBox(
-            height: 52,
-
-            child:
-            ElevatedButton(
-              onPressed:
-              isSubmitting
-                  ? null
-                  : _submitPoll,
+            Text(
+              poll!['description']
+                  .toString(),
 
               style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                const Color(
-                  0xff00ACC1,
-                ),
-                foregroundColor:
-                Colors.white,
-                elevation: 0,
-
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    16,
-                  ),
-                ),
+              const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+                height: 1.8,
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-              child: isSubmitting
-                  ? const SizedBox(
-                width: 22,
-                height: 22,
-                child:
-                CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color:
-                  Colors.white,
-                ),
-              )
-                  : const Text(
-                'ثبت پاسخ‌ها',
-                style:
-                TextStyle(
-                  fontSize: 15,
-                  fontWeight:
-                  FontWeight.bold,
-                ),
+  // =====================================================
+  // پیام رأی داده شده
+  // =====================================================
+
+  Widget _buildVotedMessage() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 13,
+      ),
+
+      decoration: BoxDecoration(
+        color: Colors.green
+            .withOpacity(0.08),
+
+        borderRadius:
+        BorderRadius.circular(15),
+
+        border: Border.all(
+          color: Colors.green
+              .withOpacity(0.20),
+        ),
+      ),
+
+      child: const Row(
+        children: [
+          Icon(
+            Icons.check_circle_rounded,
+            color: Colors.green,
+            size: 23,
+          ),
+
+          SizedBox(width: 10),
+
+          Expanded(
+            child: Text(
+              'شما در این نظرسنجی شرکت کرده‌اید.',
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: 13,
+                fontWeight:
+                FontWeight.w600,
               ),
             ),
           ),
@@ -483,25 +597,44 @@ class _PollDetailScreenState
   }
 
   // =====================================================
-  // سؤال
+  // Questions
   // =====================================================
 
-  Widget _buildQuestion(
-      Map<String, dynamic> question,
-      int index,
-      ) {
-    final questionId =
-        int.tryParse(
-          question['id']
-              ?.toString() ??
-              '',
-        ) ??
-            index;
+  Widget _buildQuestions({
+    required bool showResults,
+  }) {
+    final questions =
+    List<Map<String, dynamic>>.from(
+      poll?['questions'] ?? [],
+    );
 
-    final title =
-        question['title']
-            ?.toString() ??
-            '-';
+    return Column(
+      children: [
+        for (int i = 0;
+        i < questions.length;
+        i++)
+          _buildQuestion(
+            question: questions[i],
+            number: i + 1,
+            showResults: showResults,
+          ),
+      ],
+    );
+  }
+
+  // =====================================================
+  // Question
+  // =====================================================
+
+  Widget _buildQuestion({
+    required Map<String, dynamic> question,
+    required int number,
+    required bool showResults,
+  }) {
+    final questionId =
+    int.parse(
+      question['id'].toString(),
+    );
 
     final type =
         question['question_type']
@@ -509,8 +642,9 @@ class _PollDetailScreenState
             'single';
 
     final choices =
-        (question['choices'] as List?) ??
-            [];
+    List<Map<String, dynamic>>.from(
+      question['choices'] ?? [],
+    );
 
     return Container(
       margin:
@@ -521,17 +655,17 @@ class _PollDetailScreenState
       padding:
       const EdgeInsets.all(18),
 
-      decoration:
-      BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius:
-        BorderRadius.circular(
-          20,
-        ),
+        BorderRadius.circular(20),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withOpacity(0.05),
+            color:
+            Colors.black.withOpacity(
+              0.05,
+            ),
             blurRadius: 10,
             offset:
             const Offset(0, 4),
@@ -544,9 +678,8 @@ class _PollDetailScreenState
         CrossAxisAlignment.start,
 
         children: [
-
           Text(
-            '${toPersianDigits((index + 1).toString())}. $title',
+            '$number. ${question['title'] ?? '-'}',
 
             style:
             const TextStyle(
@@ -559,23 +692,20 @@ class _PollDetailScreenState
             ),
           ),
 
-          const SizedBox(
-            height: 12,
-          ),
+          const SizedBox(height: 15),
 
-          if (type == 'yesno')
-            _buildYesNo(
-              questionId,
+          for (final choice in choices)
+            showResults
+                ? _buildResultChoice(
+              choice,
             )
-          else if (type == 'multi')
-            _buildMultiChoice(
+                : _buildSelectableChoice(
+              questionId:
               questionId,
-              choices,
-            )
-          else
-            _buildSingleChoice(
-              questionId,
-              choices,
+              questionType:
+              type,
+              choice:
+              choice,
             ),
         ],
       ),
@@ -583,266 +713,242 @@ class _PollDetailScreenState
   }
 
   // =====================================================
-  // بلی / خیر
+  // گزینه انتخابی
   // =====================================================
 
-  Widget _buildYesNo(
-      int questionId,
-      ) {
+  Widget _buildSelectableChoice({
+    required int questionId,
+    required String questionType,
+    required Map<String, dynamic> choice,
+  }) {
+    final choiceId =
+    int.parse(
+      choice['id'].toString(),
+    );
+
     final selected =
-    answers[questionId];
+        selectedChoices[questionId]
+            ?.contains(choiceId) ??
+            false;
 
-    return Column(
-      children: [
+    return InkWell(
+      borderRadius:
+      BorderRadius.circular(13),
 
-        RadioListTile<String>(
-          value: 'yes',
-          groupValue:
-          selected,
+      onTap: () {
+        selectChoice(
+          questionId: questionId,
+          choiceId: choiceId,
+          questionType:
+          questionType,
+        );
+      },
 
-          title:
-          const Text('بلی'),
-
-          activeColor:
-          const Color(
-            0xff00ACC1,
-          ),
-
-          contentPadding:
-          EdgeInsets.zero,
-
-          onChanged:
-              (value) {
-            setState(() {
-              answers[
-              questionId] =
-                  value;
-            });
-          },
+      child: Container(
+        margin:
+        const EdgeInsets.only(
+          bottom: 8,
         ),
 
-        RadioListTile<String>(
-          value: 'no',
-          groupValue:
-          selected,
-
-          title:
-          const Text('خیر'),
-
-          activeColor:
-          const Color(
-            0xff00ACC1,
-          ),
-
-          contentPadding:
-          EdgeInsets.zero,
-
-          onChanged:
-              (value) {
-            setState(() {
-              answers[
-              questionId] =
-                  value;
-            });
-          },
+        padding:
+        const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
         ),
-      ],
-    );
-  }
 
-  // =====================================================
-  // تک انتخابی
-  // =====================================================
-
-  Widget _buildSingleChoice(
-      int questionId,
-      List<dynamic> choices,
-      ) {
-    final selected =
-    answers[questionId];
-
-    return Column(
-      children:
-      choices.map((item) {
-
-        final choice =
-        Map<String, dynamic>
-            .from(item);
-
-        final choiceId =
-        choice['id'];
-
-        return RadioListTile<dynamic>(
-          value: choiceId,
-          groupValue:
-          selected,
-
-          title: Text(
-            choice['title']
-                ?.toString() ??
-                '-',
-          ),
-
-          activeColor:
-          const Color(
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(
             0xff00ACC1,
-          ),
+          ).withOpacity(0.08)
+              : Colors.transparent,
 
-          contentPadding:
-          EdgeInsets.zero,
+          borderRadius:
+          BorderRadius.circular(13),
 
-          onChanged:
-              (value) {
-            setState(() {
-              answers[
-              questionId] =
-                  value;
-            });
-          },
-        );
-      }).toList(),
-    );
-  }
-
-  // =====================================================
-  // چند انتخابی
-  // =====================================================
-
-  Widget _buildMultiChoice(
-      int questionId,
-      List<dynamic> choices,
-      ) {
-    final selected =
-    List<dynamic>.from(
-      answers[questionId] ??
-          [],
-    );
-
-    return Column(
-      children:
-      choices.map((item) {
-
-        final choice =
-        Map<String, dynamic>
-            .from(item);
-
-        final choiceId =
-        choice['id'];
-
-        final isSelected =
-        selected.contains(
-          choiceId,
-        );
-
-        return CheckboxListTile(
-          value:
-          isSelected,
-
-          title: Text(
-            choice['title']
-                ?.toString() ??
-                '-',
-          ),
-
-          activeColor:
-          const Color(
-            0xff00ACC1,
-          ),
-
-          contentPadding:
-          EdgeInsets.zero,
-
-          onChanged:
-              (value) {
-
-            setState(() {
-
-              final updated =
-              List<dynamic>.from(
-                selected,
-              );
-
-              if (value == true) {
-
-                if (!updated
-                    .contains(
-                  choiceId,
-                )) {
-                  updated.add(
-                    choiceId,
-                  );
-                }
-
-              } else {
-                updated.remove(
-                  choiceId,
-                );
-              }
-
-              answers[
-              questionId] =
-                  updated;
-            });
-          },
-        );
-      }).toList(),
-    );
-  }
-
-  // =====================================================
-  // ثبت پاسخ
-  // =====================================================
-
-  Future<void> _submitPoll() async {
-
-    if (answers.length <
-        questions.length) {
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'لطفاً به همه سؤالات پاسخ دهید.',
+          border: Border.all(
+            color: selected
+                ? const Color(
+              0xff00ACC1,
+            )
+                : Colors.grey
+                .withOpacity(0.20),
           ),
         ),
-      );
 
-      return;
-    }
+        child: Row(
+          children: [
+            Icon(
+              questionType == 'multi'
+                  ? selected
+                  ? Icons
+                  .check_box_rounded
+                  : Icons
+                  .check_box_outline_blank
+                  : selected
+                  ? Icons
+                  .radio_button_checked
+                  : Icons
+                  .radio_button_off,
 
-    setState(() {
-      isSubmitting = true;
-    });
+              color: selected
+                  ? const Color(
+                0xff00ACC1,
+              )
+                  : Colors.grey,
 
-    // فعلاً ارسال واقعی پاسخ‌ها
-    // را بعد از نهایی شدن API انجام می‌دهیم.
+              size: 23,
+            ),
 
-    await Future.delayed(
-      const Duration(
-        milliseconds: 500,
-      ),
-    );
+            const SizedBox(width: 10),
 
-    if (!mounted) return;
+            Expanded(
+              child: Text(
+                choice['title']
+                    ?.toString() ??
+                    '-',
 
-    setState(() {
-      isSubmitting = false;
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'پاسخ‌های شما ثبت شد.',
+                style:
+                const TextStyle(
+                  fontSize: 14,
+                  color:
+                  Color(0xff37474F),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
 
-    Navigator.pop(
-      context,
-      true,
+  // =====================================================
+  // نتیجه هر گزینه
+  // =====================================================
+
+  Widget _buildResultChoice(
+      Map<String, dynamic> choice,
+      ) {
+    final title =
+        choice['title']
+            ?.toString() ??
+            '-';
+
+    final percentage =
+        double.tryParse(
+          choice['percentage']
+              ?.toString() ??
+              '0',
+        ) ??
+            0;
+
+    final voteCount =
+        int.tryParse(
+          choice['vote_count']
+              ?.toString() ??
+              '0',
+        ) ??
+            0;
+
+    final percentText =
+    toPersianDigits(
+      percentage
+          .toStringAsFixed(1),
+    );
+
+    final voteText =
+    toPersianDigits(
+      voteCount.toString(),
+    );
+
+    return Container(
+      margin:
+      const EdgeInsets.only(
+        bottom: 12,
+      ),
+
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style:
+                  const TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                    FontWeight.w600,
+                    color:
+                    Color(0xff37474F),
+                  ),
+                ),
+              ),
+
+              Text(
+                '$percentText٪',
+
+                style:
+                const TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                  FontWeight.bold,
+                  color:
+                  Color(0xff00ACC1),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 7),
+
+          ClipRRect(
+            borderRadius:
+            BorderRadius.circular(
+              10,
+            ),
+
+            child: LinearProgressIndicator(
+              minHeight: 9,
+
+              value:
+              (percentage / 100)
+                  .clamp(
+                0.0,
+                1.0,
+              ),
+
+              backgroundColor:
+              const Color(
+                0xffE8EEF0,
+              ),
+
+              valueColor:
+              const AlwaysStoppedAnimation<
+                  Color>(
+                Color(0xff00ACC1),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          Align(
+            alignment:
+            Alignment.centerLeft,
+
+            child: Text(
+              '$voteText رأی',
+
+              style:
+              const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

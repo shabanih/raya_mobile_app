@@ -5,6 +5,9 @@ import 'announcements_screen.dart';
 import '../storage/token_storage.dart';
 import 'login_screen.dart';
 import 'polls_screen.dart';
+import '../services/poll_service.dart';
+import '../services/announcement_service.dart';
+import '../services/api_service.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -22,9 +25,137 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int currentIndex = 1;
 
-  bool hasNewAnnouncements = true;
-  bool hasNewPolls = true;
+  bool hasNewAnnouncements = false;
+  bool hasNewPolls = false;
 
+  Map<String, dynamic>? dashboardData;
+  bool isDashboardLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    debugPrint(
+      'HOME DATA = ${widget.data}',
+    );
+
+    loadDashboard();
+
+    loadPollStatus();
+    loadAnnouncementStatus();
+  }
+
+  Future<void> loadPollStatus() async {
+    try {
+      final result = await PollService.getPolls();
+
+      if (!mounted) return;
+
+      bool newPollExists = false;
+
+      for (final poll in result) {
+        if (poll is Map<String, dynamic>) {
+          final isActive = poll['is_active'] == true;
+          final hasVoted = poll['has_voted'] == true;
+
+          if (isActive && !hasVoted) {
+            newPollExists = true;
+            break;
+          }
+        }
+      }
+
+      setState(() {
+        hasNewPolls = newPollExists;
+      });
+    } catch (e) {
+      debugPrint(
+        'LOAD POLL STATUS ERROR: $e',
+      );
+    }
+  }
+
+  Future<void> loadDashboard() async {
+    try {
+      debugPrint(
+          '========== LOAD DASHBOARD =========='
+      );
+
+      final data =
+      await ApiService().getDashboard();
+
+      debugPrint(
+        'DASHBOARD DATA = $data',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        dashboardData = data;
+        isDashboardLoading = false;
+      });
+    } catch (e) {
+      debugPrint(
+        'LOAD DASHBOARD ERROR = $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        isDashboardLoading = false;
+      });
+    }
+  }
+
+  Future<void> loadAnnouncementStatus() async {
+    try {
+      final userId = int.tryParse(
+        user['id']?.toString() ?? '',
+      );
+
+      if (userId == null) {
+        debugPrint('ANNOUNCEMENT: USER ID NOT FOUND');
+        return;
+      }
+
+      final hasNew =
+      await AnnouncementService.hasNewAnnouncements(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        hasNewAnnouncements = hasNew;
+      });
+
+      debugPrint(
+        'ANNOUNCEMENT STATUS: $hasNew | USER ID: $userId',
+      );
+    } catch (e) {
+      debugPrint(
+        'LOAD ANNOUNCEMENT STATUS ERROR: $e',
+      );
+    }
+  }
+
+// =====================================================
+// آخرین شارژ
+// =====================================================
+
+  Map<String, dynamic> get latestCharge {
+    return (dashboardData?['latest_charge']
+    as Map<String, dynamic>?) ??
+        {};
+  }
+
+  String get latestChargeTitle {
+    final title = latestCharge['title']?.toString();
+
+    if (title == null || title.isEmpty) {
+      return 'شارژی ثبت نشده است';
+    }
+
+    return title;
+  }
 // =====================================================
 // تبدیل اعداد انگلیسی به فارسی
 // =====================================================
@@ -125,16 +256,26 @@ class _HomeScreenState extends State<HomeScreen> {
   // بعداً از API دریافت می‌شود.
   // =====================================================
 
-  final int paidAmount = 3500000;
+  int get paidAmount {
+    final statistics =
+    dashboardData?['statistics']
+    as Map<String, dynamic>?;
 
-  // =====================================================
-  // مبلغ پرداخت نشده
-  //
-  // فعلاً نمونه
-  // =====================================================
+    return int.tryParse(
+      statistics?['total_paid']?.toString() ?? '0',
+    ) ??
+        0;
+  }
+  int get unpaidAmount {
+    final statistics =
+    dashboardData?['statistics']
+    as Map<String, dynamic>?;
 
-  final int unpaidAmount = 1500000;
-
+    return int.tryParse(
+      statistics?['total_debt']?.toString() ?? '0',
+    ) ??
+        0;
+  }
   // =====================================================
   // فرمت مبلغ
   // =====================================================
@@ -324,75 +465,83 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 17),
 
 // =================================================
-// آخرین اطلاعیه شارژ
+// آخرین شارژ
 // =================================================
 
-            Container(
-              padding: const EdgeInsets.symmetric(
-                vertical: 17,
-                horizontal: 18,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff00ACC1).withOpacity(0.12),
-                      shape: BoxShape.circle,
+            InkWell(
+              onTap: () {
+                setState(() {
+                  currentIndex = 0;
+                });
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 17,
+                  horizontal: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
                     ),
-                    child: const Icon(
-                      Icons.notifications_none_rounded,
-                      color: Color(0xff00ACC1),
-                      size: 26,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff00ACC1).withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: Color(0xff00ACC1),
+                        size: 26,
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(width: 14),
+                    const SizedBox(width: 14),
 
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'آخرین اطلاعیه شارژ',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'آخرین شارژ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 5),
+                          const SizedBox(height: 5),
 
-                        const Text(
-                          'شارژ مرداد ۱۴۰۵',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xff263238),
+                          Text(
+                            latestChargeTitle,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xff263238),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  const Icon(
-                    Icons.chevron_left_rounded,
-                    color: Colors.grey,
-                    size: 25,
-                  ),
-                ],
+                    const Icon(
+                      Icons.chevron_left_rounded,
+                      color: Colors.grey,
+                      size: 25,
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -795,18 +944,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 IconButton(
                   tooltip: 'نظرسنجی',
                   onPressed: () async {
-
-                    setState(() {
-                      hasNewPolls = false;
-                    });
-
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                        const PollsScreen(),
+                        builder: (_) => const PollsScreen(),
                       ),
                     );
+
+                    // بعد از برگشت، وضعیت واقعی نظرسنجی‌ها را دوباره بگیر
+                    await loadPollStatus();
                   },
                   icon: const Icon(
                     Icons.poll_outlined,
@@ -821,8 +967,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       width: 9,
                       height: 9,
-                      decoration:
-                      const BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.amber,
                         shape: BoxShape.circle,
                       ),
@@ -841,26 +986,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 IconButton(
                   tooltip: 'اطلاعیه‌ها',
                   onPressed: () async {
-                    // ---------------------------------------------
-                    // قبل از ورود به صفحه اطلاعیه‌ها
-                    // نقطه قرمز را حذف می‌کنیم
-                    // ---------------------------------------------
+                    final userId = int.tryParse(
+                      user['id']?.toString() ?? '',
+                    );
 
-                    setState(() {
-                      hasNewAnnouncements = false;
-                    });
-
-                    // ---------------------------------------------
-                    // باز کردن صفحه اطلاعیه‌ها
-                    // ---------------------------------------------
+                    if (userId == null) {
+                      debugPrint(
+                        'ANNOUNCEMENT: USER ID NOT FOUND',
+                      );
+                      return;
+                    }
 
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                        const AnnouncementsScreen(),
+                        builder: (_) => AnnouncementsScreen(
+                          userId: userId,
+                        ),
                       ),
                     );
+
+                    // بعد از برگشت از صفحه اطلاعیه‌ها
+                    // وضعیت نقطه قرمز را دوباره بررسی می‌کنیم
+                    await loadAnnouncementStatus();
                   },
                   icon: const Icon(
                     Icons.notifications_none_rounded,
@@ -868,7 +1016,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // نقطه قرمز اطلاعیه جدید
                 if (hasNewAnnouncements)
                   Positioned(
                     top: 8,
@@ -896,8 +1043,8 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 50,
+                height: 50,
                 padding: const EdgeInsets.all(10),
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -909,13 +1056,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(width: 15),
 
               const Text(
                 'رایا شارژ',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 17,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),

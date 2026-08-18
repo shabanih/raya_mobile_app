@@ -130,6 +130,67 @@ class ApiService {
           '${response.statusCode}',
     );
   }
+  // =====================================================
+// دریافت اطلاعات Dashboard
+// =====================================================
+
+  Future<Map<String, dynamic>> getDashboard() async {
+    final token = await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'توکن ورود پیدا نشد',
+      );
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConfig.dashboard),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      debugPrint(
+        'DASHBOARD STATUS: ${response.statusCode}',
+      );
+
+      debugPrint(
+        'DASHBOARD RESPONSE: ${response.body}',
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+
+        throw Exception(
+          'اطلاعات Dashboard نامعتبر است.',
+        );
+      }
+
+      if (response.statusCode == 401) {
+        throw Exception(
+          'TOKEN_EXPIRED',
+        );
+      }
+
+      throw Exception(
+        'خطا در دریافت Dashboard: '
+            '${response.statusCode}',
+      );
+    } catch (e) {
+      debugPrint(
+        'DASHBOARD ERROR: $e',
+      );
+
+      rethrow;
+    }
+  }
 
   // =====================================================
   // Refresh Token

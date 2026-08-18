@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../services/announcement_service.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
-  const AnnouncementsScreen({super.key});
+  final int userId;
+
+  const AnnouncementsScreen({
+    super.key,
+    required this.userId,
+  });
 
   @override
   State<AnnouncementsScreen> createState() =>
@@ -12,7 +17,6 @@ class AnnouncementsScreen extends StatefulWidget {
 
 class _AnnouncementsScreenState
     extends State<AnnouncementsScreen> {
-
   bool isLoading = true;
 
   String? errorMessage;
@@ -38,10 +42,13 @@ class _AnnouncementsScreenState
 
       // =====================================================
       // اطلاعیه‌ها دریافت شدند
-      // آخرین اطلاعیه به عنوان دیده‌شده ثبت می‌شود
+      // فقط برای همین کاربر به عنوان دیده‌شده ثبت می‌شوند
       // =====================================================
 
-      await AnnouncementService.markAsRead(result);
+      await AnnouncementService.markAsRead(
+        widget.userId,
+        result,
+      );
 
       if (!mounted) return;
 
@@ -66,11 +73,15 @@ class _AnnouncementsScreenState
     }
 
     try {
-      final date = DateTime.parse(value).toLocal();
+      final date =
+      DateTime.parse(value).toLocal();
 
-      final year = date.year.toString();
+      final year =
+      date.year.toString();
+
       final month =
       date.month.toString().padLeft(2, '0');
+
       final day =
       date.day.toString().padLeft(2, '0');
 
@@ -99,7 +110,8 @@ class _AnnouncementsScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xffF5F8FA),
+        backgroundColor:
+        const Color(0xffF5F8FA),
 
         appBar: AppBar(
           backgroundColor:
@@ -155,12 +167,14 @@ class _AnnouncementsScreenState
 
             ElevatedButton(
               onPressed: loadAnnouncements,
-              style: ElevatedButton.styleFrom(
+              style:
+              ElevatedButton.styleFrom(
                 backgroundColor:
                 const Color(0xff00ACC1),
                 foregroundColor: Colors.white,
               ),
-              child: const Text('تلاش مجدد'),
+              child:
+              const Text('تلاش مجدد'),
             ),
           ],
         ),
@@ -202,25 +216,33 @@ class _AnnouncementsScreenState
       onRefresh: loadAnnouncements,
 
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(
+        padding:
+        const EdgeInsets.fromLTRB(
           18,
           20,
           18,
           30,
         ),
 
-        itemCount: announcements.length,
+        itemCount:
+        announcements.length,
 
-        itemBuilder: (context, index) {
+        itemBuilder:
+            (context, index) {
           final announcement =
           announcements[index];
 
           return _AnnouncementCard(
             title:
-            announcement['title']?.toString() ?? '-',
+            announcement['title']
+                ?.toString() ??
+                '-',
+
             date: formatDate(
-              announcement['created_at']?.toString(),
+              announcement['created_at']
+                  ?.toString(),
             ),
+
             toPersianDigits:
             toPersianDigits,
           );
@@ -232,7 +254,6 @@ class _AnnouncementsScreenState
 
 class _AnnouncementCard
     extends StatelessWidget {
-
   final String title;
   final String date;
 
@@ -246,13 +267,16 @@ class _AnnouncementCard
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(
+      margin:
+      const EdgeInsets.only(
         bottom: 14,
       ),
 
-      padding: const EdgeInsets.all(17),
+      padding:
+      const EdgeInsets.all(17),
 
       decoration: BoxDecoration(
         color: Colors.white,
@@ -262,7 +286,9 @@ class _AnnouncementCard
         boxShadow: [
           BoxShadow(
             color:
-            Colors.black.withOpacity(0.05),
+            Colors.black.withOpacity(
+              0.05,
+            ),
             blurRadius: 10,
             offset:
             const Offset(0, 4),
@@ -288,8 +314,10 @@ class _AnnouncementCard
             ),
 
             child: const Icon(
-              Icons.notifications_none_rounded,
-              color: Color(0xff00ACC1),
+              Icons
+                  .notifications_none_rounded,
+              color:
+              Color(0xff00ACC1),
               size: 27,
             ),
           ),
@@ -305,7 +333,8 @@ class _AnnouncementCard
                 Text(
                   title,
 
-                  style: const TextStyle(
+                  style:
+                  const TextStyle(
                     fontSize: 16,
                     fontWeight:
                     FontWeight.bold,
@@ -321,19 +350,24 @@ class _AnnouncementCard
                   Row(
                     children: [
                       const Icon(
-                        Icons.access_time_rounded,
+                        Icons
+                            .access_time_rounded,
                         size: 15,
-                        color: Colors.grey,
+                        color:
+                        Colors.grey,
                       ),
 
                       const SizedBox(width: 5),
 
                       Text(
-                        toPersianDigits(date),
+                        toPersianDigits(
+                          date,
+                        ),
                         style:
                         const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color:
+                          Colors.grey,
                         ),
                       ),
                     ],

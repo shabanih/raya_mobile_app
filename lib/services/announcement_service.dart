@@ -7,8 +7,13 @@ import '../config/api_config.dart';
 import '../storage/token_storage.dart';
 
 class AnnouncementService {
-  static const String _lastSeenAnnouncementIdKey =
-      'last_seen_announcement_id';
+  // =====================================================
+  // کلید مخصوص هر کاربر
+  // =====================================================
+
+  static String _lastSeenAnnouncementIdKey(int userId) {
+    return 'last_seen_announcement_id_user_$userId';
+  }
 
   // =====================================================
   // دریافت 5 اطلاعیه آخر
@@ -58,10 +63,12 @@ class AnnouncementService {
   }
 
   // =====================================================
-  // بررسی وجود اطلاعیه جدید
+  // بررسی وجود اطلاعیه جدید برای کاربر مشخص
   // =====================================================
 
-  static Future<bool> hasNewAnnouncements() async {
+  static Future<bool> hasNewAnnouncements(
+      int userId,
+      ) async {
     final announcements =
     await getAnnouncements();
 
@@ -70,7 +77,9 @@ class AnnouncementService {
     }
 
     final latestId =
-    announcements.first['id'];
+    int.tryParse(
+      announcements.first['id']?.toString() ?? '',
+    );
 
     if (latestId == null) {
       return false;
@@ -81,10 +90,10 @@ class AnnouncementService {
 
     final lastSeenId =
     prefs.getInt(
-      _lastSeenAnnouncementIdKey,
+      _lastSeenAnnouncementIdKey(userId),
     );
 
-    // اولین بار ورود به برنامه
+    // اولین بار این کاربر اطلاعیه‌ها را بررسی می‌کند
     if (lastSeenId == null) {
       return true;
     }
@@ -94,9 +103,11 @@ class AnnouncementService {
 
   // =====================================================
   // اطلاعیه‌ها دیده شدند
+  // فقط برای همین کاربر
   // =====================================================
 
   static Future<void> markAsRead(
+      int userId,
       List<Map<String, dynamic>> announcements,
       ) async {
     if (announcements.isEmpty) {
@@ -104,7 +115,9 @@ class AnnouncementService {
     }
 
     final latestId =
-    announcements.first['id'];
+    int.tryParse(
+      announcements.first['id']?.toString() ?? '',
+    );
 
     if (latestId == null) {
       return;
@@ -114,23 +127,23 @@ class AnnouncementService {
     await SharedPreferences.getInstance();
 
     await prefs.setInt(
-      _lastSeenAnnouncementIdKey,
+      _lastSeenAnnouncementIdKey(userId),
       latestId,
     );
   }
 
   // =====================================================
-  // پاک کردن وضعیت اطلاعیه‌ها
-  //
-  // هنگام Logout استفاده می‌شود
+  // پاک کردن وضعیت اطلاعیه‌های همین کاربر
   // =====================================================
 
-  static Future<void> clearReadStatus() async {
+  static Future<void> clearReadStatus(
+      int userId,
+      ) async {
     final prefs =
     await SharedPreferences.getInstance();
 
     await prefs.remove(
-      _lastSeenAnnouncementIdKey,
+      _lastSeenAnnouncementIdKey(userId),
     );
   }
 }
