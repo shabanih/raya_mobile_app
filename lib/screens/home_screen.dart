@@ -8,6 +8,7 @@ import 'polls_screen.dart';
 import '../services/poll_service.dart';
 import '../services/announcement_service.dart';
 import '../services/api_service.dart';
+import 'charges_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -649,17 +650,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // =====================================================
 
   Widget buildChargesPage() {
-    return const Center(
-      child: Text(
-        'شارژها',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    return const ChargesScreen();
   }
-
   // =====================================================
   // صفحه پروفایل
   // =====================================================
