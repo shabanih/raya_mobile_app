@@ -28,13 +28,8 @@ class ApiService {
         }),
       );
 
-      debugPrint(
-        'LOGIN STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'LOGIN RESPONSE: ${response.body}',
-      );
+      debugPrint('LOGIN STATUS: ${response.statusCode}');
+      debugPrint('LOGIN RESPONSE: ${response.body}');
 
       if (response.statusCode != 200) {
         Map<String, dynamic> data = {};
@@ -64,10 +59,7 @@ class ApiService {
 
       return decoded;
     } catch (e) {
-      debugPrint(
-        'LOGIN ERROR: $e',
-      );
-
+      debugPrint('LOGIN ERROR: $e');
       rethrow;
     }
   }
@@ -77,13 +69,10 @@ class ApiService {
   // =====================================================
 
   Future<Map<String, dynamic>> getMe() async {
-    final token =
-    await TokenStorage.getAccessToken();
+    final token = await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     final response = await http.get(
@@ -95,13 +84,8 @@ class ApiService {
       },
     );
 
-    debugPrint(
-      'ME STATUS: ${response.statusCode}',
-    );
-
-    debugPrint(
-      'ME RESPONSE: ${response.body}',
-    );
+    debugPrint('ME STATUS: ${response.statusCode}');
+    debugPrint('ME RESPONSE: ${response.body}');
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -116,9 +100,7 @@ class ApiService {
     }
 
     if (response.statusCode == 401) {
-      throw Exception(
-        'TOKEN_EXPIRED',
-      );
+      throw Exception('TOKEN_EXPIRED');
     }
 
     throw Exception(
@@ -132,16 +114,13 @@ class ApiService {
   // =====================================================
 
   Future<Map<String, dynamic>> getDashboard() async {
-    final token =
-    await TokenStorage.getAccessToken();
+    Future<Map<String, dynamic>> request() async {
+      final token = await TokenStorage.getAccessToken();
 
-    if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
-    }
+      if (token == null || token.isEmpty) {
+        throw Exception('توکن ورود پیدا نشد');
+      }
 
-    try {
       final response = await http.get(
         Uri.parse(ApiConfig.dashboard),
         headers: {
@@ -151,40 +130,63 @@ class ApiService {
         },
       );
 
-      debugPrint(
-        'DASHBOARD STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'DASHBOARD RESPONSE: ${response.body}',
-      );
+      debugPrint('==========================================');
+      debugPrint('GET DASHBOARD');
+      debugPrint('STATUS: ${response.statusCode}');
+      debugPrint('BODY: ${response.body}');
+      debugPrint('==========================================');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data is Map<String, dynamic>) {
-          return data;
+        if (data is! Map<String, dynamic>) {
+          throw Exception(
+            'اطلاعات Dashboard نامعتبر است.',
+          );
         }
 
-        throw Exception(
-          'اطلاعات Dashboard نامعتبر است.',
-        );
+        final statistics = data['statistics'];
+
+        if (statistics is Map) {
+          debugPrint(
+            'DASHBOARD STATISTICS: '
+                'paid=${statistics['paid_count']} | '
+                'unpaid=${statistics['unpaid_count']} | '
+                'pending=${statistics['pending_count']} | '
+                'total_paid=${statistics['total_paid']} | '
+                'total_debt=${statistics['total_debt']}',
+          );
+        }
+
+        return data;
       }
 
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
 
       throw Exception(
         'خطا در دریافت Dashboard: '
             '${response.statusCode}',
       );
+    }
+
+    try {
+      return await request();
     } catch (e) {
       debugPrint(
-        'DASHBOARD ERROR: $e',
+        'GET DASHBOARD FIRST ATTEMPT ERROR: $e',
       );
+
+      if (e.toString().contains('TOKEN_EXPIRED')) {
+        final refreshed = await refreshAccessToken();
+
+        if (!refreshed) {
+          rethrow;
+        }
+
+        return await request();
+      }
 
       rethrow;
     }
@@ -233,8 +235,7 @@ class ApiService {
         return false;
       }
 
-      final newAccessToken =
-      data['access'];
+      final newAccessToken = data['access'];
 
       if (newAccessToken == null ||
           newAccessToken.toString().isEmpty) {
@@ -248,10 +249,7 @@ class ApiService {
 
       return true;
     } catch (e) {
-      debugPrint(
-        'REFRESH ERROR: $e',
-      );
-
+      debugPrint('REFRESH ERROR: $e');
       return false;
     }
   }
@@ -260,8 +258,7 @@ class ApiService {
   // دریافت اطلاعات کاربر با Refresh خودکار
   // =====================================================
 
-  Future<Map<String, dynamic>>
-  getMeWithRefresh() async {
+  Future<Map<String, dynamic>> getMeWithRefresh() async {
     try {
       return await getMe();
     } catch (e) {
@@ -269,14 +266,18 @@ class ApiService {
         'GET ME FIRST ATTEMPT ERROR: $e',
       );
 
-      final refreshed =
-      await refreshAccessToken();
+      if (e.toString().contains('TOKEN_EXPIRED')) {
+        final refreshed =
+        await refreshAccessToken();
 
-      if (!refreshed) {
-        rethrow;
+        if (!refreshed) {
+          rethrow;
+        }
+
+        return await getMe();
       }
 
-      return await getMe();
+      rethrow;
     }
   }
 
@@ -284,15 +285,12 @@ class ApiService {
   // دریافت لیست شارژها
   // =====================================================
 
-  Future<List<Map<String, dynamic>>>
-  getCharges() async {
+  Future<List<Map<String, dynamic>>> getCharges() async {
     final token =
     await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     try {
@@ -332,9 +330,7 @@ class ApiService {
       }
 
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
 
       throw Exception(
@@ -349,23 +345,25 @@ class ApiService {
       rethrow;
     }
   }
-// =====================================================
-// دریافت روش‌های پرداخت شارژ
-// =====================================================
 
-  Future<Map<String, dynamic>> getChargePaymentMethods(
+  // =====================================================
+  // دریافت روش‌های پرداخت شارژ
+  // =====================================================
+
+  Future<Map<String, dynamic>>
+  getChargePaymentMethods(
       int chargeId,
       ) async {
-    final token = await TokenStorage.getAccessToken();
+    final token =
+    await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     try {
-      final url = ApiConfig.chargePaymentMethods(
+      final url =
+      ApiConfig.chargePaymentMethods(
         chargeId,
       );
 
@@ -405,9 +403,7 @@ class ApiService {
       }
 
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
 
       if (response.statusCode == 404) {
@@ -429,25 +425,24 @@ class ApiService {
     }
   }
 
-// =====================================================
-// دریافت حساب‌های بانکی
-// =====================================================
+  // =====================================================
+  // دریافت حساب‌های بانکی
+  // =====================================================
 
-  Future<List<Map<String, dynamic>>> getPaymentBanks(
+  Future<List<Map<String, dynamic>>>
+  getPaymentBanks(
       int chargeId,
       ) async {
-    final token = await TokenStorage.getAccessToken();
+    final token =
+    await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     try {
-      final url = ApiConfig.paymentBanks(
-        chargeId,
-      );
+      final url =
+      ApiConfig.paymentBanks(chargeId);
 
       debugPrint(
         'PAYMENT BANKS URL: $url',
@@ -473,9 +468,7 @@ class ApiService {
       );
 
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
 
       if (response.statusCode != 200) {
@@ -502,7 +495,8 @@ class ApiService {
       return banks
           .whereType<Map>()
           .map(
-            (bank) => Map<String, dynamic>.from(bank),
+            (bank) =>
+        Map<String, dynamic>.from(bank),
       )
           .toList();
     } catch (e) {
@@ -514,26 +508,27 @@ class ApiService {
     }
   }
 
-// =====================================================
-// ثبت پرداخت دستی شارژ
-// =====================================================
+  // =====================================================
+  // ثبت پرداخت دستی شارژ
+  // =====================================================
 
-  Future<Map<String, dynamic>> submitManualChargePayment({
+  Future<Map<String, dynamic>>
+  submitManualChargePayment({
     required int chargeId,
     required int bankId,
     required String transactionReference,
     required String paymentDate,
   }) async {
-    final token = await TokenStorage.getAccessToken();
+    final token =
+    await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
-      );
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     try {
-      final url = ApiConfig.manualChargePayment(
+      final url =
+      ApiConfig.manualChargePayment(
         chargeId,
       );
 
@@ -569,30 +564,21 @@ class ApiService {
       Map<String, dynamic> data = {};
 
       try {
-        final decoded = jsonDecode(
-          response.body,
-        );
+        final decoded =
+        jsonDecode(response.body);
 
         if (decoded is Map<String, dynamic>) {
           data = decoded;
         }
-      } catch (_) {
-        // پاسخ JSON نبوده
-      }
+      } catch (_) {}
 
-      // ===================================================
       // موفق
-      // ===================================================
-
       if (response.statusCode == 200 ||
           response.statusCode == 201) {
         return data;
       }
 
-      // ===================================================
       // خطای اعتبارسنجی
-      // ===================================================
-
       if (response.statusCode == 400) {
         final errors = data['errors'];
 
@@ -629,29 +615,15 @@ class ApiService {
         );
       }
 
-      // ===================================================
-      // عدم احراز هویت
-      // ===================================================
-
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
-
-      // ===================================================
-      // پیدا نشدن مسیر
-      // ===================================================
 
       if (response.statusCode == 404) {
         throw Exception(
           'مسیر ثبت پرداخت دستی در سرور پیدا نشد.',
         );
       }
-
-      // ===================================================
-      // سایر خطاها
-      // ===================================================
 
       throw Exception(
         data['message']?.toString() ??
@@ -669,24 +641,169 @@ class ApiService {
   }
 
   // =====================================================
-  // دریافت جزئیات یک شارژ
+  // دریافت تاریخچه پرداخت‌ها
   // =====================================================
 
-  Future<Map<String, dynamic>>
-  getChargeDetail(int chargeId) async {
+  Future<List<Map<String, dynamic>>>
+  getPaymentHistory() async {
     final token =
     await TokenStorage.getAccessToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'توکن ورود پیدا نشد',
+      throw Exception('توکن ورود پیدا نشد');
+    }
+
+    final uri =
+    Uri.parse(ApiConfig.paymentHistory);
+
+    debugPrint(
+      '==========================================',
+    );
+    debugPrint('GET PAYMENT HISTORY');
+    debugPrint('URL: $uri');
+    debugPrint('TOKEN EXISTS: true');
+    debugPrint(
+      '==========================================',
+    );
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
+
+      debugPrint(
+        'PAYMENT HISTORY STATUS: '
+            '${response.statusCode}',
+      );
+
+      debugPrint(
+        'PAYMENT HISTORY BODY: '
+            '${response.body}',
+      );
+
+      // ================================================
+      // توکن منقضی شده
+      // ================================================
+
+      if (response.statusCode == 401) {
+        throw Exception('TOKEN_EXPIRED');
+      }
+
+      // ================================================
+      // سایر خطاها
+      // ================================================
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'خطا در دریافت تراکنش‌ها: '
+              '${response.statusCode}',
+        );
+      }
+
+      // ================================================
+      // Decode
+      // ================================================
+
+      final decoded =
+      jsonDecode(response.body);
+
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception(
+          'ساختار پاسخ تاریخچه تراکنش‌ها نامعتبر است.',
+        );
+      }
+
+      // ================================================
+      // بررسی success
+      // ================================================
+
+      if (decoded['success'] != true) {
+        throw Exception(
+          decoded['message']?.toString() ??
+              'دریافت تراکنش‌ها ناموفق بود.',
+        );
+      }
+
+      // ================================================
+      // دریافت payments
+      // ================================================
+
+      final dynamic paymentsData =
+      decoded['payments'];
+
+      if (paymentsData is! List) {
+        debugPrint(
+          'PAYMENT HISTORY: payments is not List',
+        );
+
+        return [];
+      }
+
+      // ================================================
+      // تبدیل به List<Map>
+      // ================================================
+
+      final List<Map<String, dynamic>>
+      result = [];
+
+      for (final item in paymentsData) {
+        if (item is Map) {
+          final payment =
+          Map<String, dynamic>.from(item);
+
+          debugPrint(
+            'PAYMENT ITEM: '
+                'id=${payment['id']} | '
+                'description=${payment['payment_description']} | '
+                'amount=${payment['amount']} | '
+                'unit=${payment['unit_number']} | '
+                'payer=${payment['payer_name']}',
+          );
+
+          result.add(payment);
+        }
+      }
+
+      debugPrint(
+        'TOTAL PAYMENT HISTORY ITEMS: '
+            '${result.length}',
+      );
+
+      return result;
+    } catch (e) {
+      debugPrint(
+        'GET PAYMENT HISTORY ERROR: $e',
+      );
+
+      rethrow;
+    }
+  }
+
+  // =====================================================
+  // دریافت جزئیات یک شارژ
+  // =====================================================
+
+  Future<Map<String, dynamic>>
+  getChargeDetail(
+      int chargeId,
+      ) async {
+    final token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception('توکن ورود پیدا نشد');
     }
 
     try {
       final response = await http.get(
         Uri.parse(
-          ApiConfig.chargeDetail(chargeId),
+          ApiConfig.chargeDetail(
+            chargeId,
+          ),
         ),
         headers: {
           'Content-Type': 'application/json',
@@ -706,7 +823,8 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data =
+        jsonDecode(response.body);
 
         if (data is Map<String, dynamic>) {
           final charge = data['charge'];
@@ -722,9 +840,7 @@ class ApiService {
       }
 
       if (response.statusCode == 401) {
-        throw Exception(
-          'TOKEN_EXPIRED',
-        );
+        throw Exception('TOKEN_EXPIRED');
       }
 
       if (response.statusCode == 404) {

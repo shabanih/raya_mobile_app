@@ -30,6 +30,10 @@ class _AnnouncementsScreenState
     loadAnnouncements();
   }
 
+  // =====================================================
+  // دریافت اطلاعیه‌ها
+  // =====================================================
+
   Future<void> loadAnnouncements() async {
     setState(() {
       isLoading = true;
@@ -67,29 +71,9 @@ class _AnnouncementsScreenState
     }
   }
 
-  String formatDate(String? value) {
-    if (value == null || value.isEmpty) {
-      return '';
-    }
-
-    try {
-      final date =
-      DateTime.parse(value).toLocal();
-
-      final year =
-      date.year.toString();
-
-      final month =
-      date.month.toString().padLeft(2, '0');
-
-      final day =
-      date.day.toString().padLeft(2, '0');
-
-      return '$year/$month/$day';
-    } catch (_) {
-      return '';
-    }
-  }
+  // =====================================================
+  // تبدیل اعداد انگلیسی به فارسی
+  // =====================================================
 
   String toPersianDigits(String value) {
     const english = '0123456789';
@@ -110,12 +94,14 @@ class _AnnouncementsScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-        const Color(0xffF5F8FA),
+        backgroundColor: const Color(0xffF5F8FA),
+
+        // =====================================================
+        // AppBar
+        // =====================================================
 
         appBar: AppBar(
-          backgroundColor:
-          const Color(0xff00ACC1),
+          backgroundColor: const Color(0xff00ACC1),
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
@@ -129,12 +115,24 @@ class _AnnouncementsScreenState
           ),
         ),
 
+        // =====================================================
+        // Body
+        // =====================================================
+
         body: _buildBody(),
       ),
     );
   }
 
+  // =====================================================
+  // Body
+  // =====================================================
+
   Widget _buildBody() {
+    // =====================================================
+    // Loading
+    // =====================================================
+
     if (isLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -142,6 +140,10 @@ class _AnnouncementsScreenState
         ),
       );
     }
+
+    // =====================================================
+    // Error
+    // =====================================================
 
     if (errorMessage != null) {
       return Center(
@@ -158,8 +160,10 @@ class _AnnouncementsScreenState
 
             Text(
               errorMessage!,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.grey,
+                fontSize: 14,
               ),
             ),
 
@@ -167,25 +171,38 @@ class _AnnouncementsScreenState
 
             ElevatedButton(
               onPressed: loadAnnouncements,
-              style:
-              ElevatedButton.styleFrom(
+              style: ElevatedButton.styleFrom(
                 backgroundColor:
                 const Color(0xff00ACC1),
                 foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(12),
+                ),
               ),
-              child:
-              const Text('تلاش مجدد'),
+              child: const Text(
+                'تلاش مجدد',
+              ),
             ),
           ],
         ),
       );
     }
 
+    // =====================================================
+    // هیچ اطلاعیه‌ای وجود ندارد
+    // =====================================================
+
     if (announcements.isEmpty) {
       return RefreshIndicator(
         color: const Color(0xff00ACC1),
         onRefresh: loadAnnouncements,
+
         child: ListView(
+          physics:
+          const AlwaysScrollableScrollPhysics(),
+
           children: const [
             SizedBox(height: 180),
 
@@ -211,40 +228,39 @@ class _AnnouncementsScreenState
       );
     }
 
+    // =====================================================
+    // لیست اطلاعیه‌ها
+    // =====================================================
+
     return RefreshIndicator(
       color: const Color(0xff00ACC1),
       onRefresh: loadAnnouncements,
 
       child: ListView.builder(
-        padding:
-        const EdgeInsets.fromLTRB(
+        physics:
+        const AlwaysScrollableScrollPhysics(),
+
+        padding: const EdgeInsets.fromLTRB(
           18,
           20,
           18,
           30,
         ),
 
-        itemCount:
-        announcements.length,
+        itemCount: announcements.length,
 
-        itemBuilder:
-            (context, index) {
+        itemBuilder: (context, index) {
           final announcement =
           announcements[index];
 
+          final title =
+              announcement['title']
+                  ?.toString()
+                  .trim() ??
+                  'اطلاعیه ساختمان';
+
           return _AnnouncementCard(
-            title:
-            announcement['title']
-                ?.toString() ??
-                '-',
-
-            date: formatDate(
-              announcement['created_at']
-                  ?.toString(),
-            ),
-
-            toPersianDigits:
-            toPersianDigits,
+            title: toPersianDigits(title),
           );
         },
       ),
@@ -252,43 +268,36 @@ class _AnnouncementsScreenState
   }
 }
 
-class _AnnouncementCard
-    extends StatelessWidget {
-  final String title;
-  final String date;
+// =====================================================
+// کارت اطلاعیه
+// =====================================================
 
-  final String Function(String)
-  toPersianDigits;
+class _AnnouncementCard extends StatelessWidget {
+  final String title;
 
   const _AnnouncementCard({
     required this.title,
-    required this.date,
-    required this.toPersianDigits,
   });
 
   @override
-  Widget build(
-      BuildContext context) {
+  Widget build(BuildContext context) {
     return Container(
-      margin:
-      const EdgeInsets.only(
+      margin: const EdgeInsets.only(
         bottom: 14,
       ),
 
-      padding:
-      const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(17),
 
       decoration: BoxDecoration(
         color: Colors.white,
+
         borderRadius:
         BorderRadius.circular(20),
 
         boxShadow: [
           BoxShadow(
             color:
-            Colors.black.withOpacity(
-              0.05,
-            ),
+            Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset:
             const Offset(0, 4),
@@ -298,82 +307,64 @@ class _AnnouncementCard
 
       child: Row(
         crossAxisAlignment:
-        CrossAxisAlignment.start,
+        CrossAxisAlignment.center,
 
         children: [
+          // =================================================
+          // آیکن اطلاعیه
+          // =================================================
+
           Container(
             width: 48,
             height: 48,
 
             decoration: BoxDecoration(
-              color: const Color(
-                0xff00ACC1,
-              ).withOpacity(0.12),
+              color:
+              const Color(0xff00ACC1)
+                  .withOpacity(0.12),
 
               shape: BoxShape.circle,
             ),
 
             child: const Icon(
-              Icons
-                  .notifications_none_rounded,
+              Icons.notifications_none_rounded,
+
               color:
               Color(0xff00ACC1),
+
               size: 27,
             ),
           ),
 
           const SizedBox(width: 14),
 
+          // =================================================
+          // عنوان اطلاعیه
+          // =================================================
+
           Expanded(
-            child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+            child: Text(
+              title,
 
-              children: [
-                Text(
-                  title,
+              textAlign:
+              TextAlign.right,
 
-                  style:
-                  const TextStyle(
-                    fontSize: 16,
-                    fontWeight:
-                    FontWeight.bold,
-                    color:
-                    Color(0xff263238),
-                    height: 1.7,
-                  ),
-                ),
+              maxLines: 3,
 
-                if (date.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+              overflow:
+              TextOverflow.ellipsis,
 
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons
-                            .access_time_rounded,
-                        size: 15,
-                        color:
-                        Colors.grey,
-                      ),
+              style: const TextStyle(
+                fontSize: 16,
 
-                      const SizedBox(width: 5),
+                fontWeight:
+                FontWeight.bold,
 
-                      Text(
-                        toPersianDigits(
-                          date,
-                        ),
-                        style:
-                        const TextStyle(
-                          fontSize: 12,
-                          color:
-                          Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+                color:
+                Color(0xff263238),
+
+                height: 1.7,
+              ),
             ),
           ),
         ],

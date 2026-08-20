@@ -1,15 +1,19 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'announcements_screen.dart';
-import '../storage/token_storage.dart';
-import 'login_screen.dart';
-import 'polls_screen.dart';
-import '../services/poll_service.dart';
 import '../services/announcement_service.dart';
 import '../services/api_service.dart';
+import '../services/poll_service.dart';
+import '../storage/token_storage.dart';
+
+import 'announcements_screen.dart';
 import 'charges_screen.dart';
+import 'login_screen.dart';
+import 'polls_screen.dart';
+import 'finance_screen.dart';
+import 'finance_menu_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -24,17 +28,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // =====================================================
-  // صفحه فعلی
-  //
-  // 0 = خانه
-  // 1 = شارژها
-  // 2 = امور مالی
-  // 3 = اطلاعیه‌ها
-  // 4 = نظرسنجی‌ها
-  // 5 = پروفایل
-  // =====================================================
-
   int currentIndex = 0;
 
   bool hasNewAnnouncements = false;
@@ -43,149 +36,33 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? dashboardData;
   bool isDashboardLoading = true;
 
+  List<Map<String, dynamic>> announcements = [];
+
+  PageController? _announcementController;
+  Timer? _announcementTimer;
+
+  int _announcementIndex = 0;
+
   @override
   void initState() {
     super.initState();
 
-    debugPrint(
-      'HOME DATA = ${widget.data}',
-    );
+    // debugPrint('HOME DATA = ${widget.data}');
 
     loadDashboard();
     loadPollStatus();
-    loadAnnouncementStatus();
+    loadAnnouncementData();
+  }
+
+  @override
+  void dispose() {
+    _announcementTimer?.cancel();
+    _announcementController?.dispose();
+    super.dispose();
   }
 
   // =====================================================
-  // وضعیت نظرسنجی
-  // =====================================================
-
-  Future<void> loadPollStatus() async {
-    try {
-      final result = await PollService.getPolls();
-
-      if (!mounted) return;
-
-      bool newPollExists = false;
-
-      for (final poll in result) {
-        if (poll is Map<String, dynamic>) {
-          final isActive = poll['is_active'] == true;
-          final hasVoted = poll['has_voted'] == true;
-
-          if (isActive && !hasVoted) {
-            newPollExists = true;
-            break;
-          }
-        }
-      }
-
-      setState(() {
-        hasNewPolls = newPollExists;
-      });
-    } catch (e) {
-      debugPrint(
-        'LOAD POLL STATUS ERROR: $e',
-      );
-    }
-  }
-
-  // =====================================================
-  // داشبورد
-  // =====================================================
-
-  Future<void> loadDashboard() async {
-    try {
-      debugPrint(
-        '========== LOAD DASHBOARD ==========',
-      );
-
-      final data = await ApiService().getDashboard();
-
-      debugPrint(
-        'DASHBOARD DATA = $data',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        dashboardData = data;
-        isDashboardLoading = false;
-      });
-    } catch (e) {
-      debugPrint(
-        'LOAD DASHBOARD ERROR = $e',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        isDashboardLoading = false;
-      });
-    }
-  }
-
-  // =====================================================
-  // وضعیت اطلاعیه‌ها
-  // =====================================================
-
-  Future<void> loadAnnouncementStatus() async {
-    try {
-      final userId = int.tryParse(
-        user['id']?.toString() ?? '',
-      );
-
-      if (userId == null) {
-        debugPrint(
-          'ANNOUNCEMENT: USER ID NOT FOUND',
-        );
-        return;
-      }
-
-      final hasNew =
-      await AnnouncementService.hasNewAnnouncements(
-        userId,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        hasNewAnnouncements = hasNew;
-      });
-
-      debugPrint(
-        'ANNOUNCEMENT STATUS: $hasNew | USER ID: $userId',
-      );
-    } catch (e) {
-      debugPrint(
-        'LOAD ANNOUNCEMENT STATUS ERROR: $e',
-      );
-    }
-  }
-
-  // =====================================================
-  // آخرین شارژ
-  // =====================================================
-
-  Map<String, dynamic> get latestCharge {
-    return (dashboardData?['latest_charge']
-    as Map<String, dynamic>?) ??
-        {};
-  }
-
-  String get latestChargeTitle {
-    final title = latestCharge['title']?.toString();
-
-    if (title == null || title.isEmpty) {
-      return 'شارژی ثبت نشده است';
-    }
-
-    // تبدیل اعداد عنوان شارژ به فارسی
-    return toPersianDigits(title);
-  }
-
-  // =====================================================
-  // تبدیل اعداد انگلیسی به فارسی
+  // اعداد فارسی
   // =====================================================
 
   String toPersianDigits(String value) {
@@ -200,6 +77,155 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return value;
+  }
+
+  // =====================================================
+  // فرمت مبلغ
+  // =====================================================
+
+  String formatAmount(dynamic value) {
+    final amount = int.tryParse(
+      value?.toString() ?? '0',
+    ) ??
+        0;
+
+    final text = amount.toString();
+
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < text.length; i++) {
+      if (i > 0 && (text.length - i) % 3 == 0) {
+        buffer.write('٬');
+      }
+
+      buffer.write(text[i]);
+    }
+
+    return toPersianDigits(
+      buffer.toString(),
+    );
+  }
+
+  // =====================================================
+  // تاریخ شمسی
+  //
+  // بدون پکیج خارجی
+  // =====================================================
+
+  String formatPersianDate(dynamic value) {
+    if (value == null) {
+      return '-';
+    }
+
+    final raw = value.toString();
+
+    if (raw.isEmpty) {
+      return '-';
+    }
+
+    try {
+      final date = DateTime.parse(raw);
+
+      final jalali = _gregorianToJalali(
+        date.year,
+        date.month,
+        date.day,
+      );
+
+      return toPersianDigits(
+        '${jalali[0]}/${jalali[1].toString().padLeft(2, '0')}/${jalali[2].toString().padLeft(2, '0')}',
+      );
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  List<int> _gregorianToJalali(
+      int gy,
+      int gm,
+      int gd,
+      ) {
+    final gDaysInMonth = <int>[
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31,
+      31,
+      30,
+      31,
+      30,
+      31,
+    ];
+
+    final jDaysInMonth = <int>[
+      31,
+      31,
+      31,
+      31,
+      31,
+      31,
+      30,
+      30,
+      30,
+      30,
+      30,
+      29,
+    ];
+
+    int gy2 = gy - 1600;
+    int gm2 = gm - 1;
+    int gd2 = gd - 1;
+
+    int gDayNo =
+        365 * gy2 +
+            ((gy2 + 3) ~/ 4) -
+            ((gy2 + 99) ~/ 100) +
+            ((gy2 + 399) ~/ 400);
+
+    for (int i = 0; i < gm2; i++) {
+      gDayNo += gDaysInMonth[i];
+    }
+
+    if (gm2 > 1 &&
+        ((gy % 4 == 0 && gy % 100 != 0) ||
+            gy % 400 == 0)) {
+      gDayNo++;
+    }
+
+    gDayNo += gd2;
+
+    int jDayNo = gDayNo - 79;
+
+    int jNp = jDayNo ~/ 12053;
+
+    int jy = 979 + 33 * jNp;
+
+    jDayNo %= 12053;
+
+    jy += 4 * (jDayNo ~/ 1461);
+
+    jDayNo %= 1461;
+
+    if (jDayNo >= 366) {
+      jy += (jDayNo - 1) ~/ 365;
+      jDayNo = (jDayNo - 1) % 365;
+    }
+
+    int jm = 0;
+
+    for (int i = 0; i < 11 && jDayNo >= jDaysInMonth[i]; i++) {
+      jDayNo -= jDaysInMonth[i];
+      jm++;
+    }
+
+    return [
+      jy,
+      jm + 1,
+      jDayNo + 1,
+    ];
   }
 
   // =====================================================
@@ -232,10 +258,6 @@ class _HomeScreenState extends State<HomeScreen> {
         {};
   }
 
-  // =====================================================
-  // نام کاربر
-  // =====================================================
-
   String get fullName {
     final name =
     user['full_name']?.toString();
@@ -247,10 +269,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return name;
   }
 
-  // =====================================================
-  // نام ساختمان
-  // =====================================================
-
   String get houseName {
     final name =
     house['name']?.toString();
@@ -261,10 +279,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return name;
   }
-
-  // =====================================================
-  // شماره واحد
-  // =====================================================
 
   String get unitNumber {
     final number =
@@ -278,389 +292,1076 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =====================================================
-  // مبلغ پرداخت شده
+  // داشبورد
   // =====================================================
 
-  int get paidAmount {
-    final statistics =
-    dashboardData?['statistics']
-    as Map<String, dynamic>?;
+  Future<void> loadDashboard() async {
+    try {
+      // debugPrint(
+      //   '========== LOAD DASHBOARD ==========',
+      // );
 
-    return int.tryParse(
-      statistics?['total_paid']?.toString() ?? '0',
-    ) ??
-        0;
+      final data =
+      await ApiService().getDashboard();
+
+      // debugPrint(
+      //   'DASHBOARD DATA = $data',
+      // );
+
+      if (!mounted) return;
+
+      setState(() {
+        dashboardData = data;
+        isDashboardLoading = false;
+      });
+    } catch (e) {
+      // debugPrint(
+      //   'LOAD DASHBOARD ERROR = $e',
+      // );
+
+      if (!mounted) return;
+
+      setState(() {
+        isDashboardLoading = false;
+      });
+    }
   }
 
   // =====================================================
-  // مبلغ بدهی
+  // نظرسنجی
   // =====================================================
 
-  int get unpaidAmount {
-    final statistics =
-    dashboardData?['statistics']
-    as Map<String, dynamic>?;
+  Future<void> loadPollStatus() async {
+    try {
+      final result =
+      await PollService.getPolls();
 
-    return int.tryParse(
-      statistics?['total_debt']?.toString() ?? '0',
-    ) ??
-        0;
-  }
+      if (!mounted) return;
 
-  // =====================================================
-  // فرمت مبلغ
-  // =====================================================
+      bool newPollExists = false;
 
-  String formatAmount(int amount) {
-    final text = amount.toString();
+      for (final poll in result) {
+        if (poll is Map<String, dynamic>) {
+          final isActive =
+              poll['is_active'] == true;
 
-    final buffer = StringBuffer();
+          final hasVoted =
+              poll['has_voted'] == true;
 
-    for (int i = 0; i < text.length; i++) {
-      if (i > 0 &&
-          (text.length - i) % 3 == 0) {
-        buffer.write('٬');
+          if (isActive && !hasVoted) {
+            newPollExists = true;
+            break;
+          }
+        }
       }
 
-      buffer.write(text[i]);
+      setState(() {
+        hasNewPolls = newPollExists;
+      });
+    } catch (e) {
+      // debugPrint(
+      //   'LOAD POLL STATUS ERROR: $e',
+      // );
+    }
+  }
+
+  // =====================================================
+  // اطلاعیه‌ها
+  // =====================================================
+
+  Future<void> loadAnnouncementData() async {
+    try {
+      final result =
+      await AnnouncementService
+          .getAnnouncements();
+
+      if (!mounted) return;
+
+      final userId =
+      int.tryParse(
+        user['id']?.toString() ?? '',
+      );
+
+      bool newAnnouncements = false;
+
+      if (userId != null) {
+        newAnnouncements =
+        await AnnouncementService
+            .hasNewAnnouncements(
+          userId,
+        );
+      }
+
+      setState(() {
+        announcements = result;
+        hasNewAnnouncements =
+            newAnnouncements;
+      });
+
+      _setupAnnouncementSlider();
+    } catch (e) {
+      // debugPrint(
+      //   'LOAD ANNOUNCEMENT ERROR: $e',
+      // );
+    }
+  }
+
+  void _setupAnnouncementSlider() {
+    _announcementTimer?.cancel();
+
+    if (announcements.length <= 1) {
+      return;
     }
 
-    return toPersianDigits(
-      buffer.toString(),
+    _announcementController =
+        PageController();
+
+    _announcementTimer = Timer.periodic(
+      const Duration(seconds: 5),
+          (_) {
+        if (!mounted ||
+            _announcementController == null) {
+          return;
+        }
+
+        if (!_announcementController!
+            .hasClients) {
+          return;
+        }
+
+        _announcementIndex++;
+
+        if (_announcementIndex >=
+            announcements.length) {
+          _announcementIndex = 0;
+        }
+
+        _announcementController!
+            .animateToPage(
+          _announcementIndex,
+          duration:
+          const Duration(
+            milliseconds: 500,
+          ),
+          curve: Curves.easeInOut,
+        );
+      },
     );
   }
 
   // =====================================================
-  // صفحه خانه
+  // باز کردن اطلاعیه‌ها
+  // =====================================================
+
+  Future<void> openAnnouncements() async {
+    final userId =
+    int.tryParse(
+      user['id']?.toString() ?? '',
+    );
+
+    if (userId == null) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            AnnouncementsScreen(
+              userId: userId,
+            ),
+      ),
+    );
+
+    await loadAnnouncementData();
+  }
+
+  // =====================================================
+  // آخرین شارژ
+  // =====================================================
+
+  Map<String, dynamic> get latestCharge {
+    return (dashboardData?[
+    'latest_charge']
+    as Map<String, dynamic>?) ??
+        {};
+  }
+
+  String get latestChargeTitle {
+    final title =
+    latestCharge['title']
+        ?.toString();
+
+    if (title == null ||
+        title.isEmpty) {
+      return 'شارژی ثبت نشده است';
+    }
+
+    return toPersianDigits(title);
+  }
+
+  // =====================================================
+  // آمار شارژ
+  // =====================================================
+
+  Map<String, dynamic> get statistics {
+    return (dashboardData?[
+    'statistics']
+    as Map<String, dynamic>?) ??
+        {};
+  }
+
+  int get paidCount {
+    return int.tryParse(
+      statistics['paid_count']
+          ?.toString() ??
+          '0',
+    ) ??
+        0;
+  }
+
+  int get unpaidCount {
+    return int.tryParse(
+      statistics['unpaid_count']
+          ?.toString() ??
+          '0',
+    ) ??
+        0;
+  }
+
+  int get pendingCount {
+    return int.tryParse(
+      statistics['pending_count']
+          ?.toString() ??
+          '0',
+    ) ??
+        0;
+  }
+
+  int get paidAmount {
+    return int.tryParse(
+      statistics['total_paid']
+          ?.toString() ??
+          '0',
+    ) ??
+        0;
+  }
+
+  int get unpaidAmount {
+    return int.tryParse(
+      statistics['total_debt']
+          ?.toString() ??
+          '0',
+    ) ??
+        0;
+  }
+
+  // =====================================================
+  // صفحه اصلی
   // =====================================================
 
   Widget buildHomePage() {
-    final totalAmount =
-        paidAmount + unpaidAmount;
-
-    final double paidPercent =
-    totalAmount == 0
-        ? 0.0
-        : paidAmount / totalAmount;
+    final totalCount =
+        paidCount +
+            unpaidCount +
+            pendingCount;
 
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          18,
-          20,
-          18,
-          30,
+      child: RefreshIndicator(
+        color:
+        const Color(0xff00ACC1),
+        onRefresh: () async {
+          await Future.wait([
+            loadDashboard(),
+            loadAnnouncementData(),
+            loadPollStatus(),
+          ]);
+        },
+        child: SingleChildScrollView(
+          physics:
+          const AlwaysScrollableScrollPhysics(),
+          padding:
+          const EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            30,
+          ),
+          child: Column(
+            crossAxisAlignment:
+            CrossAxisAlignment.stretch,
+            children: [
+              // =================================================
+              // مشخصات کاربر و ساختمان
+              // =================================================
+
+              _buildUserCard(),
+
+              const SizedBox(height: 14),
+
+              // =================================================
+              // اطلاعیه‌ها
+              // =================================================
+
+              _buildAnnouncementSlider(),
+
+              const SizedBox(height: 18),
+
+              // =================================================
+              // وضعیت شارژ
+              // =================================================
+
+              _buildChargeStatusCard(
+                totalCount,
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.stretch,
-          children: [
+      ),
+    );
+  }
 
-            // =================================================
-            // اطلاعات ساختمان و واحد
-            // =================================================
+  // =====================================================
+  // کارت مشخصات
+  // =====================================================
 
-            Container(
-              padding:
-              const EdgeInsets.all(18),
-              decoration:
-              BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black
-                        .withOpacity(0.055),
-                    blurRadius: 14,
-                    offset:
-                    const Offset(0, 5),
+  Widget _buildUserCard() {
+    return Container(
+      padding:
+      const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(22),
+        border: Border.all(
+          color:
+          const Color(0xff00ACC1)
+              .withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color:
+            Colors.black.withOpacity(
+              0.055,
+            ),
+            blurRadius: 14,
+            offset:
+            const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration:
+            BoxDecoration(
+              color:
+              const Color(0xff00ACC1)
+                  .withOpacity(
+                0.10,
+              ),
+              shape:
+              BoxShape.circle,
+            ),
+            child:
+            const Icon(
+              Icons.apartment_rounded,
+              color:
+              Color(0xff00ACC1),
+              size: 29,
+            ),
+          ),
+
+          const SizedBox(width: 14),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'مجتمع مسکونی $houseName',
+                  maxLines: 1,
+                  overflow:
+                  TextOverflow.ellipsis,
+                  style:
+                  const TextStyle(
+                    fontSize: 17,
+                    fontWeight:
+                    FontWeight.bold,
+                    color:
+                    Color(0xff263238),
                   ),
-                ],
-                border: Border.all(
-                  color: const Color(
-                    0xff00ACC1,
-                  ).withOpacity(0.07),
+                ),
+
+                const SizedBox(height: 7),
+
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.home_outlined,
+                      size: 17,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'واحد شماره $unitNumber',
+                      style:
+                      const TextStyle(
+                        fontSize: 13,
+                        color:
+                        Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 4),
+
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 17,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        '${unit['is_renter'] == true ? 'مستأجر' : 'مالک'}: $fullName',
+                        maxLines: 1,
+                        overflow:
+                        TextOverflow.ellipsis,
+                        style:
+                        const TextStyle(
+                          fontSize: 13,
+                          color:
+                          Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // اسلایدر اطلاعیه
+  // =====================================================
+
+  Widget _buildAnnouncementSlider() {
+    if (announcements.isEmpty) {
+      return _buildEmptyAnnouncementCard();
+    }
+
+    if (announcements.length == 1) {
+      return _buildAnnouncementItem(
+        announcements.first,
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 150,
+          child: PageView.builder(
+            controller:
+            _announcementController,
+            itemCount:
+            announcements.length,
+            onPageChanged: (index) {
+              setState(() {
+                _announcementIndex =
+                    index;
+              });
+            },
+            itemBuilder:
+                (context, index) {
+              return Padding(
+                padding:
+                const EdgeInsets.symmetric(
+                  horizontal: 2,
+                ),
+                child:
+                _buildAnnouncementItem(
+                  announcements[index],
+                ),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Row(
+          mainAxisAlignment:
+          MainAxisAlignment.center,
+          children: List.generate(
+            announcements.length,
+                (index) {
+              final selected =
+                  index ==
+                      _announcementIndex;
+
+              return AnimatedContainer(
+                duration:
+                const Duration(
+                  milliseconds: 1000,
+                ),
+                margin:
+                const EdgeInsets.symmetric(
+                  horizontal: 3,
+                ),
+                width:
+                selected ? 18 : 6,
+                height: 6,
+                decoration:
+                BoxDecoration(
+                  color: selected
+                      ? const Color(
+                    0xff610DB5,
+                  )
+                      : const Color(
+                    0xffD8C7E8,
+                  ),
+                  borderRadius:
+                  BorderRadius.circular(
+                    10,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // =====================================================
+  // کارت اطلاعیه
+  // =====================================================
+
+  Widget _buildAnnouncementItem(
+      Map<String, dynamic> announcement,
+      ) {
+    final title =
+        announcement['title']
+            ?.toString()
+            .trim() ??
+            'اطلاعیه ساختمان';
+
+    final content =
+        announcement['content']
+            ?.toString() ??
+            announcement['description']
+                ?.toString() ??
+            '';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: openAnnouncements,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 15,
+            vertical: 14,
+          ),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [
+                Color(0xff7541B5),
+                Color(0xff5B2298),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xff610DB5).withOpacity(0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // فلش سمت چپ
+              // const Positioned(
+              //   left: 0,
+              //   top: 0,
+              //   bottom: 0,
+              //   child: Center(
+              //     child: Icon(
+              //       Icons.chevron_left_rounded,
+              //       color: Colors.white,
+              //       size: 23,
+              //     ),
+              //   ),
+              // ),
+
+              // محتوای اطلاعیه
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // آیکن اطلاعیه
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.campaign_rounded,
+                        color: Colors.white,
+                        size: 19,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    // عنوان
+                    Text(
+                      toPersianDigits(title),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    // متن اطلاعیه
+                    Text(
+                      toPersianDigits(content),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.90),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration:
-                    BoxDecoration(
-                      color: const Color(
-                        0xff00ACC1,
-                      ).withOpacity(0.11),
-                      shape:
-                      BoxShape.circle,
-                    ),
-                    child:
-                    const Icon(
-                      Icons.apartment,
-                      color:
-                      Color(0xff00ACC1),
-                      size: 29,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    width: 14,
-                  ),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-
-                        Text(
-                          'مجتمع مسکونی $houseName',
-                          style:
-                          const TextStyle(
-                            fontSize: 18,
-                            fontWeight:
-                            FontWeight.bold,
-                            color:
-                            Color(0xff263238),
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 7,
-                        ),
-
-                        Text(
-                          'واحد شماره $unitNumber',
-                          style:
-                          const TextStyle(
-                            fontSize: 14,
-                            color:
-                            Colors.grey,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 4,
-                        ),
-
-                        Text(
-                          '${unit['is_renter'] == true ? 'مستأجر' : 'مالک'}: $fullName',
-                          style:
-                          const TextStyle(
-                            fontSize: 14,
-                            color:
-                            Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+  Widget _buildEmptyAnnouncementCard() {
+    return Container(
+      height: 110,
+      width: double.infinity,
+      decoration:
+      BoxDecoration(
+        color:
+        const Color(0xff610DB5),
+        borderRadius:
+        BorderRadius.circular(22),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisSize:
+          MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.campaign_outlined,
+              color: Colors.white,
+              size: 30,
+            ),
+            SizedBox(height: 7),
+            Text(
+              'اطلاعیه‌ای وجود ندارد',
+              style:
+              TextStyle(
+                color: Colors.white,
+                fontWeight:
+                FontWeight.w600,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(
-              height: 17,
-            ),
+  // =====================================================
+  // کارت وضعیت شارژ
+  // =====================================================
 
-            // =================================================
-            // کارت مجموع پرداختی
-            // =================================================
+  Widget _buildChargeStatusCard(
+      int totalCount,
+      ) {
+    final paidPercent =
+    totalCount == 0
+        ? 0.0
+        : paidCount / totalCount;
 
-            Container(
-              padding:
-              const EdgeInsets.symmetric(
-                vertical: 22,
-                horizontal: 18,
+    final unpaidPercent =
+    totalCount == 0
+        ? 0.0
+        : unpaidCount / totalCount;
+
+    final pendingPercent =
+    totalCount == 0
+        ? 0.0
+        : pendingCount / totalCount;
+
+    return Container(
+      padding:
+      const EdgeInsets.all(18),
+      decoration:
+      BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(22),
+        border: Border.all(
+          color: Colors.black
+              .withOpacity(0.035),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black
+                .withOpacity(0.055),
+            blurRadius: 14,
+            offset:
+            const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration:
+                BoxDecoration(
+                  color:
+                  const Color(
+                    0xff00ACC1,
+                  ).withOpacity(
+                    0.10,
+                  ),
+                  shape:
+                  BoxShape.circle,
+                ),
+                child:
+                const Icon(
+                  Icons.pie_chart_outline_rounded,
+                  color:
+                  Color(0xff00ACC1),
+                  size: 21,
+                ),
               ),
-              decoration:
-              BoxDecoration(
-                // بنفش ملایم‌تر
-                color:
-                const Color(0xff7654A6),
-                borderRadius:
-                BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                    const Color(
-                      0xff7654A6,
-                    ).withOpacity(0.18),
-                    blurRadius: 14,
-                    offset:
-                    const Offset(0, 6),
-                  ),
-                ],
+
+              const SizedBox(width: 10),
+
+              const Text(
+                'وضعیت شارژ',
+                style:
+                TextStyle(
+                  fontSize: 17,
+                  fontWeight:
+                  FontWeight.bold,
+                  color:
+                  Color(0xff263238),
+                ),
               ),
-              child: Column(
-                children: [
+            ],
+          ),
 
-                  const Text(
-                    'مجموع پرداختی',
-                    style:
-                    TextStyle(
-                      color:
-                      Colors.white,
-                      fontSize: 14,
-                      fontWeight:
-                      FontWeight.w500,
-                    ),
+          const SizedBox(height: 16),
+
+          // =================================================
+          // نمودار کوچک‌تر
+          // =================================================
+
+          Row(
+            crossAxisAlignment:
+            CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 145,
+                height: 145,
+                child: CustomPaint(
+                  painter:
+                  _ChargeDonutPainter(
+                    paidCount:
+                    paidCount,
+                    unpaidCount:
+                    unpaidCount,
+                    pendingCount:
+                    pendingCount,
                   ),
-
-                  const SizedBox(
-                    height: 10,
-                  ),
-
+                  child:
                   Center(
-                    child: Row(
+                    child: Column(
                       mainAxisSize:
                       MainAxisSize.min,
-                      crossAxisAlignment:
-                      CrossAxisAlignment
-                          .baseline,
-                      textBaseline:
-                      TextBaseline
-                          .alphabetic,
                       children: [
-
                         Text(
-                          formatAmount(
-                            paidAmount,
+                          toPersianDigits(
+                            totalCount
+                                .toString(),
                           ),
                           style:
                           const TextStyle(
-                            color:
-                            Colors.white,
-                            fontSize: 29,
+                            fontSize: 27,
                             fontWeight:
                             FontWeight.bold,
+                            color:
+                            Color(
+                              0xff263238,
+                            ),
                           ),
                         ),
-
-                        const SizedBox(
-                          width: 8,
-                        ),
-
                         const Text(
-                          'تومان',
+                          'شارژ',
                           style:
                           TextStyle(
+                            fontSize: 11,
                             color:
-                            Colors.white,
-                            fontSize: 14,
-                            fontWeight:
-                            FontWeight.w500,
+                            Colors.grey,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
+
+              const SizedBox(width: 15),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                  CrossAxisAlignment
+                      .stretch,
+                  children: [
+                    _StatusCountRow(
+                      title:
+                      'پرداخت شده',
+                      count:
+                      paidCount,
+                      color:
+                      const Color(
+                        0xff11c539,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    _StatusCountRow(
+                      title:
+                      'پرداخت نشده',
+                      count:
+                      unpaidCount,
+                      color:
+                      const Color(
+                        0xffff2600,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    _StatusCountRow(
+                      title:
+                      'در انتظار تأیید',
+                      count:
+                      pendingCount,
+                      color:
+                      const Color(
+                        0xfff6963e,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          const Divider(
+            height: 1,
+          ),
+
+          const SizedBox(height: 16),
+
+          // =================================================
+          // مبالغ زیر نمودار
+          // =================================================
+
+          Row(
+            children: [
+              Expanded(
+                child:
+                _AmountInfo(
+                  title:
+                  'مبلغ پرداخت شده',
+                  amount:
+                  paidAmount,
+                  icon:
+                  Icons.check_circle_outline,
+                  color:
+                  const Color(
+                    0xff11c539,
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child:
+                _AmountInfo(
+                  title:
+                  'مبلغ پرداخت نشده',
+                  amount:
+                  unpaidAmount,
+                  icon:
+                  Icons
+                      .error_outline_rounded,
+                  color:
+                  const Color(
+                    0xfff87803,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // =================================================
+          // آخرین شارژ
+          // =================================================
+
+          Material(
+            color:
+            const Color(
+              0xffF5F8FA,
             ),
-
-            const SizedBox(
-              height: 17,
+            borderRadius:
+            BorderRadius.circular(
+              16,
             ),
-
-            // =================================================
-            // آخرین شارژ
-            // =================================================
-
-            InkWell(
+            child: InkWell(
+              borderRadius:
+              BorderRadius.circular(
+                16,
+              ),
               onTap: () {
                 setState(() {
                   currentIndex = 1;
                 });
               },
-              borderRadius:
-              BorderRadius.circular(22),
-              child: Container(
+              child:
+              Padding(
                 padding:
-                const EdgeInsets.symmetric(
-                  vertical: 17,
-                  horizontal: 18,
-                ),
-                decoration:
-                BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                  BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black
-                          .withOpacity(0.055),
-                      blurRadius: 13,
-                      offset:
-                      const Offset(0, 5),
-                    ),
-                  ],
-                  border: Border.all(
-                    color:
-                    const Color(
-                      0xff00ACC1,
-                    ).withOpacity(0.07),
-                  ),
+                const EdgeInsets
+                    .symmetric(
+                  horizontal: 14,
+                  vertical: 13,
                 ),
                 child: Row(
                   children: [
-
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 40,
+                      height: 40,
                       decoration:
                       BoxDecoration(
                         color:
                         const Color(
                           0xff00ACC1,
-                        ).withOpacity(0.10),
+                        ).withOpacity(
+                          0.10,
+                        ),
                         shape:
                         BoxShape.circle,
                       ),
                       child:
                       const Icon(
-                        Icons.receipt_long_outlined,
+                        Icons
+                            .receipt_long_outlined,
                         color:
-                        Color(0xff00ACC1),
-                        size: 26,
+                        Color(
+                          0xff00ACC1,
+                        ),
+                        size: 21,
                       ),
                     ),
 
                     const SizedBox(
-                      width: 14,
+                      width: 11,
                     ),
 
                     Expanded(
-                      child: Column(
+                      child:
+                      Column(
                         crossAxisAlignment:
                         CrossAxisAlignment
                             .start,
                         children: [
-
                           const Text(
-                            'آخرین شارژ',
+                            'آخرین شارژ اعلام شده',
                             style:
                             TextStyle(
-                              fontSize: 13,
+                              fontSize:
+                              11,
                               color:
                               Colors.grey,
                             ),
                           ),
-
                           const SizedBox(
-                            height: 5,
+                            height: 4,
                           ),
-
                           Text(
                             latestChargeTitle,
+                            maxLines:
+                            1,
+                            overflow:
+                            TextOverflow
+                                .ellipsis,
                             style:
                             const TextStyle(
-                              fontSize: 17,
+                              fontSize:
+                              14,
                               fontWeight:
-                              FontWeight.bold,
+                              FontWeight
+                                  .bold,
                               color:
                               Color(
                                 0xff263238,
@@ -676,147 +1377,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           .chevron_left_rounded,
                       color:
                       Colors.grey,
-                      size: 25,
                     ),
                   ],
                 ),
               ),
             ),
-
-            const SizedBox(
-              height: 25,
-            ),
-
-            // =================================================
-            // عنوان وضعیت شارژ
-            // =================================================
-
-            const Text(
-              'وضعیت شارژ',
-              style:
-              TextStyle(
-                fontSize: 18,
-                fontWeight:
-                FontWeight.bold,
-                color:
-                Color(0xff263238),
-              ),
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            // =================================================
-            // کارت نمودار
-            // =================================================
-
-            Container(
-              padding:
-              const EdgeInsets.all(20),
-              decoration:
-              BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black
-                        .withOpacity(0.055),
-                    blurRadius: 14,
-                    offset:
-                    const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-
-                  SizedBox(
-                    width: 190,
-                    height: 190,
-                    child: CustomPaint(
-                      painter:
-                      _ChargeChartPainter(
-                        paidPercent:
-                        paidPercent,
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize:
-                          MainAxisSize.min,
-                          children: [
-
-                            Text(
-                              '${toPersianDigits((paidPercent * 100).round().toString())}٪',
-                              style:
-                              const TextStyle(
-                                fontSize: 28,
-                                fontWeight:
-                                FontWeight.bold,
-                                color:
-                                Color(
-                                  0xff263238,
-                                ),
-                              ),
-                            ),
-
-                            const Text(
-                              'پرداخت شده',
-                              style:
-                              TextStyle(
-                                fontSize: 13,
-                                color:
-                                Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  Row(
-                    children: [
-
-                      Expanded(
-                        child:
-                        _ChartLegend(
-                          title:
-                          'پرداخت شده',
-                          amount:
-                          paidAmount,
-                          iconColor:
-                          const Color(
-                            0xff7654A6,
-                          ),
-                        ),
-                      ),
-
-                      Expanded(
-                        child:
-                        _ChartLegend(
-                          title:
-                          'پرداخت نشده',
-                          amount:
-                          unpaidAmount,
-                          iconColor:
-                          const Color(
-                            0xffD9DDE1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -833,307 +1400,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // صفحه امور مالی
   // =====================================================
 
-  Widget buildFinancialPage() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding:
-        const EdgeInsets.fromLTRB(
-          18,
-          20,
-          18,
-          30,
-        ),
-        child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.stretch,
-          children: [
-
-            const Text(
-              'امور مالی',
-              style:
-              TextStyle(
-                fontSize: 22,
-                fontWeight:
-                FontWeight.bold,
-                color:
-                Color(0xff263238),
-              ),
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            const Text(
-              'خلاصه وضعیت مالی واحد',
-              style:
-              TextStyle(
-                fontSize: 14,
-                color:
-                Colors.grey,
-              ),
-            ),
-
-            const SizedBox(
-              height: 20,
-            ),
-
-            _FinancialCard(
-              icon:
-              Icons.account_balance_wallet_outlined,
-              title:
-              'مجموع پرداختی',
-              amount:
-              formatAmount(
-                paidAmount,
-              ),
-              color:
-              const Color(
-                0xff7654A6,
-              ),
-            ),
-
-            _FinancialCard(
-              icon:
-              Icons.pending_actions_outlined,
-              title:
-              'بدهی فعلی',
-              amount:
-              formatAmount(
-                unpaidAmount,
-              ),
-              color:
-              const Color(
-                0xffE58A3A,
-              ),
-            ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
-            Container(
-              padding:
-              const EdgeInsets.all(18),
-              decoration:
-              BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                BorderRadius.circular(20),
-                border: Border.all(
-                  color:
-                  const Color(
-                    0xff00ACC1,
-                  ).withOpacity(0.08),
-                ),
-              ),
-              child: Row(
-                children: [
-
-                  Container(
-                    width: 45,
-                    height: 45,
-                    decoration:
-                    BoxDecoration(
-                      color:
-                      const Color(
-                        0xff00ACC1,
-                      ).withOpacity(0.10),
-                      shape:
-                      BoxShape.circle,
-                    ),
-                    child:
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      color:
-                      Color(
-                        0xff00ACC1,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    width: 12,
-                  ),
-
-                  const Expanded(
-                    child: Text(
-                      'تاریخچه پرداخت‌ها و جزئیات مالی در این بخش قرار خواهد گرفت.',
-                      style:
-                      TextStyle(
-                        fontSize: 14,
-                        height: 1.7,
-                        color:
-                        Color(
-                          0xff455A64,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =====================================================
-  // صفحه اطلاعیه‌ها
-  // =====================================================
-
-  Widget buildAnnouncementsPage() {
-    final userId = int.tryParse(
-      user['id']?.toString() ?? '',
-    );
-
-    if (userId == null) {
-      return const Center(
-        child: Text(
-          'اطلاعات کاربر پیدا نشد',
-        ),
-      );
-    }
-
-    return AnnouncementsScreen(
-      userId: userId,
-    );
-  }
-
-  // =====================================================
-  // صفحه نظرسنجی‌ها
-  // =====================================================
-
-  Widget buildPollsPage() {
-    return const PollsScreen();
-  }
-
-  // =====================================================
-  // خروج
-  // =====================================================
-
-  Future<void> _showLogoutDialog() async {
-    final shouldLogout =
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return Directionality(
-          textDirection:
-          TextDirection.rtl,
-          child: AlertDialog(
-            shape:
-            RoundedRectangleBorder(
-              borderRadius:
-              BorderRadius.circular(
-                20,
-              ),
-            ),
-            title: const Row(
-              children: [
-
-                Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red,
-                ),
-
-                SizedBox(
-                  width: 10,
-                ),
-
-                Text(
-                  'خروج از حساب کاربری',
-                  style:
-                  TextStyle(
-                    fontSize: 18,
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            content: const Text(
-              'آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟',
-              style:
-              TextStyle(
-                fontSize: 14,
-                height: 1.7,
-              ),
-            ),
-            actions: [
-
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                    false,
-                  );
-                },
-                child: const Text(
-                  'انصراف',
-                  style:
-                  TextStyle(
-                    color: Colors.grey,
-                    fontWeight:
-                    FontWeight.w600,
-                  ),
-                ),
-              ),
-
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                    true,
-                  );
-                },
-                style:
-                ElevatedButton.styleFrom(
-                  backgroundColor:
-                  Colors.red,
-                  foregroundColor:
-                  Colors.white,
-                  elevation: 0,
-                  shape:
-                  RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                ),
-                child: const Text(
-                  'خروج',
-                  style:
-                  TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (shouldLogout != true) {
-      return;
-    }
-
-    await TokenStorage.clear();
-
-    if (!mounted) return;
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-        const LoginScreen(),
-      ),
-          (route) => false,
-    );
+  Widget buildFinancePage() {
+    return const FinanceMenuScreen();
   }
 
   // =====================================================
@@ -1146,12 +1414,10 @@ class _HomeScreenState extends State<HomeScreen> {
       SingleChildScrollView(
         padding:
         const EdgeInsets.all(20),
-        child: Column(
+        child:
+        Column(
           children: [
-
-            const SizedBox(
-              height: 30,
-            ),
+            const SizedBox(height: 25),
 
             const CircleAvatar(
               radius: 45,
@@ -1160,14 +1426,11 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(
                 Icons.person,
                 size: 50,
-                color:
-                Colors.white,
+                color: Colors.white,
               ),
             ),
 
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
 
             Text(
               fullName,
@@ -1179,9 +1442,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const SizedBox(
-              height: 8,
-            ),
+            const SizedBox(height: 8),
 
             Text(
               toPersianDigits(
@@ -1196,9 +1457,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const SizedBox(
-              height: 30,
-            ),
+            const SizedBox(height: 30),
 
             _ProfileItem(
               icon:
@@ -1268,16 +1527,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon:
                 const Icon(
                   Icons.logout_rounded,
-                  color:
-                  Colors.red,
+                  color: Colors.red,
                 ),
                 label:
                 const Text(
                   'خروج از حساب کاربری',
                   style:
                   TextStyle(
-                    color:
-                    Colors.red,
+                    color: Colors.red,
                     fontSize: 15,
                     fontWeight:
                     FontWeight.bold,
@@ -1289,8 +1546,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Colors.white,
                   side:
                   BorderSide(
-                    color:
-                    Colors.red
+                    color: Colors.red
                         .withOpacity(
                       0.25,
                     ),
@@ -1298,7 +1554,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape:
                   RoundedRectangleBorder(
                     borderRadius:
-                    BorderRadius.circular(
+                    BorderRadius
+                        .circular(
                       16,
                     ),
                   ),
@@ -1310,6 +1567,217 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 20,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // خروج
+  // =====================================================
+
+  Future<void> _showLogoutDialog() async {
+    final shouldLogout =
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Directionality(
+          textDirection:
+          TextDirection.rtl,
+          child:
+          AlertDialog(
+            shape:
+            RoundedRectangleBorder(
+              borderRadius:
+              BorderRadius.circular(
+                20,
+              ),
+            ),
+            title:
+            const Row(
+              children: [
+                Icon(
+                  Icons
+                      .logout_rounded,
+                  color:
+                  Colors.red,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'خروج از حساب کاربری',
+                  style:
+                  TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content:
+            const Text(
+              'آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟',
+              style:
+              TextStyle(
+                fontSize: 14,
+                height: 1.7,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed:
+                    () {
+                  Navigator.pop(
+                    context,
+                    false,
+                  );
+                },
+                child:
+                const Text(
+                  'انصراف',
+                  style:
+                  TextStyle(
+                    color:
+                    Colors.grey,
+                    fontWeight:
+                    FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed:
+                    () {
+                  Navigator.pop(
+                    context,
+                    true,
+                  );
+                },
+                style:
+                ElevatedButton.styleFrom(
+                  backgroundColor:
+                  Colors.red,
+                  foregroundColor:
+                  Colors.white,
+                  elevation: 0,
+                  shape:
+                  RoundedRectangleBorder(
+                    borderRadius:
+                    BorderRadius
+                        .circular(
+                      12,
+                    ),
+                  ),
+                ),
+                child:
+                const Text(
+                  'خروج',
+                  style:
+                  TextStyle(
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (shouldLogout != true) {
+      return;
+    }
+
+    await TokenStorage.clear();
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+        const LoginScreen(),
+      ),
+          (route) => false,
+    );
+  }
+
+  // =====================================================
+  // صفحات موقت
+  // =====================================================
+
+  Widget _buildComingSoonPage({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return SafeArea(
+      child:
+      Center(
+        child:
+        Padding(
+          padding:
+          const EdgeInsets.all(
+            30,
+          ),
+          child:
+          Column(
+            mainAxisSize:
+            MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration:
+                BoxDecoration(
+                  color:
+                  const Color(
+                    0xff00ACC1,
+                  ).withOpacity(
+                    0.10,
+                  ),
+                  shape:
+                  BoxShape.circle,
+                ),
+                child:
+                Icon(
+                  icon,
+                  size: 40,
+                  color:
+                  const Color(
+                    0xff00ACC1,
+                  ),
+                ),
+              ),
+              const SizedBox(
+                height: 18,
+              ),
+              Text(
+                title,
+                style:
+                const TextStyle(
+                  fontSize: 20,
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+              const SizedBox(
+                height: 8,
+              ),
+              Text(
+                description,
+                textAlign:
+                TextAlign.center,
+                style:
+                const TextStyle(
+                  color:
+                  Colors.grey,
+                  height: 1.6,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1328,21 +1796,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =====================================================
-  // ساخت صفحات
-  // =====================================================
-
-  List<Widget> get pages {
-    return [
-      buildHomePage(),
-      buildChargesPage(),
-      buildFinancialPage(),
-      buildAnnouncementsPage(),
-      buildPollsPage(),
-      buildProfilePage(),
-    ];
-  }
-
-  // =====================================================
   // Build
   // =====================================================
 
@@ -1350,36 +1803,88 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(
       BuildContext context,
       ) {
+    final pages = [
+      buildHomePage(),
+      buildChargesPage(),
+      buildFinancePage(),
+      buildProfilePage(),
+    ];
+
     return Directionality(
       textDirection:
       TextDirection.rtl,
-      child: Scaffold(
+      child:
+      Scaffold(
         backgroundColor:
-        const Color(0xffF5F8FA),
+        const Color(
+          0xffF5F8FA,
+        ),
 
         // =================================================
         // AppBar
         // =================================================
 
-        appBar: AppBar(
+        appBar:
+        AppBar(
           backgroundColor:
-          const Color(0xff00ACC1),
+          const Color(
+            0xff00ACC1,
+          ),
           foregroundColor:
           Colors.white,
           elevation: 0,
           centerTitle: false,
 
-          actions: [
+          title:
+          Row(
+            mainAxisSize:
+            MainAxisSize.min,
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                padding:
+                const EdgeInsets.all(
+                  8,
+                ),
+                decoration:
+                const BoxDecoration(
+                  color:
+                  Colors.white,
+                  shape:
+                  BoxShape.circle,
+                ),
+                child:
+                Image.asset(
+                  'assets/images/splash_logo.png',
+                  fit:
+                  BoxFit.contain,
+                ),
+              ),
+              const SizedBox(
+                width: 12,
+              ),
+              const Text(
+                'رایا شارژ',
+                style:
+                TextStyle(
+                  fontSize: 20,
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
 
-            // =================================================
+          actions: [
+            // =============================================
             // نظرسنجی
-            // =================================================
+            // =============================================
 
             Stack(
               clipBehavior:
               Clip.none,
               children: [
-
                 IconButton(
                   tooltip:
                   'نظرسنجی',
@@ -1397,7 +1902,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   icon:
                   const Icon(
-                    Icons.poll_outlined,
+                    Icons
+                        .poll_outlined,
                     size: 25,
                   ),
                 ),
@@ -1422,45 +1928,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
 
-            // =================================================
-            // اطلاعیه‌ها
-            // =================================================
+            // =============================================
+            // اطلاعیه
+            // =============================================
 
             Stack(
               clipBehavior:
               Clip.none,
               children: [
-
                 IconButton(
                   tooltip:
                   'اطلاعیه‌ها',
                   onPressed:
-                      () async {
-                    final userId =
-                    int.tryParse(
-                      user['id']
-                          ?.toString() ??
-                          '',
-                    );
-
-                    if (userId ==
-                        null) {
-                      return;
-                    }
-
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AnnouncementsScreen(
-                              userId:
-                              userId,
-                            ),
-                      ),
-                    );
-
-                    await loadAnnouncementStatus();
-                  },
+                  openAnnouncements,
                   icon:
                   const Icon(
                     Icons
@@ -1471,7 +1951,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 if (hasNewAnnouncements)
                   Positioned(
-                    top: 8,
+                    top: 15,
                     right: 8,
                     child:
                     Container(
@@ -1493,55 +1973,6 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 5,
             ),
           ],
-
-          // =================================================
-          // لوگو + عنوان
-          // =================================================
-
-          title: Row(
-            mainAxisSize:
-            MainAxisSize.min,
-            children: [
-
-              Container(
-                width: 50,
-                height: 50,
-                padding:
-                const EdgeInsets.all(
-                  10,
-                ),
-                decoration:
-                const BoxDecoration(
-                  color:
-                  Colors.white,
-                  shape:
-                  BoxShape.circle,
-                ),
-                child:
-                Image.asset(
-                  'assets/images/splash_logo.png',
-                  fit:
-                  BoxFit.contain,
-                ),
-              ),
-
-              const SizedBox(
-                width: 15,
-              ),
-
-              const Text(
-                'رایا شارژ',
-                overflow:
-                TextOverflow.ellipsis,
-                style:
-                TextStyle(
-                  fontSize: 20,
-                  fontWeight:
-                  FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
         ),
 
         body:
@@ -1553,18 +1984,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
 
         // =================================================
-        // Bottom Navigation
+        // نوار پایین
         //
-        // RTL:
-        //
-        // راست:
-        // خانه
-        // شارژها
-        // امور مالی
-        // اطلاعیه‌ها
-        // نظرسنجی‌ها
-        // پروفایل
-        // چپ
+        // راست به چپ:
+        // خانه | شارژها | امور مالی | پروفایل
         // =================================================
 
         bottomNavigationBar:
@@ -1577,7 +2000,8 @@ class _HomeScreenState extends State<HomeScreen> {
               BoxShadow(
                 color:
                 Colors.black12,
-                blurRadius: 12,
+                blurRadius:
+                10,
                 offset:
                 Offset(0, -3),
               ),
@@ -1587,44 +2011,30 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBar(
             currentIndex:
             currentIndex,
-
             onTap:
             onNavigationTap,
-
             type:
             BottomNavigationBarType
                 .fixed,
-
             backgroundColor:
             Colors.white,
-
             selectedItemColor:
             const Color(
               0xff00ACC1,
             ),
-
             unselectedItemColor:
-            const Color(
-              0xff90A4AE,
-            ),
-
+            Colors.grey,
             selectedFontSize:
-            11,
-
+            12,
             unselectedFontSize:
-            10,
-
-            elevation: 0,
-
-            items: [
-
-              // ---------------------------------------------
-              // خانه
-              // ---------------------------------------------
-
-              const BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.home_outlined,
+            11,
+            items:
+            const [
+              BottomNavigationBarItem(
+                icon:
+                Icon(
+                  Icons
+                      .home_outlined,
                 ),
                 activeIcon:
                 Icon(
@@ -1633,29 +2043,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 label:
                 'خانه',
               ),
-
-              // ---------------------------------------------
-              // شارژها
-              // ---------------------------------------------
-
-              const BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.receipt_long_outlined,
+              BottomNavigationBarItem(
+                icon:
+                Icon(
+                  Icons
+                      .receipt_long_outlined,
                 ),
                 activeIcon:
                 Icon(
-                  Icons.receipt_long,
+                  Icons
+                      .receipt_long,
                 ),
                 label:
                 'شارژها',
               ),
-
-              // ---------------------------------------------
-              // امور مالی
-              // ---------------------------------------------
-
-              const BottomNavigationBarItem(
-                icon: Icon(
+              BottomNavigationBarItem(
+                icon:
+                Icon(
                   Icons
                       .account_balance_wallet_outlined,
                 ),
@@ -1667,145 +2071,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 label:
                 'امور مالی',
               ),
-
-              // ---------------------------------------------
-              // اطلاعیه‌ها
-              // ---------------------------------------------
-
               BottomNavigationBarItem(
-                icon: Stack(
-                  clipBehavior:
-                  Clip.none,
-                  children: [
-
-                    const Icon(
-                      Icons
-                          .notifications_none_outlined,
-                    ),
-
-                    if (hasNewAnnouncements)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child:
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration:
-                          const BoxDecoration(
-                            color:
-                            Colors.red,
-                            shape:
-                            BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                activeIcon: Stack(
-                  clipBehavior:
-                  Clip.none,
-                  children: [
-
-                    const Icon(
-                      Icons.notifications,
-                    ),
-
-                    if (hasNewAnnouncements)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child:
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration:
-                          const BoxDecoration(
-                            color:
-                            Colors.red,
-                            shape:
-                            BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                label:
-                'اطلاعیه‌ها',
-              ),
-
-              // ---------------------------------------------
-              // نظرسنجی‌ها
-              // ---------------------------------------------
-
-              BottomNavigationBarItem(
-                icon: Stack(
-                  clipBehavior:
-                  Clip.none,
-                  children: [
-
-                    const Icon(
-                      Icons.poll_outlined,
-                    ),
-
-                    if (hasNewPolls)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child:
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration:
-                          const BoxDecoration(
-                            color:
-                            Colors.amber,
-                            shape:
-                            BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                activeIcon: Stack(
-                  clipBehavior:
-                  Clip.none,
-                  children: [
-
-                    const Icon(
-                      Icons.poll,
-                    ),
-
-                    if (hasNewPolls)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child:
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration:
-                          const BoxDecoration(
-                            color:
-                            Colors.amber,
-                            shape:
-                            BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                label:
-                'نظرسنجی‌ها',
-              ),
-
-              // ---------------------------------------------
-              // پروفایل
-              // ---------------------------------------------
-
-              const BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.person_outline,
+                icon:
+                Icon(
+                  Icons
+                      .person_outline,
                 ),
                 activeIcon:
                 Icon(
@@ -1823,150 +2093,19 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // =====================================================
-// کارت امور مالی
+// نمودار Donut
 // =====================================================
 
-class _FinancialCard
-    extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String amount;
-  final Color color;
-
-  const _FinancialCard({
-    required this.icon,
-    required this.title,
-    required this.amount,
-    required this.color,
-  });
-
-  @override
-  Widget build(
-      BuildContext context,
-      ) {
-    return Container(
-      margin:
-      const EdgeInsets.only(
-        bottom: 14,
-      ),
-      padding:
-      const EdgeInsets.all(18),
-      decoration:
-      BoxDecoration(
-        color:
-        Colors.white,
-        borderRadius:
-        BorderRadius.circular(
-          20,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-            Colors.black
-                .withOpacity(
-              0.045,
-            ),
-            blurRadius: 12,
-            offset:
-            const Offset(
-              0,
-              4,
-            ),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-
-          Container(
-            width: 48,
-            height: 48,
-            decoration:
-            BoxDecoration(
-              color:
-              color.withOpacity(
-                0.10,
-              ),
-              shape:
-              BoxShape.circle,
-            ),
-            child:
-            Icon(
-              icon,
-              color:
-              color,
-              size: 25,
-            ),
-          ),
-
-          const SizedBox(
-            width: 14,
-          ),
-
-          Expanded(
-            child: Text(
-              title,
-              style:
-              const TextStyle(
-                fontSize: 14,
-                color:
-                Color(
-                  0xff607D8B,
-                ),
-              ),
-            ),
-          ),
-
-          Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.end,
-            children: [
-
-              Text(
-                amount,
-                style:
-                const TextStyle(
-                  fontSize: 17,
-                  fontWeight:
-                  FontWeight.bold,
-                  color:
-                  Color(
-                    0xff263238,
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 3,
-              ),
-
-              const Text(
-                'تومان',
-                style:
-                TextStyle(
-                  fontSize: 11,
-                  color:
-                  Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =====================================================
-// نمودار دایره‌ای شارژ
-// =====================================================
-
-class _ChargeChartPainter
+class _ChargeDonutPainter
     extends CustomPainter {
-  final double paidPercent;
+  final int paidCount;
+  final int unpaidCount;
+  final int pendingCount;
 
-  _ChargeChartPainter({
-    required this.paidPercent,
+  _ChargeDonutPainter({
+    required this.paidCount,
+    required this.unpaidCount,
+    required this.pendingCount,
   });
 
   @override
@@ -1974,7 +2113,8 @@ class _ChargeChartPainter
       Canvas canvas,
       Size size,
       ) {
-    final center = Offset(
+    final center =
+    Offset(
       size.width / 2,
       size.height / 2,
     );
@@ -1985,30 +2125,21 @@ class _ChargeChartPainter
           size.height,
         ) /
             2 -
-            10;
+            12;
 
     const strokeWidth =
-    25.0;
+    19.0;
+
+    final total =
+        paidCount +
+            unpaidCount +
+            pendingCount;
 
     final backgroundPaint =
     Paint()
       ..color =
       const Color(
-        0xffE2E5E8,
-      )
-      ..style =
-          PaintingStyle.stroke
-      ..strokeWidth =
-          strokeWidth
-      ..strokeCap =
-          StrokeCap.round;
-
-    // رنگ نمودار ملایم‌تر
-    final paidPaint =
-    Paint()
-      ..color =
-      const Color(
-        0xff7654A6,
+        0xffEEF1F3,
       )
       ..style =
           PaintingStyle.stroke
@@ -2023,49 +2154,99 @@ class _ChargeChartPainter
       backgroundPaint,
     );
 
-    final paidAngle =
-        2 *
-            math.pi *
-            paidPercent;
+    if (total <= 0) {
+      return;
+    }
 
-    canvas.drawArc(
-      Rect.fromCircle(
-        center: center,
-        radius: radius,
+    final colors = [
+      const Color(
+        0xff159c35,
       ),
-      -math.pi / 2,
-      paidAngle,
-      false,
-      paidPaint,
-    );
+      const Color(
+        0xffff2600,
+      ),
+      const Color(
+        0xfff6963e,
+      ),
+    ];
+
+    final counts = [
+      paidCount,
+      unpaidCount,
+      pendingCount,
+    ];
+
+    double startAngle =
+        -math.pi / 2;
+
+    for (int i = 0;
+    i < counts.length;
+    i++) {
+      if (counts[i] <= 0) {
+        continue;
+      }
+
+      final sweepAngle =
+          2 *
+              math.pi *
+              counts[i] /
+              total;
+
+      final paint =
+      Paint()
+        ..color =
+        colors[i]
+        ..style =
+            PaintingStyle.stroke
+        ..strokeWidth =
+            strokeWidth
+        ..strokeCap =
+            StrokeCap.round;
+
+      canvas.drawArc(
+        Rect.fromCircle(
+          center: center,
+          radius: radius,
+        ),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+
+      startAngle +=
+          sweepAngle;
+    }
   }
 
   @override
   bool shouldRepaint(
-      covariant
-      _ChargeChartPainter
+      covariant _ChargeDonutPainter
       oldDelegate,
       ) {
-    return oldDelegate
-        .paidPercent !=
-        paidPercent;
+    return oldDelegate.paidCount !=
+        paidCount ||
+        oldDelegate.unpaidCount !=
+            unpaidCount ||
+        oldDelegate.pendingCount !=
+            pendingCount;
   }
 }
 
 // =====================================================
-// راهنمای نمودار
+// ردیف تعداد وضعیت
 // =====================================================
 
-class _ChartLegend
+class _StatusCountRow
     extends StatelessWidget {
   final String title;
-  final int amount;
-  final Color iconColor;
+  final int count;
+  final Color color;
 
-  const _ChartLegend({
+  const _StatusCountRow({
     required this.title,
-    required this.amount,
-    required this.iconColor,
+    required this.count,
+    required this.color,
   });
 
   String toPersianDigits(
@@ -2077,15 +2258,105 @@ class _ChartLegend
     const persian =
         '۰۱۲۳۴۵۶۷۸۹';
 
-    for (
-    int i = 0;
+    for (int i = 0;
     i < english.length;
-    i++
-    ) {
-      value = value.replaceAll(
-        english[i],
-        persian[i],
-      );
+    i++) {
+      value =
+          value.replaceAll(
+            english[i],
+            persian[i],
+          );
+    }
+
+    return value;
+  }
+
+  @override
+  Widget build(
+      BuildContext context,
+      ) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration:
+          BoxDecoration(
+            color: color,
+            shape:
+            BoxShape.circle,
+          ),
+        ),
+
+        const SizedBox(
+          width: 7,
+        ),
+
+        Expanded(
+          child: Text(
+            title,
+            style:
+            const TextStyle(
+              fontSize: 12,
+              color:
+              Colors.grey,
+            ),
+          ),
+        ),
+
+        Text(
+          toPersianDigits(
+            count.toString(),
+          ),
+          style:
+          const TextStyle(
+            fontSize: 15,
+            fontWeight:
+            FontWeight.bold,
+            color:
+            Color(0xff263238),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =====================================================
+// اطلاعات مبلغ
+// =====================================================
+
+class _AmountInfo
+    extends StatelessWidget {
+  final String title;
+  final int amount;
+  final IconData icon;
+  final Color color;
+
+  const _AmountInfo({
+    required this.title,
+    required this.amount,
+    required this.icon,
+    required this.color,
+  });
+
+  String toPersianDigits(
+      String value,
+      ) {
+    const english =
+        '0123456789';
+
+    const persian =
+        '۰۱۲۳۴۵۶۷۸۹';
+
+    for (int i = 0;
+    i < english.length;
+    i++) {
+      value =
+          value.replaceAll(
+            english[i],
+            persian[i],
+          );
     }
 
     return value;
@@ -2100,11 +2371,9 @@ class _ChartLegend
     final buffer =
     StringBuffer();
 
-    for (
-    int i = 0;
+    for (int i = 0;
     i < text.length;
-    i++
-    ) {
+    i++) {
       if (i > 0 &&
           (text.length - i) %
               3 ==
@@ -2128,57 +2397,87 @@ class _ChartLegend
   Widget build(
       BuildContext context,
       ) {
-    return Column(
-      children: [
-
-        Row(
-          mainAxisAlignment:
-          MainAxisAlignment
-              .center,
-          children: [
-
-            Container(
-              width: 11,
-              height: 11,
-              decoration:
-              BoxDecoration(
-                color:
-                iconColor,
-                shape:
-                BoxShape.circle,
+    return Container(
+      padding:
+      const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 11,
+      ),
+      decoration:
+      BoxDecoration(
+        color:
+        color.withOpacity(
+          0.07,
+        ),
+        borderRadius:
+        BorderRadius.circular(
+          14,
+        ),
+      ),
+      child:
+      Column(
+        children: [
+          Row(
+            mainAxisAlignment:
+            MainAxisAlignment
+                .center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: color,
               ),
-            ),
+              const SizedBox(
+                width: 5,
+              ),
+              Flexible(
+                child:
+                Text(
+                  title,
+                  maxLines:
+                  1,
+                  overflow:
+                  TextOverflow
+                      .ellipsis,
+                  textAlign:
+                  TextAlign.center,
+                  style:
+                  TextStyle(
+                    fontSize: 10.5,
+                    color:
+                    color,
+                    fontWeight:
+                    FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
-            const SizedBox(
-              width: 6,
-            ),
+          const SizedBox(
+            height: 5,
+          ),
 
+          FittedBox(
+            fit:
+            BoxFit.scaleDown,
+            child:
             Text(
-              title,
+              '${formatAmount(amount)} تومان',
               style:
               const TextStyle(
-                fontSize: 12,
+                fontSize: 13,
+                fontWeight:
+                FontWeight.bold,
                 color:
-                Colors.grey,
+                Color(
+                  0xff263238,
+                ),
               ),
             ),
-          ],
-        ),
-
-        const SizedBox(
-          height: 6,
-        ),
-
-        Text(
-          '${formatAmount(amount)} تومان',
-          style:
-          const TextStyle(
-            fontSize: 13,
-            fontWeight:
-            FontWeight.bold,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -2220,30 +2519,15 @@ class _ProfileItem
         BorderRadius.circular(
           16,
         ),
-        boxShadow: [
-          BoxShadow(
-            color:
-            Colors.black
-                .withOpacity(
-              0.025,
-            ),
-            blurRadius: 8,
-            offset:
-            const Offset(
-              0,
-              3,
-            ),
-          ),
-        ],
       ),
-      child: Row(
+      child:
+      Row(
         children: [
-
           Icon(
             icon,
             color:
             const Color(
-              0xff7654A6,
+              0xff610DB5,
             ),
           ),
 
@@ -2265,7 +2549,8 @@ class _ProfileItem
           ),
 
           Expanded(
-            child: Text(
+            child:
+            Text(
               value,
               textAlign:
               TextAlign.left,
