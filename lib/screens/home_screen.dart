@@ -14,6 +14,7 @@ import 'login_screen.dart';
 import 'polls_screen.dart';
 import 'finance_screen.dart';
 import 'finance_menu_screen.dart';
+import 'messages_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -28,10 +29,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int currentIndex = 0;
+  int currentIndex = 2;
 
   bool hasNewAnnouncements = false;
   bool hasNewPolls = false;
+  bool hasNewMessages = false;
+
+  int unreadMessageCount = 0;
+  bool showNewMessageBanner = false;
+  bool isLoadingMessageStatus = false;
 
   Map<String, dynamic>? dashboardData;
   bool isDashboardLoading = true;
@@ -52,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
     loadDashboard();
     loadPollStatus();
     loadAnnouncementData();
+    loadMessageStatus();
   }
 
   @override
@@ -59,6 +66,120 @@ class _HomeScreenState extends State<HomeScreen> {
     _announcementTimer?.cancel();
     _announcementController?.dispose();
     super.dispose();
+  }
+
+  // =====================================================
+  // اعلان پیام جدید
+  // =====================================================
+  Widget _buildNewMessageBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(
+        bottom: 12,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 11,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xffD32F2F),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xffD32F2F)
+                .withOpacity(0.20),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.mark_email_unread_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+
+          const SizedBox(width: 11),
+
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                    const MessagesScreen(),
+                  ),
+                );
+
+                // بعد از برگشت، وضعیت واقعی پیام‌ها را بگیر
+                await loadMessageStatus(
+                  forceShow: true,
+                );
+              },
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'پیام جدید از طرف مدیر',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    '${toPersianDigits(unreadMessageCount.toString())} پیام از طرف مدیر دارید',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // دکمه بستن
+          IconButton(
+            tooltip: 'بستن',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
+            ),
+            onPressed: () {
+              setState(() {
+                // فقط نوار بسته می‌شود
+                // تعداد پیام‌ها تغییر نمی‌کند
+                showNewMessageBanner = false;
+              });
+            },
+            icon: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // =====================================================
@@ -366,6 +487,107 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =====================================================
+  // پیام ها
+  // =====================================================
+  Future<void> loadMessageStatus({
+    bool forceShow = true,
+  }) async {
+    if (isLoadingMessageStatus) return;
+
+    isLoadingMessageStatus = true;
+
+    try {
+      final result = await ApiService().getMessages();
+
+      final dynamic unreadData = result['unread_count'];
+
+      final int count = unreadData is num
+          ? unreadData.toInt()
+          : int.tryParse(
+        unreadData?.toString() ?? '',
+      ) ??
+          0;
+
+      if (!mounted) return;
+
+      setState(() {
+        unreadMessageCount = count;
+
+        if (count > 0) {
+          if (forceShow) {
+            showNewMessageBanner = true;
+          }
+        } else {
+          // هیچ پیام خوانده‌نشده‌ای باقی نمانده
+          showNewMessageBanner = false;
+        }
+      });
+    } catch (e) {
+      debugPrint(
+        'LOAD MESSAGE STATUS ERROR: $e',
+      );
+    } finally {
+      isLoadingMessageStatus = false;
+    }
+  }
+
+  Future<void> openMessages() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MessagesScreen(),
+      ),
+    );
+
+    await loadMessageStatus();
+  }
+
+  // Future<void> loadMessageStatus({
+  //   bool forceShow = true,
+  // }) async {
+  //   if (isLoadingMessageStatus) return;
+  //
+  //   isLoadingMessageStatus = true;
+  //
+  //   try {
+  //     final result = await ApiService().getMessages();
+  //
+  //     final dynamic unreadData =
+  //     result['unread_count'];
+  //
+  //     final int count = unreadData is num
+  //         ? unreadData.toInt()
+  //         : int.tryParse(
+  //       unreadData?.toString() ?? '',
+  //     ) ??
+  //         0;
+  //
+  //     if (!mounted) return;
+  //
+  //     setState(() {
+  //       unreadMessageCount = count;
+  //
+  //       if (count > 0) {
+  //         // با هر بار ورود مجدد به Home
+  //         // نوار دوباره نمایش داده شود.
+  //         if (forceShow) {
+  //           showNewMessageBanner = true;
+  //         }
+  //       } else {
+  //         // وقتی همه پیام‌ها خوانده شده‌اند
+  //         // نوار دیگر نمایش داده نمی‌شود.
+  //         showNewMessageBanner = false;
+  //       }
+  //     });
+  //   } catch (e) {
+  //     debugPrint(
+  //       'LOAD MESSAGE STATUS ERROR: $e',
+  //     );
+  //   } finally {
+  //     isLoadingMessageStatus = false;
+  //   }
+  // }
+  // =====================================================
   // اطلاعیه‌ها
   // =====================================================
 
@@ -559,7 +781,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // =====================================================
   // صفحه اصلی
   // =====================================================
-
   Widget buildHomePage() {
     final totalCount =
         paidCount +
@@ -568,48 +789,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return SafeArea(
       child: RefreshIndicator(
-        color:
-        const Color(0xff00ACC1),
+        color: const Color(0xff00ACC1),
+
         onRefresh: () async {
           await Future.wait([
             loadDashboard(),
             loadAnnouncementData(),
             loadPollStatus(),
+            loadMessageStatus(
+              forceShow: true,
+            ),
           ]);
         },
+
         child: SingleChildScrollView(
           physics:
           const AlwaysScrollableScrollPhysics(),
-          padding:
-          const EdgeInsets.fromLTRB(
+
+          padding: const EdgeInsets.fromLTRB(
             18,
             18,
             18,
             30,
           ),
+
           child: Column(
             crossAxisAlignment:
             CrossAxisAlignment.stretch,
+
             children: [
-              // =================================================
-              // مشخصات کاربر و ساختمان
-              // =================================================
+              // =========================================
+              // پیام جدید
+              // =========================================
+
+              if (showNewMessageBanner &&
+                  unreadMessageCount > 0)
+                _buildNewMessageBanner(),
+
+              // =========================================
+              // مشخصات کاربر
+              // =========================================
 
               _buildUserCard(),
 
               const SizedBox(height: 14),
 
-              // =================================================
+              // =========================================
               // اطلاعیه‌ها
-              // =================================================
+              // =========================================
 
               _buildAnnouncementSlider(),
 
               const SizedBox(height: 18),
 
-              // =================================================
+              // =========================================
               // وضعیت شارژ
-              // =================================================
+              // =========================================
 
               _buildChargeStatusCard(
                 totalCount,
@@ -620,6 +855,73 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  // Widget buildHomePage() {
+  //
+  //   if (showNewMessageBanner && unreadMessageCount > 0)
+  //     _buildNewMessageBanner(),
+  //
+  //
+  //   const SizedBox(height: 12),
+  //
+  //   final totalCount =
+  //       paidCount +
+  //           unpaidCount +
+  //           pendingCount;
+  //
+  //   return SafeArea(
+  //     child: RefreshIndicator(
+  //       color:
+  //       const Color(0xff00ACC1),
+  //       onRefresh: () async {
+  //         await Future.wait([
+  //           loadDashboard(),
+  //           loadAnnouncementData(),
+  //           loadPollStatus(),
+  //         ]);
+  //       },
+  //       child: SingleChildScrollView(
+  //         physics:
+  //         const AlwaysScrollableScrollPhysics(),
+  //         padding:
+  //         const EdgeInsets.fromLTRB(
+  //           18,
+  //           18,
+  //           18,
+  //           30,
+  //         ),
+  //         child: Column(
+  //           crossAxisAlignment:
+  //           CrossAxisAlignment.stretch,
+  //           children: [
+  //             // =================================================
+  //             // مشخصات کاربر و ساختمان
+  //             // =================================================
+  //
+  //             _buildUserCard(),
+  //
+  //             const SizedBox(height: 14),
+  //
+  //             // =================================================
+  //             // اطلاعیه‌ها
+  //             // =================================================
+  //
+  //             _buildAnnouncementSlider(),
+  //
+  //             const SizedBox(height: 18),
+  //
+  //             // =================================================
+  //             // وضعیت شارژ
+  //             // =================================================
+  //
+  //             _buildChargeStatusCard(
+  //               totalCount,
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   // =====================================================
   // کارت مشخصات
@@ -1403,6 +1705,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildFinancePage() {
     return const FinanceMenuScreen();
   }
+  // =====================================================
+  // صفحه پیام ها
+  // =====================================================
+
+  Widget buildMessagesPage() {
+    return const MessagesScreen();
+  }
 
   // =====================================================
   // صفحه پروفایل
@@ -1787,14 +2096,26 @@ class _HomeScreenState extends State<HomeScreen> {
   // تغییر صفحه
   // =====================================================
 
-  void onNavigationTap(
-      int index,
-      ) {
+  // void onNavigationTap(
+  //     int index,
+  //     ) {
+  //   setState(() {
+  //     currentIndex = index;
+  //   });
+  // }
+  void onNavigationTap(int index) {
     setState(() {
       currentIndex = index;
     });
-  }
 
+    // هر بار که وارد صفحه خانه می‌شویم
+    // وضعیت پیام‌ها دوباره بررسی شود.
+    if (index == 2) {
+      loadMessageStatus(
+        forceShow: true,
+      );
+    }
+  }
   // =====================================================
   // Build
   // =====================================================
@@ -1804,9 +2125,10 @@ class _HomeScreenState extends State<HomeScreen> {
       BuildContext context,
       ) {
     final pages = [
-      buildHomePage(),
       buildChargesPage(),
       buildFinancePage(),
+      buildHomePage(),
+      buildMessagesPage(),
       buildProfilePage(),
     ];
 
@@ -1990,99 +2312,165 @@ class _HomeScreenState extends State<HomeScreen> {
         // خانه | شارژها | امور مالی | پروفایل
         // =================================================
 
-        bottomNavigationBar:
-        Container(
-          decoration:
-          const BoxDecoration(
-            color:
-            Colors.white,
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color:
-                Colors.black12,
-                blurRadius:
-                10,
-                offset:
-                Offset(0, -3),
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, -3),
               ),
             ],
           ),
-          child:
-          BottomNavigationBar(
-            currentIndex:
-            currentIndex,
-            onTap:
-            onNavigationTap,
-            type:
-            BottomNavigationBarType
-                .fixed,
-            backgroundColor:
-            Colors.white,
-            selectedItemColor:
-            const Color(
-              0xff00ACC1,
-            ),
-            unselectedItemColor:
-            Colors.grey,
-            selectedFontSize:
-            12,
-            unselectedFontSize:
-            11,
-            items:
-            const [
-              BottomNavigationBarItem(
-                icon:
-                Icon(
-                  Icons
-                      .home_outlined,
+          child: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: onNavigationTap,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+
+            selectedItemColor: const Color(0xff00ACC1),
+            unselectedItemColor: Colors.grey,
+
+            selectedFontSize: 12,
+            unselectedFontSize: 11,
+
+            items: [
+              // =========================================
+              // شارژها
+              // =========================================
+
+              const BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.receipt_long_outlined,
                 ),
-                activeIcon:
-                Icon(
-                  Icons.home,
+                activeIcon: Icon(
+                  Icons.receipt_long,
                 ),
-                label:
-                'خانه',
+                label: 'شارژها',
               ),
-              BottomNavigationBarItem(
-                icon:
-                Icon(
-                  Icons
-                      .receipt_long_outlined,
+
+              // =========================================
+              // امور مالی
+              // =========================================
+
+              const BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.account_balance_wallet_outlined,
                 ),
-                activeIcon:
-                Icon(
-                  Icons
-                      .receipt_long,
+                activeIcon: Icon(
+                  Icons.account_balance_wallet,
                 ),
-                label:
-                'شارژها',
+                label: 'امور مالی',
               ),
+
+              // =========================================
+              // خانه - متمایز
+              // =========================================
+
               BottomNavigationBarItem(
-                icon:
-                Icon(
-                  Icons
-                      .account_balance_wallet_outlined,
+                icon: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: currentIndex == 2
+                        ? const Color(0xff00ACC1)
+                        : Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: currentIndex == 2
+                        ? [
+                      BoxShadow(
+                        color: const Color(0xff00ACC1)
+                            .withOpacity(0.30),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                        : null,
+                    border: currentIndex == 2
+                        ? null
+                        : Border.all(
+                      color: Colors.grey.shade300,
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    currentIndex == 2
+                        ? Icons.home_rounded
+                        : Icons.home_outlined,
+                    color: currentIndex == 2
+                        ? Colors.white
+                        : Colors.grey,
+                    size: 27,
+                  ),
                 ),
-                activeIcon:
-                Icon(
-                  Icons
-                      .account_balance_wallet,
-                ),
-                label:
-                'امور مالی',
+                label: 'خانه',
               ),
+
+              // =========================================
+              // پیام‌ها
+              // =========================================
+
               BottomNavigationBarItem(
-                icon:
-                Icon(
-                  Icons
-                      .person_outline,
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.mail_outline_rounded,
+                    ),
+
+                    if (hasNewMessages)
+                      Positioned(
+                        top: -3,
+                        right: -4,
+                        child: Container(
+                          width: 9,
+                          height: 9,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                activeIcon:
-                Icon(
+                activeIcon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.mail_rounded,
+                    ),
+
+                    if (hasNewMessages)
+                      Positioned(
+                        top: -3,
+                        right: -4,
+                        child: Container(
+                          width: 9,
+                          height: 9,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                label: 'پیام‌ها',
+              ),
+
+              // =========================================
+              // پروفایل
+              // =========================================
+
+              const BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.person_outline,
+                ),
+                activeIcon: Icon(
                   Icons.person,
                 ),
-                label:
-                'پروفایل',
+                label: 'پروفایل',
               ),
             ],
           ),

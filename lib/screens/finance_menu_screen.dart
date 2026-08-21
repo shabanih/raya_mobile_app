@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'finance_screen.dart';
+import 'civil_charge_screen.dart';
+import 'sewage_charge_screen.dart';
+
 
 class FinanceMenuScreen extends StatelessWidget {
   const FinanceMenuScreen({super.key});
@@ -45,9 +48,12 @@ class FinanceMenuScreen extends StatelessWidget {
               title: 'شارژ عمرانی',
               subtitle: 'مشاهده و پرداخت شارژ عمرانی ساختمان',
               onTap: () {
-                _showComingSoon(
+                Navigator.push(
                   context,
-                  'شارژ عمرانی',
+                  MaterialPageRoute(
+                    builder: (_) =>
+                    const CivilChargeScreen(),
+                  ),
                 );
               },
             ),
@@ -60,13 +66,16 @@ class FinanceMenuScreen extends StatelessWidget {
 
             _buildFinanceCard(
               context: context,
-              icon: Icons.water_drop_outlined,
+              icon: Icons.construction_outlined,
               title: 'هزینه فاضلاب',
               subtitle: 'مشاهده و پرداخت هزینه فاضلاب ساختمان',
               onTap: () {
-                _showComingSoon(
+                Navigator.push(
                   context,
-                  'هزینه فاضلاب',
+                  MaterialPageRoute(
+                    builder: (_) =>
+                    const SewageChargeScreen(),
+                  ),
                 );
               },
             ),
