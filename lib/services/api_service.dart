@@ -2043,6 +2043,466 @@ class ApiService {
   }
 
   // =====================================================
+// لیست کمک‌های من به ساختمان
+// =====================================================
+
+  Future<List<Map<String, dynamic>>> getUserPayments() async {
+    final token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'توکن ورود پیدا نشد',
+      );
+    }
+
+    final response = await http.get(
+      Uri.parse(
+        ApiConfig.userPayments,
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    debugPrint(
+      'USER PAYMENTS STATUS: '
+          '${response.statusCode}',
+    );
+
+    debugPrint(
+      'USER PAYMENTS RESPONSE: '
+          '${response.body}',
+    );
+
+    if (response.statusCode == 200) {
+      final data =
+      jsonDecode(response.body);
+
+      if (data['success'] == true) {
+        final payments =
+        data['payments'];
+
+        if (payments is List) {
+          return payments
+              .map<Map<String, dynamic>>(
+                (item) =>
+            Map<String, dynamic>.from(
+              item,
+            ),
+          )
+              .toList();
+        }
+      }
+
+      return [];
+    }
+
+    if (response.statusCode == 401) {
+      throw Exception(
+        'نشست کاربر منقضی شده است',
+      );
+    }
+
+    throw Exception(
+      'خطا در دریافت کمک‌های ساختمان '
+          '(${response.statusCode})',
+    );
+  }
+  // =====================================================
+// ثبت کمک جدید به ساختمان
+// =====================================================
+
+  Future<Map<String, dynamic>> createUserPayment({
+    required dynamic amount,
+    required String description,
+    required String registerDate,
+    String? details,
+    String? payerName,
+  }) async {
+    final token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception('توکن ورود پیدا نشد.');
+    }
+
+    final body = {
+      'amount': amount,
+      'description': description,
+      'register_date': registerDate,
+    };
+
+    if (details != null &&
+        details.trim().isNotEmpty) {
+      body['details'] = details.trim();
+    }
+
+    if (payerName != null &&
+        payerName.trim().isNotEmpty) {
+      body['payer_name'] = payerName.trim();
+    }
+
+    debugPrint(
+      '====================================',
+    );
+
+    debugPrint(
+      'CREATE USER PAYMENT URL: '
+          '${ApiConfig.userPayments}',
+    );
+
+    debugPrint(
+      'CREATE USER PAYMENT BODY: $body',
+    );
+
+    final response = await http.post(
+      Uri.parse(ApiConfig.userPayments),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+
+    debugPrint(
+      'CREATE USER PAYMENT STATUS: '
+          '${response.statusCode}',
+    );
+
+    debugPrint(
+      'CREATE USER PAYMENT RESPONSE: '
+          '${response.body}',
+    );
+
+    debugPrint(
+      '====================================',
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 201) {
+      return Map<String, dynamic>.from(
+        data,
+      );
+    }
+
+    String message =
+        'ثبت کمک با خطا مواجه شد.';
+
+    if (data is Map) {
+      if (data['message'] != null) {
+        message =
+            data['message'].toString();
+      } else if (data['errors'] != null) {
+        message =
+            data['errors'].toString();
+      }
+    }
+
+    throw Exception(message);
+  }
+// =====================================================
+// دریافت روش‌های پرداخت کمک
+// =====================================================
+
+  Future<Map<String, dynamic>>
+  getUserPaymentPaymentMethods(
+      int paymentId,
+      ) async {
+
+    final token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'توکن ورود پیدا نشد',
+      );
+    }
+
+    try {
+
+      final url =
+      ApiConfig.userPaymentPaymentMethods(
+        paymentId,
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      debugPrint(
+        'GET USER PAYMENT PAYMENT METHODS',
+      );
+
+      debugPrint(
+        'URL: $url',
+      );
+
+      debugPrint(
+        'PAYMENT ID: $paymentId',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      debugPrint(
+        'USER PAYMENT METHODS STATUS: '
+            '${response.statusCode}',
+      );
+
+      debugPrint(
+        'USER PAYMENT METHODS RESPONSE: '
+            '${response.body}',
+      );
+
+      if (response.statusCode == 200) {
+
+        final data =
+        jsonDecode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+
+        throw Exception(
+          'ساختار پاسخ روش‌های پرداخت کمک نامعتبر است.',
+        );
+      }
+
+      if (response.statusCode == 401) {
+        throw Exception(
+          'TOKEN_EXPIRED',
+        );
+      }
+
+      Map<String, dynamic> data = {};
+
+      try {
+
+        final decoded =
+        jsonDecode(response.body);
+
+        if (decoded is Map<String, dynamic>) {
+          data = decoded;
+        }
+
+      } catch (_) {}
+
+      throw Exception(
+        data['message']?.toString() ??
+            data['detail']?.toString() ??
+            'خطا در دریافت روش‌های پرداخت کمک: '
+                '${response.statusCode}',
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        'GET USER PAYMENT METHODS ERROR: $e',
+      );
+
+      rethrow;
+    }
+  }
+
+
+// =====================================================
+// ثبت پرداخت دستی کمک
+// =====================================================
+
+  Future<Map<String, dynamic>>
+  submitManualUserPayment({
+
+    required int paymentId,
+
+    required int bankId,
+
+    required String transactionReference,
+
+    required String paymentDate,
+
+  }) async {
+
+    final token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'توکن ورود پیدا نشد',
+      );
+    }
+
+    try {
+
+      final url =
+      ApiConfig.manualUserPayment(
+        paymentId,
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      debugPrint(
+        'MANUAL USER PAYMENT',
+      );
+
+      debugPrint(
+        'URL: $url',
+      );
+
+      debugPrint(
+        'PAYMENT ID: $paymentId',
+      );
+
+      debugPrint(
+        'BANK ID: $bankId',
+      );
+
+      debugPrint(
+        'TRANSACTION REFERENCE: '
+            '$transactionReference',
+      );
+
+      debugPrint(
+        'PAYMENT DATE: $paymentDate',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'bank_id': bankId,
+          'transaction_reference':
+          transactionReference,
+          'payment_date': paymentDate,
+        }),
+      );
+
+      debugPrint(
+        'USER PAYMENT STATUS: '
+            '${response.statusCode}',
+      );
+
+      debugPrint(
+        'USER PAYMENT RESPONSE: '
+            '${response.body}',
+      );
+
+      Map<String, dynamic> data = {};
+
+      try {
+
+        final decoded =
+        jsonDecode(response.body);
+
+        if (decoded is Map<String, dynamic>) {
+          data = decoded;
+        }
+
+      } catch (_) {}
+
+      if (response.statusCode == 200 ||
+          response.statusCode == 201) {
+
+        return data;
+      }
+
+      if (response.statusCode == 400) {
+
+        final errors =
+        data['errors'];
+
+        if (errors is Map) {
+
+          final messages =
+          <String>[];
+
+          errors.forEach(
+                (key, value) {
+
+              if (value is List) {
+
+                messages.addAll(
+                  value.map(
+                        (item) =>
+                        item.toString(),
+                  ),
+                );
+
+              } else {
+
+                messages.add(
+                  value.toString(),
+                );
+              }
+            },
+          );
+
+          if (messages.isNotEmpty) {
+
+            throw Exception(
+              messages.join('\n'),
+            );
+          }
+        }
+
+        throw Exception(
+          data['message']?.toString() ??
+              data['detail']?.toString() ??
+              'اطلاعات پرداخت صحیح نیست.',
+        );
+      }
+
+      if (response.statusCode == 401) {
+        throw Exception(
+          'TOKEN_EXPIRED',
+        );
+      }
+
+      if (response.statusCode == 404) {
+        throw Exception(
+          'مسیر ثبت پرداخت کمک پیدا نشد.',
+        );
+      }
+
+      throw Exception(
+        data['message']?.toString() ??
+            data['detail']?.toString() ??
+            'خطا در ثبت پرداخت کمک: '
+                '${response.statusCode}',
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        'MANUAL USER PAYMENT ERROR: $e',
+      );
+
+      rethrow;
+    }
+  }
+  // =====================================================
 // دریافت پیام‌های مدیر
 // =====================================================
 

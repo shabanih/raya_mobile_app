@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'finance_screen.dart';
 import 'civil_charge_screen.dart';
 import 'sewage_charge_screen.dart';
+import 'user_payments_screen.dart';
 
 
 class FinanceMenuScreen extends StatelessWidget {
@@ -113,9 +114,11 @@ class FinanceMenuScreen extends StatelessWidget {
               title: 'کمک به ساختمان',
               subtitle: 'مشارکت و کمک مالی به ساختمان',
               onTap: () {
-                _showComingSoon(
+                Navigator.push(
                   context,
-                  'کمک به ساختمان',
+                  MaterialPageRoute(
+                    builder: (_) => const UserPaymentsScreen(),
+                  ),
                 );
               },
             ),

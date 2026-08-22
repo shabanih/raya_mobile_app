@@ -135,4 +135,22 @@ class ApiConfig {
   static String messageRead(int messageId) =>
       '$baseUrl/messages/$messageId/read/';
 
+  // ==============================
+  // کمک به ساختمان
+  // ==============================
+
+  static const String userPayments =
+      '$baseUrl/user-payments/';
+
+  static String userPaymentPaymentMethods(
+      int paymentId,
+      ) =>
+      '$baseUrl/user-payments/$paymentId/payment-methods/';
+
+  static String manualUserPayment(
+      int paymentId,
+      ) =>
+      '$baseUrl/user-payments/$paymentId/manual-payment/';
+
+
 }

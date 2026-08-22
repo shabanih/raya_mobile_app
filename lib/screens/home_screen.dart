@@ -1587,7 +1587,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onTap: () {
                 setState(() {
-                  currentIndex = 1;
+                  currentIndex = 0;
                 });
               },
               child:
