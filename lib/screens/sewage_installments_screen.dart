@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
-import 'manual_sewage_payment_screen.dart';
+import 'sewage_payment_method_screen.dart';
 
 class SewageInstallmentsScreen extends StatefulWidget {
   final int sewageId;
@@ -179,7 +179,7 @@ class _SewageInstallmentsScreenState
       context,
       MaterialPageRoute(
         builder: (context) =>
-            ManualSewagePaymentScreen(
+            SewagePaymentMethodScreen(
               installmentId: id,
             ),
       ),
@@ -591,7 +591,7 @@ class _SewageInstallmentsScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: purpleColor,
+        color: primaryColor,
         borderRadius:
         BorderRadius.circular(20),
         boxShadow: [
@@ -927,7 +927,7 @@ class _SewageInstallmentsScreenState
                 style:
                 ElevatedButton.styleFrom(
                   backgroundColor:
-                  primaryColor,
+                  purpleColor,
                   foregroundColor:
                   Colors.white,
                   elevation: 0,

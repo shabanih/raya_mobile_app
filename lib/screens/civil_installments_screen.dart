@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
-import 'manual_civil_payment_screen.dart';
+import 'civil_payment_method_screen.dart';
 
 class CivilInstallmentsScreen extends StatefulWidget {
   final int civilId;
@@ -179,7 +179,7 @@ class _CivilInstallmentsScreenState
       context,
       MaterialPageRoute(
         builder: (context) =>
-            ManualCivilPaymentScreen(
+            CivilPaymentMethodScreen(
               installmentId: id,
             ),
       ),
@@ -591,7 +591,7 @@ class _CivilInstallmentsScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: purpleColor,
+        color: primaryColor,
         borderRadius:
         BorderRadius.circular(20),
         boxShadow: [
@@ -927,7 +927,7 @@ class _CivilInstallmentsScreenState
                 style:
                 ElevatedButton.styleFrom(
                   backgroundColor:
-                  primaryColor,
+                  purpleColor,
                   foregroundColor:
                   Colors.white,
                   elevation: 0,

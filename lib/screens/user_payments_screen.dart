@@ -295,12 +295,39 @@ class _UserPaymentsScreenState
   // مجموع کمک‌ها
   // =====================================================
 
+  // int get totalAmount {
+  //   int total = 0;
+  //
+  //   for (final item in payments) {
+  //     final amount =
+  //         item['amount'] ?? 0;
+  //
+  //     if (amount is num) {
+  //       total += amount.toInt();
+  //     } else {
+  //       final text = amount
+  //           .toString()
+  //           .replaceAll(',', '')
+  //           .replaceAll('٬', '')
+  //           .replaceAll('.0', '');
+  //
+  //       total +=
+  //           int.tryParse(text) ?? 0;
+  //     }
+  //   }
+  //
+  //   return total;
+  // }
   int get totalAmount {
     int total = 0;
 
     for (final item in payments) {
-      final amount =
-          item['amount'] ?? 0;
+      // فقط کمک‌های پرداخت‌شده
+      if (item['is_paid'] != true) {
+        continue;
+      }
+
+      final amount = item['amount'] ?? 0;
 
       if (amount is num) {
         total += amount.toInt();
@@ -311,8 +338,7 @@ class _UserPaymentsScreenState
             .replaceAll('٬', '')
             .replaceAll('.0', '');
 
-        total +=
-            int.tryParse(text) ?? 0;
+        total += int.tryParse(text) ?? 0;
       }
     }
 
@@ -430,7 +456,7 @@ class _UserPaymentsScreenState
       padding:
       const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: primaryColor,
+        color: cyanColor,
         borderRadius:
         BorderRadius.circular(22),
         boxShadow: [
@@ -471,7 +497,7 @@ class _UserPaymentsScreenState
               CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'مجموع کمک‌های ثبت‌شده',
+                  'مجموع کمک‌های ثبت‌ شده',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -546,7 +572,7 @@ class _UserPaymentsScreenState
         style:
         ElevatedButton.styleFrom(
           backgroundColor:
-          cyanColor,
+          primaryColor,
           foregroundColor:
           Colors.white,
           elevation: 0,

@@ -20,6 +20,9 @@ class _CivilChargeScreenState
   static const Color primaryColor =
   Color(0xff610DB5);
 
+  static const Color cyanColor =
+  Color(0xff00ACC1);
+
   static const Color textColor =
   Color(0xff263238);
 
@@ -345,7 +348,7 @@ class _CivilChargeScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: primaryColor,
+        color: cyanColor,
         borderRadius:
         BorderRadius.circular(22),
         boxShadow: [

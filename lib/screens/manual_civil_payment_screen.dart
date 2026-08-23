@@ -856,14 +856,14 @@ class _ManualCivilPaymentScreenState
           end:
           Alignment.bottomLeft,
           colors: [
-            Color(0xff610db5),
-            Color(0xff7b2ac8),
+            Color(0xff00ACC1),
+            Color(0xff00ACC1),
           ],
         ),
         boxShadow: [
           BoxShadow(
             color:
-            const Color(0xff610db5)
+            const Color(0xff00ACC1)
                 .withOpacity(0.20),
             blurRadius: 12,
             offset:
@@ -1545,7 +1545,7 @@ class _ManualCivilPaymentScreenState
         style:
         ElevatedButton.styleFrom(
           backgroundColor:
-          primaryColor,
+          purpleColor,
           foregroundColor:
           Colors.white,
           disabledBackgroundColor:

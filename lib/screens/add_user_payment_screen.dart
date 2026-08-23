@@ -1626,7 +1626,7 @@ class _AddUserPaymentScreenState
                 ElevatedButton
                     .styleFrom(
                   backgroundColor:
-                  cyanColor,
+                  primaryColor,
 
                   foregroundColor:
                   Colors.white,
@@ -1669,8 +1669,8 @@ class _AddUserPaymentScreenState
         gradient:
         const LinearGradient(
           colors: [
-            Color(0xff7541B5),
-            Color(0xff5B2298),
+            Color(0xff00ACC1),
+            Color(0xff00ACC1),
           ],
 
           begin:

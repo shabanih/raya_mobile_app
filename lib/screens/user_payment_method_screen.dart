@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-
+import 'package:shamsi_date/shamsi_date.dart';
 import '../services/api_service.dart';
+import 'user_manual_payment_screen.dart';
 
 class UserPaymentMethodScreen extends StatefulWidget {
-
   final int paymentId;
 
   const UserPaymentMethodScreen({
@@ -18,82 +18,206 @@ class UserPaymentMethodScreen extends StatefulWidget {
 
 class _UserPaymentMethodScreenState
     extends State<UserPaymentMethodScreen> {
-
   final ApiService _apiService = ApiService();
 
-  bool _isLoading = true;
-  bool _isSubmitting = false;
+  bool isLoading = true;
+  String? errorMessage;
 
-  Map<String, dynamic>? _data;
+  Map<String, dynamic>? data;
 
-  String? _error;
+  Map<String, dynamic>? payment;
 
-  int? _selectedBankId;
-
-  final TextEditingController
-  _transactionController =
-  TextEditingController();
-
-  final TextEditingController
-  _paymentDateController =
-  TextEditingController();
+  List<Map<String, dynamic>> paymentMethods = [];
 
   @override
   void initState() {
     super.initState();
-    _loadPaymentMethods();
+    loadPaymentMethods();
   }
-
-  @override
-  void dispose() {
-    _transactionController.dispose();
-    _paymentDateController.dispose();
-    super.dispose();
-  }
-
   // =====================================================
+  // تاریخ شمسی
+  // =====================================================
+
+  String formatDate(dynamic value) {
+    if (value == null) {
+      return '-';
+    }
+
+    final text = value.toString().trim();
+
+    if (text.isEmpty) {
+      return '-';
+    }
+
+    try {
+      final dateTime = DateTime.parse(text);
+
+      final jalali = Jalali.fromDateTime(
+        dateTime,
+      );
+
+      return toPersianDigits(
+        '${jalali.year}/'
+            '${jalali.month.toString().padLeft(2, '0')}/'
+            '${jalali.day.toString().padLeft(2, '0')}',
+      );
+    } catch (e) {
+      debugPrint(
+        'DATE CONVERSION ERROR: $e',
+      );
+
+      return toPersianDigits(
+        text.length >= 10
+            ? text.substring(0, 10)
+            : text,
+      );
+    }
+  }
+
+  // ============================================================
+  // اعداد فارسی
+  // ============================================================
+
+  String toPersianDigits(String value) {
+    const english = '0123456789';
+    const persian = '۰۱۲۳۴۵۶۷۸۹';
+
+    for (int i = 0; i < english.length; i++) {
+      value = value.replaceAll(
+        english[i],
+        persian[i],
+      );
+    }
+
+    return value;
+  }
+
+  // ============================================================
+  // فرمت مبلغ
+  // ============================================================
+
+  String formatAmount(dynamic value) {
+    final amount =
+        int.tryParse(
+          value?.toString() ?? '0',
+        ) ??
+            0;
+
+    final text = amount.toString();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < text.length; i++) {
+      if (i > 0 && (text.length - i) % 3 == 0) {
+        buffer.write('٬');
+      }
+
+      buffer.write(text[i]);
+    }
+
+    return toPersianDigits(
+      buffer.toString(),
+    );
+  }
+
+  // ============================================================
+  // وضعیت پرداخت
+  // ============================================================
+
+  bool get isPaid {
+    if (payment == null) {
+      return false;
+    }
+
+    return payment!['is_paid'] == true ||
+        payment!['paid'] == true ||
+        payment!['status']?.toString() == 'paid';
+  }
+
+  bool get isPaymentPending {
+    if (payment == null) {
+      return false;
+    }
+
+    if (isPaid) {
+      return false;
+    }
+
+    return payment!['payment_pending'] == true ||
+        payment!['pending'] == true ||
+        payment!['status']?.toString() == 'pending' ||
+        payment!['status']?.toString() == 'waiting';
+  }
+
+  bool get isPaymentAvailable {
+    return !isPaid && !isPaymentPending;
+  }
+
+  // ============================================================
   // دریافت روش‌های پرداخت
-  // =====================================================
+  // ============================================================
 
-  Future<void> _loadPaymentMethods() async {
+  Future<void> loadPaymentMethods() async {
+    if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
-      _error = null;
+      isLoading = true;
+      errorMessage = null;
     });
 
     try {
-
-      final data =
-      await _apiService
-          .getUserPaymentPaymentMethods(
+      final result =
+      await _apiService.getUserPaymentPaymentMethods(
         widget.paymentId,
       );
 
       if (!mounted) return;
 
-      setState(() {
-        _data = data;
-        _isLoading = false;
-      });
+      final resultPayment = result['payment'];
 
+      final resultMethods =
+      result['payment_methods'];
+
+      setState(() {
+        data = result;
+
+        payment = resultPayment is Map
+            ? Map<String, dynamic>.from(
+          resultPayment,
+        )
+            : null;
+
+        paymentMethods = resultMethods is List
+            ? resultMethods
+            .whereType<Map>()
+            .map(
+              (item) => Map<String, dynamic>.from(
+            item,
+          ),
+        )
+            .toList()
+            : [];
+
+        isLoading = false;
+      });
     } catch (e) {
+      debugPrint(
+        'USER PAYMENT METHODS ERROR = $e',
+      );
 
       if (!mounted) return;
 
       setState(() {
-        _isLoading = false;
-        _error = _cleanError(e);
+        isLoading = false;
+        errorMessage = _cleanError(e);
       });
     }
   }
 
-  // =====================================================
+  // ============================================================
   // پاک کردن متن خطا
-  // =====================================================
+  // ============================================================
 
   String _cleanError(Object error) {
-
     final text = error.toString();
 
     if (text.startsWith('Exception: ')) {
@@ -103,250 +227,552 @@ class _UserPaymentMethodScreenState
     return text;
   }
 
-  // =====================================================
-  // فرمت مبلغ
-  // =====================================================
-
-  String _formatAmount(dynamic value) {
-
-    if (value == null) {
-      return '۰';
-    }
-
-    final number =
-        int.tryParse(value.toString()) ?? 0;
-
-    return number
-        .toString()
-        .replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => ',',
-    );
-  }
-
-  // =====================================================
-  // انتخاب تاریخ
-  // =====================================================
-
-  Future<void> _selectPaymentDate() async {
-
-    final now = DateTime.now();
-
-    final selected =
-    await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate:
-      DateTime(now.year - 2),
-      lastDate: now,
-      locale: const Locale('fa'),
-    );
-
-    if (selected == null) {
-      return;
-    }
-
-    final date =
-        '${selected.year.toString().padLeft(4, '0')}-'
-        '${selected.month.toString().padLeft(2, '0')}-'
-        '${selected.day.toString().padLeft(2, '0')}';
-
-    _paymentDateController.text =
-        date;
-  }
-
-  // =====================================================
-  // ثبت پرداخت
-  // =====================================================
-
-  Future<void> _submitPayment() async {
-
-    if (_selectedBankId == null) {
-
-      _showMessage(
-        'لطفاً حساب بانکی را انتخاب کنید.',
-        isError: true,
-      );
-
-      return;
-    }
-
-    final transactionReference =
-    _transactionController.text.trim();
-
-    final paymentDate =
-    _paymentDateController.text.trim();
-
-    if (transactionReference.isEmpty) {
-
-      _showMessage(
-        'لطفاً کد پیگیری پرداخت را وارد کنید.',
-        isError: true,
-      );
-
-      return;
-    }
-
-    if (paymentDate.isEmpty) {
-
-      _showMessage(
-        'لطفاً تاریخ پرداخت را انتخاب کنید.',
-        isError: true,
-      );
-
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-
-      final result =
-      await _apiService
-          .submitManualUserPayment(
-        paymentId:
-        widget.paymentId,
-        bankId:
-        _selectedBankId!,
-        transactionReference:
-        transactionReference,
-        paymentDate:
-        paymentDate,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _isSubmitting = false;
-      });
-
-      final message =
-          result['message']?.toString() ??
-              'پرداخت کمک با موفقیت ثبت شد.';
-
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-
-          return AlertDialog(
-            shape:
-            RoundedRectangleBorder(
-              borderRadius:
-              BorderRadius.circular(20),
-            ),
-            title: const Text(
-              'پرداخت ثبت شد',
-              textAlign:
-              TextAlign.right,
-            ),
-            content: Text(
-              message,
-              textAlign:
-              TextAlign.right,
-            ),
-            actions: [
-
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text(
-                  'متوجه شدم',
-                ),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (!mounted) return;
-
-      // true یعنی پرداخت انجام شده
-      Navigator.of(context).pop(true);
-
-    } catch (e) {
-
-      if (!mounted) return;
-
-      setState(() {
-        _isSubmitting = false;
-      });
-
-      _showMessage(
-        _cleanError(e),
-        isError: true,
-      );
-    }
-  }
-
-  // =====================================================
+  // ============================================================
   // پیام
-  // =====================================================
+  // ============================================================
 
-  void _showMessage(
+  void showMessage(
       String message, {
         bool isError = false,
       }) {
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.right,
-          textDirection:
-          TextDirection.rtl,
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.right,
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor:
+          isError ? Colors.redAccent : null,
         ),
-        behavior:
-        SnackBarBehavior.floating,
+      );
+  }
+
+  // ============================================================
+  // انتخاب روش پرداخت
+  // ============================================================
+
+  Future<void> selectPaymentMethod(
+      Map<String, dynamic> method,
+      ) async {
+    if (isPaid) {
+      showMessage(
+        'این کمک قبلاً پرداخت شده است.',
+      );
+      return;
+    }
+
+    if (isPaymentPending) {
+      showMessage(
+        'درخواست پرداخت شما در انتظار تأیید مدیر ساختمان است.',
+      );
+      return;
+    }
+
+    final type =
+    method['type']?.toString();
+
+    final available =
+        method['available'] == true;
+
+    if (!available) {
+      showMessage(
+        'این روش پرداخت در حال حاضر فعال نیست.',
+        isError: true,
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // کارت به کارت
+    // ----------------------------------------------------------
+
+    if (type == 'manual') {
+      await _openManualPayment();
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // پرداخت آنلاین
+    // ----------------------------------------------------------
+
+    if (type == 'online') {
+      _openOnlinePayment();
+      return;
+    }
+
+    showMessage(
+      'این روش پرداخت پشتیبانی نمی‌شود.',
+      isError: true,
+    );
+  }
+
+  // ============================================================
+  // پرداخت کارت به کارت
+  // ============================================================
+
+  Future<void> _openManualPayment() async {
+    if (!isPaymentAvailable) {
+      if (isPaid) {
+        showMessage(
+          'این کمک قبلاً پرداخت شده است.',
+        );
+      } else {
+        showMessage(
+          'درخواست پرداخت شما در انتظار تأیید مدیر ساختمان است.',
+        );
+      }
+
+      return;
+    }
+
+    final result =
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            UserManualPaymentScreen(
+              paymentId: widget.paymentId,
+              payment: payment,
+            ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // ----------------------------------------------------------
+    // ثبت موفق درخواست پرداخت
+    // ----------------------------------------------------------
+
+    if (result == true) {
+      Navigator.pop(
+        context,
+        true,
+      );
+    }
+  }
+
+  // ============================================================
+  // پرداخت آنلاین
+  // ============================================================
+
+  void _openOnlinePayment() {
+    if (!isPaymentAvailable) {
+      if (isPaid) {
+        showMessage(
+          'این کمک قبلاً پرداخت شده است.',
+        );
+      } else {
+        showMessage(
+          'درخواست پرداخت شما در انتظار تأیید مدیر ساختمان است.',
+        );
+      }
+
+      return;
+    }
+
+    showMessage(
+      'پرداخت آنلاین به‌زودی فعال می‌شود.',
+    );
+  }
+
+  // ============================================================
+  // کارت وضعیت پرداخت
+  // ============================================================
+
+  Widget buildPaymentStatusCard() {
+    // ----------------------------------------------------------
+    // پرداخت شده
+    // ----------------------------------------------------------
+
+    if (isPaid) {
+      return Container(
+        margin: const EdgeInsets.only(
+          bottom: 22,
+        ),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.08),
+          borderRadius:
+          BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.green.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color:
+                Colors.green.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.green,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'پرداخت شده',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                      FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'این کمک با موفقیت پرداخت شده است.',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ----------------------------------------------------------
+    // در انتظار تأیید
+    // ----------------------------------------------------------
+
+    if (isPaymentPending) {
+      return Container(
+        margin: const EdgeInsets.only(
+          bottom: 22,
+        ),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color:
+          Colors.orange.withOpacity(0.08),
+          borderRadius:
+          BorderRadius.circular(18),
+          border: Border.all(
+            color:
+            Colors.orange.withOpacity(0.30),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color:
+                Colors.orange.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.hourglass_top_rounded,
+                color: Colors.orange,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'در انتظار تأیید',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                      FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'درخواست پرداخت شما ثبت شده و منتظر تأیید مدیر ساختمان است.',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  // ============================================================
+  // کارت روش پرداخت
+  // ============================================================
+
+  Widget buildPaymentMethodCard(
+      Map<String, dynamic> method,
+      ) {
+    final type =
+    method['type']?.toString();
+
+    final title =
+        method['title']?.toString() ??
+            'روش پرداخت';
+
+    final description =
+        method['description']?.toString() ??
+            '';
+
+    final available =
+        method['available'] == true;
+
+    final isManual =
+        type == 'manual';
+
+    final isOnline =
+        type == 'online';
+
+    final icon = isManual
+        ? Icons.credit_card_rounded
+        : isOnline
+        ? Icons.language_rounded
+        : Icons.payment_rounded;
+
+    final color = isManual
+        ? const Color(0xff610DB5)
+        : isOnline
+        ? const Color(0xff00ACC1)
+        : Colors.grey;
+
+    final canPay =
+        available && isPaymentAvailable;
+
+    return Opacity(
+      opacity: canPay ? 1.0 : 0.45,
+      child: Container(
+        margin: const EdgeInsets.only(
+          bottom: 15,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+          BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color:
+              Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius:
+            BorderRadius.circular(20),
+            onTap: () {
+              selectPaymentMethod(
+                method,
+              );
+            },
+            child: Padding(
+              padding:
+              const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color:
+                      color.withOpacity(0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 28,
+                    ),
+                  ),
+
+                  const SizedBox(width: 15),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          textAlign:
+                          TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight:
+                            FontWeight.bold,
+                            color:
+                            Color(0xff263238),
+                          ),
+                        ),
+
+                        if (description
+                            .isNotEmpty) ...[
+                          const SizedBox(
+                            height: 6,
+                          ),
+                          Text(
+                            description,
+                            textAlign:
+                            TextAlign.right,
+                            style:
+                            const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+
+                        if (!available) ...[
+                          const SizedBox(
+                            height: 5,
+                          ),
+                          const Text(
+                            'در دسترس نیست',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red,
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ],
+
+                        if (isPaymentPending) ...[
+                          const SizedBox(
+                            height: 5,
+                          ),
+                          const Text(
+                            'در انتظار تأیید مدیر',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color:
+                              Colors.orange,
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ],
+
+                        if (isPaid) ...[
+                          const SizedBox(
+                            height: 5,
+                          ),
+                          const Text(
+                            'پرداخت شده',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.green,
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  Icon(
+                    Icons
+                        .arrow_back_ios_new_rounded,
+                    size: 17,
+                    color: canPay
+                        ? color
+                        : Colors.grey,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  // =====================================================
+  // ============================================================
   // کارت اطلاعات کمک
-  // =====================================================
+  // ============================================================
 
-  Widget _buildPaymentCard() {
-
-    final payment =
-    _data?['payment'];
-
-    if (payment is! Map) {
-      return const SizedBox();
+  Widget buildPaymentCard() {
+    if (payment == null) {
+      return const SizedBox.shrink();
     }
 
     final amount =
-    payment['amount'];
+        payment!['amount'] ?? 0;
 
     final description =
-        payment['description']
+        payment!['description']
             ?.toString() ??
-            '-';
+            '';
 
-    final registerDate =
-        payment['register_date']
-            ?.toString() ??
-            '-';
+    // final registerDate =
+    //     payment!['register_date']
+    //         ?.toString() ??
+    //         '';
+
+    final registerDate = formatDate(
+      payment!['register_date'],
+    );
 
     return Container(
       width: double.infinity,
-      padding:
-      const EdgeInsets.all(18),
+      margin:
+      const EdgeInsets.only(bottom: 22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+          colors: [
+            Color(0xff00ACC1),
+            Color(0xff00ACC1),
+          ],
+        ),
         borderRadius:
         BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             color:
-            Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset:
-            const Offset(0, 4),
+            const Color(0xff00ACC1)
+                .withOpacity(0.20),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -354,738 +780,260 @@ class _UserPaymentMethodScreenState
         crossAxisAlignment:
         CrossAxisAlignment.stretch,
         children: [
-
           const Text(
-            'کمک به ساختمان',
-            textAlign:
-            TextAlign.right,
+            'مبلغ کمک',
+            textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
+              color: Colors.white70,
+              fontSize: 13,
             ),
           ),
 
           const SizedBox(height: 8),
 
-          Text(
-            '${_formatAmount(amount)} تومان',
-            textAlign:
-            TextAlign.right,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight:
-              FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          _buildInfoItem(
-            title: 'تاریخ ثبت',
-            value: registerDate,
-          ),
-
-          if (description.isNotEmpty &&
-              description != '-')
-            Padding(
-              padding:
-              const EdgeInsets.only(
-                top: 14,
-              ),
-              child: _buildDescriptionItem(
-                description,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // اطلاعات
-  // =====================================================
-
-  Widget _buildInfoItem({
-    required String title,
-    required String value,
-  }) {
-
-    return Column(
-      crossAxisAlignment:
-      CrossAxisAlignment.stretch,
-      children: [
-
-        Text(
-          title,
-          textAlign:
-          TextAlign.right,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-
-        const SizedBox(height: 5),
-
-        Text(
-          value,
-          textAlign:
-          TextAlign.right,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight:
-            FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // =====================================================
-  // شرح کمک - Justify
-  // =====================================================
-
-  Widget _buildDescriptionItem(
-      String description,
-      ) {
-
-    return Column(
-      crossAxisAlignment:
-      CrossAxisAlignment.stretch,
-      children: [
-
-        const Text(
-          'شرح:',
-          textAlign:
-          TextAlign.right,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-
-        const SizedBox(height: 7),
-
-        Text(
-          description,
-          textAlign:
-          TextAlign.justify,
-          textDirection:
-          TextDirection.rtl,
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.7,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // =====================================================
-  // کارت حساب بانکی
-  // =====================================================
-
-  Widget _buildBankCard(
-      Map bank,
-      ) {
-
-    final bankId =
-    int.tryParse(
-      bank['id'].toString(),
-    );
-
-    final selected =
-        _selectedBankId == bankId;
-
-    final bankName =
-        bank['bank_name']?.toString() ??
-            'بانک';
-
-    final accountNumber =
-        bank['account_no']?.toString() ??
-            '-';
-
-    final cardNumber =
-        bank['cart_number']?.toString() ??
-            '-';
-
-    final sheba =
-        bank['sheba_number']?.toString() ??
-            '-';
-
-    final holder =
-        bank['account_holder_name']
-            ?.toString() ??
-            '-';
-
-    return GestureDetector(
-      onTap: () {
-
-        if (bankId == null) {
-          return;
-        }
-
-        setState(() {
-          _selectedBankId =
-              bankId;
-        });
-      },
-      child: Container(
-        width: double.infinity,
-        margin:
-        const EdgeInsets.only(
-          bottom: 12,
-        ),
-        padding:
-        const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius:
-          BorderRadius.circular(18),
-          border: Border.all(
-            width:
-            selected ? 2 : 1,
-            color: selected
-                ? const Color(0xff00ACC1)
-                : Colors.grey.shade200,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color:
-              Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset:
-              const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.stretch,
-          children: [
-
-            Row(
-              children: [
-
-                Icon(
-                  selected
-                      ? Icons
-                      .radio_button_checked
-                      : Icons
-                      .radio_button_off,
-                  color: selected
-                      ? const Color(
-                      0xff00ACC1)
-                      : Colors.grey,
-                ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: Text(
-                    bankName,
-                    textAlign:
-                    TextAlign.right,
-                    style:
-                    const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                      FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            if (holder != '-')
-              _buildBankRow(
-                'صاحب حساب',
-                holder,
-              ),
-
-            if (accountNumber != '-')
-              _buildBankRow(
-                'شماره حساب',
-                accountNumber,
-              ),
-
-            if (cardNumber != '-')
-              _buildBankRow(
-                'شماره کارت',
-                cardNumber,
-              ),
-
-            if (sheba != '-')
-              _buildBankRow(
-                'شماره شبا',
-                sheba,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =====================================================
-  // ردیف بانک
-  // =====================================================
-
-  Widget _buildBankRow(
-      String title,
-      String value,
-      ) {
-
-    return Padding(
-      padding:
-      const EdgeInsets.only(
-        bottom: 8,
-      ),
-      child: Row(
-        children: [
-
-          Expanded(
-            child: Text(
-              value,
-              textAlign:
-              TextAlign.left,
-              textDirection:
-              TextDirection.ltr,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight:
-                FontWeight.w500,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Text(
-            title,
-            textAlign:
-            TextAlign.right,
-            style: TextStyle(
-              fontSize: 12,
-              color:
-              Colors.grey.shade600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
-  // فرم پرداخت
-  // =====================================================
-
-  Widget _buildPaymentForm() {
-
-    return Container(
-      width: double.infinity,
-      padding:
-      const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-        BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color:
-            Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset:
-            const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.stretch,
-        children: [
-
-          const Text(
-            'ثبت اطلاعات واریز',
-            textAlign:
-            TextAlign.right,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight:
-              FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          TextField(
-            controller:
-            _transactionController,
-            keyboardType:
-            TextInputType.number,
-            textDirection:
-            TextDirection.ltr,
-            decoration:
-            InputDecoration(
-              labelText:
-              'کد پیگیری',
-              hintText:
-              'کد پیگیری واریز را وارد کنید',
-              prefixIcon:
-              const Icon(
-                Icons.receipt_long,
-              ),
-              border:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(14),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          TextField(
-            controller:
-            _paymentDateController,
-            readOnly: true,
-            textDirection:
-            TextDirection.ltr,
-            onTap:
-            _selectPaymentDate,
-            decoration:
-            InputDecoration(
-              labelText:
-              'تاریخ پرداخت',
-              hintText:
-              'تاریخ واریز را انتخاب کنید',
-              prefixIcon:
-              const Icon(
-                Icons.calendar_month,
-              ),
-              border:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(14),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed:
-              _isSubmitting
-                  ? null
-                  : _submitPayment,
-              style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                const Color(
-                    0xff00ACC1),
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(15),
-                ),
-              ),
-              child:
-              _isSubmitting
-                  ? const SizedBox(
-                width: 24,
-                height: 24,
-                child:
-                CircularProgressIndicator(
-                  strokeWidth:
-                  2.5,
-                  color:
-                  Colors.white,
-                ),
-              )
-                  : const Text(
-                'ثبت پرداخت',
-                style:
-                TextStyle(
-                  fontSize: 15,
+          Row(
+            mainAxisAlignment:
+            MainAxisAlignment.end,
+            crossAxisAlignment:
+            CrossAxisAlignment.end,
+            children: [
+              Text(
+                formatAmount(amount),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 25,
                   fontWeight:
                   FontWeight.bold,
                 ),
               ),
-            ),
+              const SizedBox(width: 7),
+              const Padding(
+                padding:
+                EdgeInsets.only(bottom: 3),
+                child: Text(
+                  'تومان',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
           ),
+
+          if (registerDate.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'تاریخ ثبت: $registerDate',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+          ],
+
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              description,
+              textAlign: TextAlign.justify,
+              textDirection:
+              TextDirection.rtl,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                height: 1.6,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // =====================================================
-  // Body
-  // =====================================================
+  // ============================================================
+  // محتوا
+  // ============================================================
 
-  Widget _buildBody() {
-
-    if (_isLoading) {
-      return const Center(
-        child:
-        CircularProgressIndicator(
-          color:
-          Color(0xff00ACC1),
-        ),
-      );
-    }
-
-    if (_error != null) {
-
-      return Center(
-        child: Padding(
-          padding:
-          const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize:
-            MainAxisSize.min,
-            children: [
-
-              const Icon(
-                Icons.error_outline,
-                size: 55,
-                color:
-                Colors.redAccent,
-              ),
-
-              const SizedBox(height: 15),
-
-              Text(
-                _error!,
-                textAlign:
-                TextAlign.center,
-              ),
-
-              const SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed:
-                _loadPaymentMethods,
-                child:
-                const Text(
-                  'تلاش مجدد',
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final banks =
-    _data?['payment_banks'];
-
-    final paymentMethods =
-    _data?['payment_methods'];
-
-    final hasBanks =
-        banks is List &&
-            banks.isNotEmpty;
-
-    final hasManualPayment =
-        paymentMethods is List &&
-            paymentMethods.any(
-                  (item) =>
-              item is Map &&
-                  item['type'] ==
-                      'manual' &&
-                  item['available'] ==
-                      true,
-            );
-
-    if (!hasBanks ||
-        !hasManualPayment) {
-
-      return ListView(
-        padding:
-        const EdgeInsets.all(16),
+  Widget buildContent() {
+    return RefreshIndicator(
+      onRefresh: loadPaymentMethods,
+      color: const Color(0xff00ACC1),
+      child: ListView(
+        physics:
+        const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(18),
         children: [
+          buildPaymentCard(),
 
-          _buildPaymentCard(),
+          buildPaymentStatusCard(),
 
-          const SizedBox(height: 20),
-
-          Container(
-            padding:
-            const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-              BorderRadius.circular(20),
-            ),
-            child: const Column(
-              children: [
-
-                Icon(
-                  Icons
-                      .account_balance_outlined,
-                  size: 50,
-                  color: Colors.grey,
-                ),
-
-                SizedBox(height: 12),
-
-                Text(
-                  'حساب بانکی برای پرداخت این کمک ثبت نشده است.',
-                  textAlign:
-                  TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return ListView(
-      padding:
-      const EdgeInsets.all(16),
-      children: [
-
-        _buildPaymentCard(),
-
-        const SizedBox(height: 22),
-
-        const Text(
-          'روش پرداخت',
-          textAlign:
-          TextAlign.right,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight:
-            FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        Container(
-          padding:
-          const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius:
-            BorderRadius.circular(18),
-            border: Border.all(
-              color:
-              const Color(0xff00ACC1),
-            ),
-          ),
-          child: Row(
-            children: [
-
-              const Icon(
-                Icons.credit_card,
-                color:
-                Color(0xff00ACC1),
-                size: 30,
+          if (isPaymentAvailable) ...[
+            const Text(
+              'روش پرداخت را انتخاب کنید',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight:
+                FontWeight.bold,
+                color: Color(0xff263238),
               ),
+            ),
 
-              const SizedBox(width: 12),
+            const SizedBox(height: 6),
 
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+            const Text(
+              'روش مورد نظر خود را برای پرداخت کمک انتخاب کنید.',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                height: 1.5,
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            if (paymentMethods.isEmpty)
+              Container(
+                padding:
+                const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                  BorderRadius.circular(18),
+                ),
+                child: const Column(
                   children: [
-
-                    Text(
-                      'کارت به کارت',
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                        FontWeight.bold,
-                      ),
+                    Icon(
+                      Icons
+                          .payment_outlined,
+                      size: 50,
+                      color: Colors.grey,
                     ),
-
-                    SizedBox(height: 4),
-
+                    SizedBox(height: 12),
                     Text(
-                      'واریز مبلغ کمک به حساب ساختمان و ثبت کد پیگیری',
+                      'روش پرداختی برای این کمک ثبت نشده است.',
                       textAlign:
-                      TextAlign.right,
+                      TextAlign.center,
                       style: TextStyle(
-                        fontSize: 12,
-                        color:
-                        Colors.grey,
+                        color: Colors.grey,
                       ),
                     ),
                   ],
                 ),
+              )
+            else
+              ...paymentMethods.map(
+                buildPaymentMethodCard,
               ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 22),
-
-        const Text(
-          'حساب‌های بانکی ساختمان',
-          textAlign:
-          TextAlign.right,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight:
-            FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        ...banks
-            .whereType<Map>()
-            .map(
-              (bank) =>
-              _buildBankCard(bank),
-        ),
-
-        const SizedBox(height: 8),
-
-        _buildPaymentForm(),
-
-        const SizedBox(height: 30),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
-  // =====================================================
+  // ============================================================
+  // خطا
+  // ============================================================
+
+  Widget buildError() {
+    return Center(
+      child: Padding(
+        padding:
+        const EdgeInsets.all(25),
+        child: Column(
+          mainAxisAlignment:
+          MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 60,
+              color: Colors.redAccent,
+            ),
+
+            const SizedBox(height: 15),
+
+            const Text(
+              'دریافت روش‌های پرداخت انجام نشد',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight:
+                FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              errorMessage ?? '',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed:
+              loadPaymentMethods,
+              icon:
+              const Icon(Icons.refresh),
+              label:
+              const Text('تلاش مجدد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // Build
-  // =====================================================
+  // ============================================================
 
   @override
   Widget build(
       BuildContext context,
       ) {
-
     return Directionality(
       textDirection:
       TextDirection.rtl,
       child: Scaffold(
         backgroundColor:
-        const Color(0xffF6F8FA),
+        const Color(0xffF7F9FA),
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
           title: const Text(
             'روش پرداخت کمک',
+            style: TextStyle(
+              color: Color(0xff263238),
+              fontSize: 18,
+              fontWeight:
+              FontWeight.bold,
+            ),
           ),
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor:
-          const Color(0xff00ACC1),
-          foregroundColor:
-          Colors.white,
+          iconTheme:
+          const IconThemeData(
+            color: Color(0xff263238),
+          ),
         ),
-        body: _buildBody(),
+        body: isLoading
+            ? const Center(
+          child:
+          CircularProgressIndicator(
+            color: Color(0xff00ACC1),
+          ),
+        )
+            : errorMessage != null
+            ? buildError()
+            : buildContent(),
       ),
     );
   }
