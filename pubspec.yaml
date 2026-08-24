@@ -56,6 +56,8 @@ dev_dependencies:
 
   flutter_native_splash: ^2.4.6
 
+  url_launcher: ^6.3.2
+
 
 flutter_launcher_icons:
   android: true
@@ -67,15 +69,12 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#00ACC1"
-
   android: true
   ios: true
 
-  image: assets/images/native_splash_logo.png
-
   android_12:
     color: "#00ACC1"
-    image: assets/images/native_splash_logo.png
+#    image: assets/images/native_splash_logo.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

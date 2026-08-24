@@ -1485,21 +1485,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     _StatusCountRow(
                       title:
-                      'پرداخت نشده',
-                      count:
-                      unpaidCount,
-                      color:
-                      const Color(
-                        0xffff2600,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    _StatusCountRow(
-                      title:
                       'در انتظار تأیید',
                       count:
                       pendingCount,
@@ -1508,6 +1493,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         0xfff6963e,
                       ),
                     ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+                      _StatusCountRow(
+                      title:
+                      'پرداخت نشده',
+                      count:
+                      unpaidCount,
+                      color:
+                      const Color(
+                      0xffff2600,
+                      ),
+                      ),
+
+
                   ],
                 ),
               ),
@@ -1726,7 +1727,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child:
         Column(
           children: [
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
 
             const CircleAvatar(
               radius: 45,
@@ -1734,18 +1735,18 @@ class _HomeScreenState extends State<HomeScreen> {
               Color(0xff00ACC1),
               child: Icon(
                 Icons.person,
-                size: 50,
+                size: 45,
                 color: Colors.white,
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 10),
 
             Text(
               fullName,
               style:
               const TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight:
                 FontWeight.bold,
               ),
@@ -1873,7 +1874,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             const SizedBox(
-              height: 20,
+              height: 18,
+            ),
+
+            const Text(
+              'نسخه 5.2.0',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+
+            const SizedBox(
+              height: 10,
             ),
           ],
         ),
@@ -2184,7 +2199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(
-                width: 12,
+                width: 20,
               ),
               const Text(
                 'رایا شارژ',
@@ -2548,7 +2563,7 @@ class _ChargeDonutPainter
 
     final colors = [
       const Color(
-        0xff00ACC1,
+        0xff21ca4a,
       ),
       const Color(
         0xffff2600,

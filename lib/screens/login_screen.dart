@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import '../services/api_service.dart';
 import '../storage/token_storage.dart';
 import 'home_screen.dart';
+import 'dart:io';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,6 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+
+    testDns();
+
     checkBiometric();
   }
 
@@ -83,18 +87,74 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> testDns() async {
+    try {
+      final result =
+      await InternetAddress.lookup('rayacharge.ir');
+
+      for (final address in result) {
+        debugPrint(
+          'DNS RESULT: ${address.address}',
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'DNS ERROR: $e',
+      );
+    }
+  }
+
   // =====================================================
   // ورود با نام کاربری و رمز عبور
   // =====================================================
+  String normalizePersianDigits(String value) {
+    const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const englishDigits = '0123456789';
+
+    for (int i = 0; i < 10; i++) {
+      value = value.replaceAll(
+        persianDigits[i],
+        englishDigits[i],
+      );
+
+      value = value.replaceAll(
+        arabicDigits[i],
+        englishDigits[i],
+      );
+    }
+
+    return value;
+  }
+
+
 
   Future<void> login() async {
-    final username =
-    usernameController.text.trim();
+    // =====================================================
+    // دریافت اطلاعات
+    // =====================================================
 
-    final password =
-    passwordController.text.trim();
+    final username = normalizePersianDigits(
+      usernameController.text,
+    ).trim();
+
+    // رمز عبور trim نمی‌شود
+    final password = normalizePersianDigits(
+      passwordController.text,
+    );
+
+    debugPrint('LOGIN USERNAME: $username');
+    debugPrint(
+      'LOGIN PASSWORD EXISTS: ${password.isNotEmpty}',
+    );
+
+    // =====================================================
+    // بررسی خالی نبودن
+    // =====================================================
 
     if (username.isEmpty || password.isEmpty) {
+      if (!mounted) return;
+
       setState(() {
         error =
         'لطفاً شماره موبایل و رمز عبور را وارد کنید.';
@@ -103,27 +163,46 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // =====================================================
+    // Loading
+    // =====================================================
+
+    if (!mounted) return;
+
     setState(() {
       loading = true;
       error = '';
     });
 
     try {
+      // ===================================================
+      // ارسال درخواست Login
+      // ===================================================
+
       final result = await apiService.login(
         username: username,
         password: password,
       );
 
-      debugPrint(
-        'LOGIN RESULT: $result',
-      );
+      debugPrint('==========================================');
+      debugPrint('LOGIN RESULT');
+      debugPrint('$result');
+      debugPrint('==========================================');
+
+      // ===================================================
+      // بررسی موفقیت
+      // ===================================================
 
       if (result['success'] != true) {
         throw Exception(
-          result['message'] ??
+          result['message']?.toString() ??
               'اطلاعات ورود صحیح نیست.',
         );
       }
+
+      // ===================================================
+      // دریافت توکن
+      // ===================================================
 
       final access = result['access'];
       final refresh = result['refresh'];
@@ -137,31 +216,88 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // -------------------------------------------------
+      debugPrint('ACCESS TOKEN RECEIVED: true');
+      debugPrint('REFRESH TOKEN RECEIVED: true');
+
+      // ===================================================
       // ذخیره توکن‌ها
-      // -------------------------------------------------
+      // ===================================================
 
       await TokenStorage.saveTokens(
         access.toString(),
         refresh.toString(),
       );
 
-      // -------------------------------------------------
-      // ثبت اینکه حداقل یک بار لاگین موفق انجام شده
-      // -------------------------------------------------
+      debugPrint('TOKENS SAVED');
+
+      // ===================================================
+      // بررسی اینکه توکن واقعاً ذخیره شده
+      // ===================================================
+
+      final savedAccess =
+      await TokenStorage.getAccessToken();
+
+      final savedRefresh =
+      await TokenStorage.getRefreshToken();
+
+      debugPrint(
+        'SAVED ACCESS EXISTS: '
+            '${savedAccess != null && savedAccess.isNotEmpty}',
+      );
+
+      debugPrint(
+        'SAVED REFRESH EXISTS: '
+            '${savedRefresh != null && savedRefresh.isNotEmpty}',
+      );
+
+      if (savedAccess == null ||
+          savedAccess.isEmpty ||
+          savedRefresh == null ||
+          savedRefresh.isEmpty) {
+        throw Exception(
+          'ذخیره اطلاعات ورود انجام نشد.',
+        );
+      }
+
+      // ===================================================
+      // ثبت اولین ورود موفق
+      // ===================================================
 
       await TokenStorage.setFirstLoginCompleted();
 
-      // -------------------------------------------------
-      // اطلاعات کامل کاربر را از /me دریافت می‌کنیم
-      // -------------------------------------------------
+      debugPrint(
+        'FIRST LOGIN COMPLETED: true',
+      );
+
+      // ===================================================
+      // دریافت اطلاعات کامل کاربر
+      // ===================================================
+
+      debugPrint(
+        'GETTING USER INFO FROM /ME...',
+      );
 
       final meResult =
       await apiService.getMeWithRefresh();
 
-      debugPrint(
-        'ME RESULT AFTER LOGIN: $meResult',
-      );
+      debugPrint('==========================================');
+      debugPrint('ME RESULT AFTER LOGIN');
+      debugPrint('$meResult');
+      debugPrint('==========================================');
+
+      // ===================================================
+      // بررسی پاسخ /me
+      // ===================================================
+
+      if (meResult.isEmpty) {
+        throw Exception(
+          'اطلاعات کاربر از سرور دریافت نشد.',
+        );
+      }
+
+      // ===================================================
+      // ورود به HomeScreen
+      // ===================================================
 
       if (!mounted) return;
 
@@ -169,18 +305,9 @@ class _LoginScreenState extends State<LoginScreen> {
         firstLoginCompleted = true;
       });
 
-      // -------------------------------------------------
-      // ورود به پنل
-      //
-      // کل پاسخ /me را ارسال می‌کنیم:
-      //
-      // {
-      //   success
-      //   user
-      //   house
-      //   units
-      // }
-      // -------------------------------------------------
+      debugPrint(
+        'NAVIGATING TO HOME SCREEN...',
+      );
 
       Navigator.pushReplacement(
         context,
@@ -190,23 +317,28 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
+
     } catch (e) {
-      debugPrint(
-        'LOGIN ERROR: $e',
-      );
+      debugPrint('==========================================');
+      debugPrint('LOGIN SCREEN ERROR');
+      debugPrint('$e');
+      debugPrint('==========================================');
 
       if (!mounted) return;
 
-      setState(() {
-        error = e.toString().contains(
-          'توکن',
-        )
-            ? e.toString().replaceFirst(
+      String message = e.toString();
+
+      if (message.startsWith('Exception: ')) {
+        message = message.replaceFirst(
           'Exception: ',
           '',
-        )
-            : 'خطا در ارتباط با سرور';
+        );
+      }
+
+      setState(() {
+        error = message;
       });
+
     } finally {
       if (!mounted) return;
 
@@ -489,25 +621,18 @@ class _LoginScreenState extends State<LoginScreen> {
               vertical: 25,
             ),
             child: ConstrainedBox(
-              constraints:
-              const BoxConstraints(
-                maxWidth: 360,
+              constraints: const BoxConstraints(
+                maxWidth: 320,
               ),
               child: Card(
                 elevation: 10,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    22,
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Padding(
-                  padding:
-                  const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(15),
                   child: Column(
-                    mainAxisSize:
-                    MainAxisSize.min,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       // =================================================
                       // لوگو
@@ -526,7 +651,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           bottom: 30,
                         ),
                         child: Text(
-                          'متفاوت، با رایا شارژ',
+                          'مدیریت مجتمع مسکونی رایا شارژ',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight:

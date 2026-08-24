@@ -10,36 +10,97 @@ class ApiService {
   // =====================================================
   // Login
   // =====================================================
+  // =====================================================
+// تبدیل اعداد فارسی و عربی به انگلیسی
+// =====================================================
+
+  String normalizeDigits(String value) {
+    return value
+        .replaceAll('۰', '0')
+        .replaceAll('۱', '1')
+        .replaceAll('۲', '2')
+        .replaceAll('۳', '3')
+        .replaceAll('۴', '4')
+        .replaceAll('۵', '5')
+        .replaceAll('۶', '6')
+        .replaceAll('۷', '7')
+        .replaceAll('۸', '8')
+        .replaceAll('۹', '9')
+        .replaceAll('٠', '0')
+        .replaceAll('١', '1')
+        .replaceAll('٢', '2')
+        .replaceAll('٣', '3')
+        .replaceAll('٤', '4')
+        .replaceAll('٥', '5')
+        .replaceAll('٦', '6')
+        .replaceAll('٧', '7')
+        .replaceAll('٨', '8')
+        .replaceAll('٩', '9');
+  }
 
   Future<Map<String, dynamic>> login({
     required String username,
     required String password,
   }) async {
     try {
+
+      // =====================================================
+      // تبدیل اعداد فارسی و عربی به انگلیسی
+      // =====================================================
+
+      final normalizedUsername =
+      normalizeDigits(username);
+
+      final normalizedPassword =
+      normalizeDigits(password);
+
+      debugPrint(
+        'LOGIN USERNAME: $normalizedUsername',
+      );
+
+      // =====================================================
+      // ارسال درخواست
+      // =====================================================
+
       final response = await http.post(
         Uri.parse(ApiConfig.login),
+
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
+
         body: jsonEncode({
-          'username': username,
-          'password': password,
+          'username': normalizedUsername,
+          'password': normalizedPassword,
         }),
       );
 
-      debugPrint('LOGIN STATUS: ${response.statusCode}');
-      debugPrint('LOGIN RESPONSE: ${response.body}');
+      debugPrint(
+        'LOGIN STATUS: ${response.statusCode}',
+      );
+
+      debugPrint(
+        'LOGIN RESPONSE: ${response.body}',
+      );
+
+      // =====================================================
+      // خطا
+      // =====================================================
 
       if (response.statusCode != 200) {
+
         Map<String, dynamic> data = {};
 
         try {
-          final decoded = jsonDecode(response.body);
+
+          final decoded =
+          jsonDecode(response.body);
 
           if (decoded is Map<String, dynamic>) {
             data = decoded;
           }
+
         } catch (_) {}
 
         throw Exception(
@@ -49,7 +110,12 @@ class ApiService {
         );
       }
 
-      final decoded = jsonDecode(response.body);
+      // =====================================================
+      // Decode پاسخ
+      // =====================================================
+
+      final decoded =
+      jsonDecode(response.body);
 
       if (decoded is! Map<String, dynamic>) {
         throw Exception(
@@ -58,11 +124,69 @@ class ApiService {
       }
 
       return decoded;
+
     } catch (e) {
-      debugPrint('LOGIN ERROR: $e');
+
+      debugPrint(
+        'LOGIN ERROR: $e',
+      );
+
       rethrow;
     }
   }
+
+  // Future<Map<String, dynamic>> login({
+  //   required String username,
+  //   required String password,
+  // }) async {
+  //   try {
+  //     final response = await http.post(
+  //       Uri.parse(ApiConfig.login),
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Accept': 'application/json',
+  //       },
+  //       body: jsonEncode({
+  //         'username': username,
+  //         'password': password,
+  //       }),
+  //     );
+  //
+  //     debugPrint('LOGIN STATUS: ${response.statusCode}');
+  //     debugPrint('LOGIN RESPONSE: ${response.body}');
+  //
+  //     if (response.statusCode != 200) {
+  //       Map<String, dynamic> data = {};
+  //
+  //       try {
+  //         final decoded = jsonDecode(response.body);
+  //
+  //         if (decoded is Map<String, dynamic>) {
+  //           data = decoded;
+  //         }
+  //       } catch (_) {}
+  //
+  //       throw Exception(
+  //         data['message'] ??
+  //             data['detail'] ??
+  //             'خطا در ورود به سامانه',
+  //       );
+  //     }
+  //
+  //     final decoded = jsonDecode(response.body);
+  //
+  //     if (decoded is! Map<String, dynamic>) {
+  //       throw Exception(
+  //         'پاسخ نامعتبر از سرور دریافت شد.',
+  //       );
+  //     }
+  //
+  //     return decoded;
+  //   } catch (e) {
+  //     debugPrint('LOGIN ERROR: $e');
+  //     rethrow;
+  //   }
+  // }
 
   // =====================================================
   // دریافت اطلاعات کاربر
