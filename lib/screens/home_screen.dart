@@ -2548,7 +2548,7 @@ class _ChargeDonutPainter
 
     final colors = [
       const Color(
-        0xff159c35,
+        0xff00ACC1,
       ),
       const Color(
         0xffff2600,

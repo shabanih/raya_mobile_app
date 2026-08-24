@@ -234,380 +234,361 @@ class _UserManualPaymentScreenState
   // ============================================================
 
   Future<void> selectPaymentDate() async {
-    Jalali selectedDate =
-        selectedPaymentDate;
+    Jalali selectedDate = selectedPaymentDate;
 
-    final result =
-    await showDialog<Jalali>(
+    final result = await showDialog<Jalali>(
       context: context,
       builder: (context) {
-        int selectedYear =
-            selectedDate.year;
+        int selectedYear = selectedDate.year;
+        int selectedMonth = selectedDate.month;
+        int selectedDay = selectedDate.day;
 
-        int selectedMonth =
-            selectedDate.month;
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: StatefulBuilder(
+            builder: (
+                context,
+                setDialogState,
+                ) {
+              final daysInMonth = Jalali(
+                selectedYear,
+                selectedMonth,
+                1,
+              ).monthLength;
 
-        int selectedDay =
-            selectedDate.day;
+              if (selectedDay > daysInMonth) {
+                selectedDay = daysInMonth;
+              }
 
-        return StatefulBuilder(
-          builder: (
-              context,
-              setDialogState,
-              ) {
-            final daysInMonth =
-                Jalali(
-                  selectedYear,
-                  selectedMonth,
-                  1,
-                ).monthLength;
-
-            if (selectedDay >
-                daysInMonth) {
-              selectedDay =
-                  daysInMonth;
-            }
-
-            return AlertDialog(
-              title: const Text(
-                'انتخاب تاریخ پرداخت',
-                textAlign:
-                TextAlign.center,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight:
-                  FontWeight.bold,
+              return AlertDialog(
+                title: const Text(
+                  'انتخاب تاریخ پرداخت',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
 
-              content: SizedBox(
-                width:
-                double.maxFinite,
-                child: Column(
-                  mainAxisSize:
-                  MainAxisSize.min,
-                  children: [
-                    // سال
-                    DropdownButtonFormField<int>(
-                      value:
-                      selectedYear,
-                      decoration:
-                      InputDecoration(
-                        labelText: 'سال',
-                        filled: true,
-                        fillColor:
-                        const Color(
-                          0xffF7F9FA,
-                        ),
-                        border:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            12,
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+
+                      // ==========================
+                      // سال
+                      // ==========================
+
+                      DropdownButtonFormField<int>(
+                        value: selectedYear,
+                        isExpanded: true,
+
+                        decoration: InputDecoration(
+                          labelText: 'سال',
+                          labelStyle: const TextStyle(
+                            fontSize: 13,
                           ),
-                          borderSide:
-                          BorderSide.none,
+                          filled: true,
+                          fillColor: const Color(0xffF7F9FA),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
-                      ),
-                      items:
-                      List.generate(
-                        11,
-                            (index) {
-                          final year =
-                              Jalali.now()
-                                  .year -
-                                  5 +
-                                  index;
 
-                          return DropdownMenuItem<
-                              int>(
-                            value: year,
-                            child: Text(
-                              toPersianDigits(
-                                year.toString(),
+                        alignment: Alignment.centerRight,
+
+                        items: List.generate(
+                          11,
+                              (index) {
+                            final year =
+                                Jalali.now().year - 5 + index;
+
+                            return DropdownMenuItem<int>(
+                              value: year,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                toPersianDigits(
+                                  year.toString(),
+                                ),
+                                textAlign: TextAlign.right,
                               ),
-                            ),
-                          );
+                            );
+                          },
+                        ),
+
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            selectedYear = value;
+
+                            final maxDay = Jalali(
+                              selectedYear,
+                              selectedMonth,
+                              1,
+                            ).monthLength;
+
+                            if (selectedDay > maxDay) {
+                              selectedDay = maxDay;
+                            }
+                          });
                         },
                       ),
-                      onChanged:
-                          (value) {
-                        if (value ==
-                            null) {
-                          return;
-                        }
 
-                        setDialogState(() {
-                          selectedYear =
-                              value;
+                      const SizedBox(height: 12),
 
-                          final maxDay =
-                              Jalali(
-                                selectedYear,
-                                selectedMonth,
-                                1,
-                              ).monthLength;
+                      // ==========================
+                      // ماه
+                      // ==========================
 
-                          if (selectedDay >
-                              maxDay) {
-                            selectedDay =
-                                maxDay;
-                          }
-                        });
-                      },
-                    ),
+                      DropdownButtonFormField<int>(
+                        value: selectedMonth,
+                        isExpanded: true,
 
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    // ماه
-                    DropdownButtonFormField<int>(
-                      value:
-                      selectedMonth,
-                      decoration:
-                      InputDecoration(
-                        labelText: 'ماه',
-                        filled: true,
-                        fillColor:
-                        const Color(
-                          0xffF7F9FA,
-                        ),
-                        border:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            12,
+                        decoration: InputDecoration(
+                          labelText: 'ماه',
+                          labelStyle: const TextStyle(
+                            fontSize: 13,
                           ),
-                          borderSide:
-                          BorderSide.none,
-                        ),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 1,
-                          child:
-                          Text('۱ - فروردین'),
-                        ),
-                        DropdownMenuItem(
-                          value: 2,
-                          child:
-                          Text('۲ - اردیبهشت'),
-                        ),
-                        DropdownMenuItem(
-                          value: 3,
-                          child:
-                          Text('۳ - خرداد'),
-                        ),
-                        DropdownMenuItem(
-                          value: 4,
-                          child:
-                          Text('۴ - تیر'),
-                        ),
-                        DropdownMenuItem(
-                          value: 5,
-                          child:
-                          Text('۵ - مرداد'),
-                        ),
-                        DropdownMenuItem(
-                          value: 6,
-                          child:
-                          Text('۶ - شهریور'),
-                        ),
-                        DropdownMenuItem(
-                          value: 7,
-                          child:
-                          Text('۷ - مهر'),
-                        ),
-                        DropdownMenuItem(
-                          value: 8,
-                          child:
-                          Text('۸ - آبان'),
-                        ),
-                        DropdownMenuItem(
-                          value: 9,
-                          child:
-                          Text('۹ - آذر'),
-                        ),
-                        DropdownMenuItem(
-                          value: 10,
-                          child:
-                          Text('۱۰ - دی'),
-                        ),
-                        DropdownMenuItem(
-                          value: 11,
-                          child:
-                          Text('۱۱ - بهمن'),
-                        ),
-                        DropdownMenuItem(
-                          value: 12,
-                          child:
-                          Text('۱۲ - اسفند'),
-                        ),
-                      ],
-                      onChanged:
-                          (value) {
-                        if (value ==
-                            null) {
-                          return;
-                        }
-
-                        setDialogState(() {
-                          selectedMonth =
-                              value;
-
-                          final maxDay =
-                              Jalali(
-                                selectedYear,
-                                selectedMonth,
-                                1,
-                              ).monthLength;
-
-                          if (selectedDay >
-                              maxDay) {
-                            selectedDay =
-                                maxDay;
-                          }
-                        });
-                      },
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    // روز
-                    DropdownButtonFormField<int>(
-                      value:
-                      selectedDay,
-                      decoration:
-                      InputDecoration(
-                        labelText: 'روز',
-                        filled: true,
-                        fillColor:
-                        const Color(
-                          0xffF7F9FA,
-                        ),
-                        border:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            12,
+                          filled: true,
+                          fillColor: const Color(0xffF7F9FA),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
-                          borderSide:
-                          BorderSide.none,
                         ),
-                      ),
-                      items:
-                      List.generate(
-                        daysInMonth,
-                            (index) {
-                          final day =
-                              index + 1;
 
-                          return DropdownMenuItem<
-                              int>(
-                            value: day,
-                            child: Text(
-                              toPersianDigits(
-                                day.toString(),
-                              ),
-                            ),
-                          );
+                        alignment: Alignment.centerRight,
+
+                        items: const [
+                          DropdownMenuItem(
+                            value: 1,
+                            alignment: Alignment.centerRight,
+                            child: Text('۱ - فروردین'),
+                          ),
+                          DropdownMenuItem(
+                            value: 2,
+                            alignment: Alignment.centerRight,
+                            child: Text('۲ - اردیبهشت'),
+                          ),
+                          DropdownMenuItem(
+                            value: 3,
+                            alignment: Alignment.centerRight,
+                            child: Text('۳ - خرداد'),
+                          ),
+                          DropdownMenuItem(
+                            value: 4,
+                            alignment: Alignment.centerRight,
+                            child: Text('۴ - تیر'),
+                          ),
+                          DropdownMenuItem(
+                            value: 5,
+                            alignment: Alignment.centerRight,
+                            child: Text('۵ - مرداد'),
+                          ),
+                          DropdownMenuItem(
+                            value: 6,
+                            alignment: Alignment.centerRight,
+                            child: Text('۶ - شهریور'),
+                          ),
+                          DropdownMenuItem(
+                            value: 7,
+                            alignment: Alignment.centerRight,
+                            child: Text('۷ - مهر'),
+                          ),
+                          DropdownMenuItem(
+                            value: 8,
+                            alignment: Alignment.centerRight,
+                            child: Text('۸ - آبان'),
+                          ),
+                          DropdownMenuItem(
+                            value: 9,
+                            alignment: Alignment.centerRight,
+                            child: Text('۹ - آذر'),
+                          ),
+                          DropdownMenuItem(
+                            value: 10,
+                            alignment: Alignment.centerRight,
+                            child: Text('۱۰ - دی'),
+                          ),
+                          DropdownMenuItem(
+                            value: 11,
+                            alignment: Alignment.centerRight,
+                            child: Text('۱۱ - بهمن'),
+                          ),
+                          DropdownMenuItem(
+                            value: 12,
+                            alignment: Alignment.centerRight,
+                            child: Text('۱۲ - اسفند'),
+                          ),
+                        ],
+
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            selectedMonth = value;
+
+                            final maxDay = Jalali(
+                              selectedYear,
+                              selectedMonth,
+                              1,
+                            ).monthLength;
+
+                            if (selectedDay > maxDay) {
+                              selectedDay = maxDay;
+                            }
+                          });
                         },
                       ),
-                      onChanged:
-                          (value) {
-                        if (value ==
-                            null) {
-                          return;
-                        }
 
-                        setDialogState(() {
-                          selectedDay =
-                              value;
-                        });
-                      },
-                    ),
+                      const SizedBox(height: 12),
 
-                    const SizedBox(
-                      height: 15,
-                    ),
+                      // ==========================
+                      // روز
+                      // ==========================
 
-                    Text(
-                      'تاریخ انتخاب شده: '
-                          '${toPersianDigits(selectedYear.toString())}/'
-                          '${toPersianDigits(selectedMonth.toString().padLeft(2, '0'))}/'
-                          '${toPersianDigits(selectedDay.toString().padLeft(2, '0'))}',
-                      style:
-                      const TextStyle(
-                        fontSize: 13,
-                        color:
-                        Color(0xff610DB5),
-                        fontWeight:
-                        FontWeight.bold,
+                      DropdownButtonFormField<int>(
+                        value: selectedDay,
+                        isExpanded: true,
+
+                        decoration: InputDecoration(
+                          labelText: 'روز',
+                          labelStyle: const TextStyle(
+                            fontSize: 13,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xffF7F9FA),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+
+                        alignment: Alignment.centerRight,
+
+                        items: List.generate(
+                          daysInMonth,
+                              (index) {
+                            final day = index + 1;
+
+                            return DropdownMenuItem<int>(
+                              value: day,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                toPersianDigits(
+                                  day.toString(),
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            );
+                          },
+                        ),
+
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            selectedDay = value;
+                          });
+                        },
                       ),
-                    ),
-                  ],
-                ),
-              ),
 
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                    );
-                  },
-                  child:
-                  const Text(
-                    'انصراف',
-                  ),
-                ),
+                      const SizedBox(height: 15),
 
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                      Jalali(
-                        selectedYear,
-                        selectedMonth,
-                        selectedDay,
+                      // ==========================
+                      // تاریخ انتخاب شده
+                      // ==========================
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.07),
+                          borderRadius:
+                          BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'تاریخ انتخاب شده: '
+                              '${toPersianDigits(selectedYear.toString())}/'
+                              '${toPersianDigits(selectedMonth.toString().padLeft(2, '0'))}/'
+                              '${toPersianDigits(selectedDay.toString().padLeft(2, '0'))}',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                  style:
-                  ElevatedButton.styleFrom(
-                    backgroundColor:
-                    const Color(
-                      0xff610DB5,
-                    ),
-                    foregroundColor:
-                    Colors.white,
-                  ),
-                  child:
-                  const Text(
-                    'تأیید',
+                    ],
                   ),
                 ),
-              ],
-            );
-          },
+
+                // ==========================
+                // دکمه‌ها
+                // ==========================
+
+                actionsAlignment: MainAxisAlignment.start,
+
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'انصراف',
+                    ),
+                  ),
+
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(
+                        context,
+                        Jalali(
+                          selectedYear,
+                          selectedMonth,
+                          selectedDay,
+                        ),
+                      );
+                    },
+
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+
+                    child: const Text(
+                      'تأیید',
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         );
       },
     );
 
-    if (result != null &&
-        mounted) {
+    if (result != null && mounted) {
       setState(() {
-        selectedPaymentDate =
-            result;
-
-        paymentDate =
-            result.toDateTime();
+        selectedPaymentDate = result;
+        paymentDate = result.toDateTime();
       });
     }
   }
@@ -913,7 +894,7 @@ class _UserManualPaymentScreenState
           border: Border.all(
             color: selected
                 ? const Color(
-              0xff610DB5,
+              0xff00ACC1,
             )
                 : Colors.grey
                 .withOpacity(
@@ -943,7 +924,7 @@ class _UserManualPaymentScreenState
               BoxDecoration(
                 color:
                 const Color(
-                  0xff610DB5,
+                  0xff00ACC1,
                 ).withOpacity(0.08),
                 shape:
                 BoxShape.circle,
@@ -956,7 +937,7 @@ class _UserManualPaymentScreenState
                     .radio_button_off,
                 color: selected
                     ? const Color(
-                  0xff610DB5,
+                  0xff00ACC1,
                 )
                     : Colors.grey,
               ),

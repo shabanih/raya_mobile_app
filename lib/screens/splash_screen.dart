@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
     startTextAnimation();
 
     navigationTimer = Timer(
-      const Duration(seconds: 3),
+      const Duration(seconds: 6),
           () {
         if (!mounted) return;
 
@@ -79,70 +79,71 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: const Color(0xff00ACC1),
 
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // لوگو داخل دایره سفید
-                    Container(
-                      width: 160,
-                      height: 160,
+      body: Stack(
+        children: [
 
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
+          // ==================================================
+          // لوگو
+          // ==================================================
+          Center(
+            child: Container(
+              width: 180,
+              height: 180,
 
-                      padding: const EdgeInsets.all(25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
 
-                      child: Image.asset(
-                        'assets/images/splash_logo.png',
-                      ),
-                    ),
-                  ],
-                ),
+              padding: const EdgeInsets.all(25),
+
+              child: Image.asset(
+                'assets/images/splash_logo.png',
+                fit: BoxFit.contain,
               ),
             ),
+          ),
 
-            // متن متحرک
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+          // ==================================================
+          // متن
+          // ==================================================
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 62,
 
-              child: Text(
-                appDescription,
+            child: Text(
+              appDescription,
+              textAlign: TextAlign.center,
 
-                textAlign: TextAlign.center,
-
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                  letterSpacing: 1,
-                ),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+                letterSpacing: 1,
               ),
             ),
+          ),
 
-            const SizedBox(height: 20),
+          // ==================================================
+          // نسخه
+          // ==================================================
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 30,
 
-            // نسخه
-            const Padding(
-              padding: EdgeInsets.only(bottom: 30),
+            child: Text(
+              'نسخه 5.2.0',
+              textAlign: TextAlign.center,
 
-              child: Text(
-                'نسخه 5.2.0',
-
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white70,
-                ),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white70,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
