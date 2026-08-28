@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../services/api_service.dart';
 import '../storage/token_storage.dart';
 import 'home_screen.dart';
-import 'dart:io';
+import 'managers/manager_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,9 +22,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController =
   TextEditingController();
 
-  final LocalAuthentication auth = LocalAuthentication();
+  final LocalAuthentication auth =
+  LocalAuthentication();
 
-  final ApiService apiService = ApiService();
+  final ApiService apiService =
+  ApiService();
 
   bool loading = false;
   bool biometricLoading = false;
@@ -48,8 +52,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> checkBiometric() async {
     try {
-      final canCheck = await auth.canCheckBiometrics;
-      final supported = await auth.isDeviceSupported();
+      final canCheck =
+      await auth.canCheckBiometrics;
+
+      final supported =
+      await auth.isDeviceSupported();
 
       final enabled =
       await TokenStorage.isBiometricEnabled();
@@ -68,9 +75,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       setState(() {
-        biometricAvailable = canCheck && supported;
-        biometricEnabled = enabled;
-        firstLoginCompleted = firstLogin;
+        biometricAvailable =
+            canCheck && supported;
+
+        biometricEnabled =
+            enabled;
+
+        firstLoginCompleted =
+            firstLogin;
       });
     } catch (e) {
       debugPrint(
@@ -87,10 +99,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // =====================================================
+  // بررسی DNS
+  // =====================================================
+
   Future<void> testDns() async {
     try {
       final result =
-      await InternetAddress.lookup('rayacharge.ir');
+      await InternetAddress.lookup(
+        'rayacharge.ir',
+      );
 
       for (final address in result) {
         debugPrint(
@@ -105,12 +123,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =====================================================
-  // ورود با نام کاربری و رمز عبور
+  // تبدیل اعداد فارسی و عربی به انگلیسی
   // =====================================================
-  String normalizePersianDigits(String value) {
-    const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
-    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
-    const englishDigits = '0123456789';
+
+  String normalizePersianDigits(
+      String value,
+      ) {
+    const persianDigits =
+        '۰۱۲۳۴۵۶۷۸۹';
+
+    const arabicDigits =
+        '٠١٢٣٤٥٦٧٨٩';
+
+    const englishDigits =
+        '0123456789';
 
     for (int i = 0; i < 10; i++) {
       value = value.replaceAll(
@@ -127,32 +153,205 @@ class _LoginScreenState extends State<LoginScreen> {
     return value;
   }
 
+  // =====================================================
+  // انتقال کاربر به صفحه مناسب
+  //
+  // اولویت:
+  //
+  // 1. مدیر ساختمان
+  // 2. ساکن
+  //
+  // اگر:
+  //
+  // is_middle_admin = true
+  // is_unit = true
+  //
+  // همیشه مدیر انتخاب می‌شود.
+  // =====================================================
 
+  void navigateAfterLogin(
+      Map<String, dynamic> userData,
+      ) {
+    if (!mounted) return;
+
+    // ===================================================
+    // اطلاعات user
+    // ===================================================
+
+    final Map<String, dynamic> user =
+    userData['user'] is Map
+        ? Map<String, dynamic>.from(
+      userData['user'],
+    )
+        : <String, dynamic>{};
+
+    // ===================================================
+    // وضعیت واقعی مدیر
+    //
+    // اولویت با is_middle_admin
+    // ===================================================
+
+    final bool isMiddleAdmin =
+        user['is_middle_admin'] == true ||
+            userData['is_middle_admin'] == true;
+
+    // ===================================================
+    // وضعیت ساکن
+    // ===================================================
+
+    final bool isUnit =
+        user['is_unit'] == true ||
+            userData['is_unit'] == true;
+
+    // ===================================================
+    // نوع کاربر ارسال‌شده از سرور
+    // ===================================================
+
+    final String? userType =
+        userData['user_type']?.toString() ??
+            user['user_type']?.toString();
+
+    // ===================================================
+    // Debug
+    // ===================================================
+
+    debugPrint(
+      '==========================================',
+    );
+
+    debugPrint(
+      'USER TYPE: $userType',
+    );
+
+    debugPrint(
+      'ROOT IS MIDDLE ADMIN: '
+          '${userData['is_middle_admin']}',
+    );
+
+    debugPrint(
+      'USER IS MIDDLE ADMIN: '
+          '${user['is_middle_admin']}',
+    );
+
+    debugPrint(
+      'ROOT IS UNIT: '
+          '${userData['is_unit']}',
+    );
+
+    debugPrint(
+      'USER IS UNIT: '
+          '${user['is_unit']}',
+    );
+
+    debugPrint(
+      'IS MIDDLE ADMIN: $isMiddleAdmin',
+    );
+
+    debugPrint(
+      'IS UNIT: $isUnit',
+    );
+
+    debugPrint(
+      '==========================================',
+    );
+
+    // ===================================================
+    // اولویت اول: مدیر ساختمان
+    //
+    // حتی اگر is_unit == true باشد
+    // ===================================================
+
+    if (isMiddleAdmin) {
+      debugPrint(
+        'NAVIGATING TO MANAGER DASHBOARD',
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ManagerDashboardScreen(
+                data: userData,
+              ),
+        ),
+      );
+
+      return;
+    }
+
+    // ===================================================
+    // اولویت دوم: ساکن
+    //
+    // فقط اگر مدیر نباشد
+    // ===================================================
+
+    if (isUnit) {
+      debugPrint(
+        'NAVIGATING TO RESIDENT HOME',
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              HomeScreen(
+                data: userData,
+              ),
+        ),
+      );
+
+      return;
+    }
+
+    // ===================================================
+    // نوع کاربر نامشخص
+    // ===================================================
+
+    debugPrint(
+      'UNKNOWN USER TYPE',
+    );
+
+    setState(() {
+      error =
+      'نوع کاربر از سرور مشخص نشد.';
+    });
+  }
+
+  // =====================================================
+  // ورود با نام کاربری و رمز عبور
+  // =====================================================
 
   Future<void> login() async {
-    // =====================================================
+    // ===================================================
     // دریافت اطلاعات
-    // =====================================================
+    // ===================================================
 
-    final username = normalizePersianDigits(
+    final username =
+    normalizePersianDigits(
       usernameController.text,
     ).trim();
 
     // رمز عبور trim نمی‌شود
-    final password = normalizePersianDigits(
+    final password =
+    normalizePersianDigits(
       passwordController.text,
     );
 
-    debugPrint('LOGIN USERNAME: $username');
     debugPrint(
-      'LOGIN PASSWORD EXISTS: ${password.isNotEmpty}',
+      'LOGIN USERNAME: $username',
     );
 
-    // =====================================================
-    // بررسی خالی نبودن
-    // =====================================================
+    debugPrint(
+      'LOGIN PASSWORD EXISTS: '
+          '${password.isNotEmpty}',
+    );
 
-    if (username.isEmpty || password.isEmpty) {
+    // ===================================================
+    // بررسی خالی نبودن
+    // ===================================================
+
+    if (username.isEmpty ||
+        password.isEmpty) {
       if (!mounted) return;
 
       setState(() {
@@ -163,9 +362,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // =====================================================
+    // ===================================================
     // Loading
-    // =====================================================
+    // ===================================================
 
     if (!mounted) return;
 
@@ -175,23 +374,35 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // ===================================================
+      // =================================================
       // ارسال درخواست Login
-      // ===================================================
+      // =================================================
 
-      final result = await apiService.login(
+      final result =
+      await apiService.login(
         username: username,
         password: password,
       );
 
-      debugPrint('==========================================');
-      debugPrint('LOGIN RESULT');
-      debugPrint('$result');
-      debugPrint('==========================================');
+      debugPrint(
+        '==========================================',
+      );
 
-      // ===================================================
+      debugPrint(
+        'LOGIN RESULT',
+      );
+
+      debugPrint(
+        '$result',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      // =================================================
       // بررسی موفقیت
-      // ===================================================
+      // =================================================
 
       if (result['success'] != true) {
         throw Exception(
@@ -200,12 +411,15 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // ===================================================
+      // =================================================
       // دریافت توکن
-      // ===================================================
+      // =================================================
 
-      final access = result['access'];
-      final refresh = result['refresh'];
+      final access =
+      result['access'];
+
+      final refresh =
+      result['refresh'];
 
       if (access == null ||
           refresh == null ||
@@ -216,23 +430,30 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      debugPrint('ACCESS TOKEN RECEIVED: true');
-      debugPrint('REFRESH TOKEN RECEIVED: true');
+      debugPrint(
+        'ACCESS TOKEN RECEIVED: true',
+      );
 
-      // ===================================================
+      debugPrint(
+        'REFRESH TOKEN RECEIVED: true',
+      );
+
+      // =================================================
       // ذخیره توکن‌ها
-      // ===================================================
+      // =================================================
 
       await TokenStorage.saveTokens(
         access.toString(),
         refresh.toString(),
       );
 
-      debugPrint('TOKENS SAVED');
+      debugPrint(
+        'TOKENS SAVED',
+      );
 
-      // ===================================================
-      // بررسی اینکه توکن واقعاً ذخیره شده
-      // ===================================================
+      // =================================================
+      // بررسی ذخیره واقعی توکن
+      // =================================================
 
       final savedAccess =
       await TokenStorage.getAccessToken();
@@ -259,9 +480,9 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // ===================================================
+      // =================================================
       // ثبت اولین ورود موفق
-      // ===================================================
+      // =================================================
 
       await TokenStorage.setFirstLoginCompleted();
 
@@ -269,9 +490,9 @@ class _LoginScreenState extends State<LoginScreen> {
         'FIRST LOGIN COMPLETED: true',
       );
 
-      // ===================================================
+      // =================================================
       // دریافت اطلاعات کامل کاربر
-      // ===================================================
+      // =================================================
 
       debugPrint(
         'GETTING USER INFO FROM /ME...',
@@ -280,14 +501,25 @@ class _LoginScreenState extends State<LoginScreen> {
       final meResult =
       await apiService.getMeWithRefresh();
 
-      debugPrint('==========================================');
-      debugPrint('ME RESULT AFTER LOGIN');
-      debugPrint('$meResult');
-      debugPrint('==========================================');
+      debugPrint(
+        '==========================================',
+      );
 
-      // ===================================================
+      debugPrint(
+        'ME RESULT AFTER LOGIN',
+      );
+
+      debugPrint(
+        '$meResult',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      // =================================================
       // بررسی پاسخ /me
-      // ===================================================
+      // =================================================
 
       if (meResult.isEmpty) {
         throw Exception(
@@ -295,9 +527,9 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // ===================================================
-      // ورود به HomeScreen
-      // ===================================================
+      // =================================================
+      // اولین ورود موفق
+      // =================================================
 
       if (!mounted) return;
 
@@ -305,40 +537,84 @@ class _LoginScreenState extends State<LoginScreen> {
         firstLoginCompleted = true;
       });
 
-      debugPrint(
-        'NAVIGATING TO HOME SCREEN...',
-      );
+      // =================================================
+      // انتقال بر اساس نوع کاربر
+      //
+      // اولویت با مدیر
+      // =================================================
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            data: meResult,
-          ),
-        ),
+      navigateAfterLogin(
+        meResult,
       );
-
     } catch (e) {
-      debugPrint('==========================================');
-      debugPrint('LOGIN SCREEN ERROR');
-      debugPrint('$e');
-      debugPrint('==========================================');
+      debugPrint(
+        '==========================================',
+      );
+
+      debugPrint(
+        'LOGIN SCREEN ERROR',
+      );
+
+      debugPrint(
+        '$e',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
 
       if (!mounted) return;
 
-      String message = e.toString();
+      String message;
 
-      if (message.startsWith('Exception: ')) {
-        message = message.replaceFirst(
+      final errorText =
+      e.toString();
+
+      // =================================================
+      // عدم اتصال اینترنت / DNS
+      // =================================================
+
+      if (errorText.contains(
+        'NO_INTERNET',
+      )) {
+        message =
+        'اتصال به اینترنت برقرار نیست.\n'
+            'لطفاً اتصال اینترنت خود را بررسی کنید.';
+      }
+
+      // =================================================
+      // Timeout
+      // =================================================
+
+      else if (errorText.contains(
+        'TimeoutException',
+      )) {
+        message =
+        'ارتباط با سرور برقرار نشد.\n'
+            'لطفاً اتصال اینترنت خود را بررسی کنید.';
+      }
+
+      // =================================================
+      // سایر خطاها
+      // =================================================
+
+      else {
+        message = errorText;
+
+        if (message.startsWith(
           'Exception: ',
-          '',
-        );
+        )) {
+          message =
+              message.replaceFirst(
+                'Exception: ',
+                '',
+              );
+        }
       }
 
       setState(() {
         error = message;
       });
-
     } finally {
       if (!mounted) return;
 
@@ -372,11 +648,12 @@ class _LoginScreenState extends State<LoginScreen> {
   // =====================================================
   // فعال کردن ورود با اثر انگشت
   //
-  // فقط بعد از اولین لاگین امکان‌پذیر است.
+  // فقط بعد از اولین لاگین
   // =====================================================
 
   Future<void> enableBiometric() async {
-    if (loading || biometricLoading) {
+    if (loading ||
+        biometricLoading) {
       return;
     }
 
@@ -405,7 +682,10 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // باید توکن داشته باشیم
+    // =================================================
+    // بررسی وجود توکن
+    // =================================================
+
     final accessToken =
     await TokenStorage.getAccessToken();
 
@@ -446,7 +726,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // =================================================
       // فعال‌سازی
+      // =================================================
+
       await TokenStorage.enableBiometric();
 
       if (!mounted) return;
@@ -483,7 +766,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // =====================================================
 
   Future<void> loginWithBiometric() async {
-    if (loading || biometricLoading) {
+    if (loading ||
+        biometricLoading) {
       return;
     }
 
@@ -500,9 +784,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // -----------------------------------------------
-      // فقط احراز هویت
-      // -----------------------------------------------
+      // =================================================
+      // احراز هویت
+      // =================================================
 
       final authenticated =
       await authenticateBiometric();
@@ -518,9 +802,9 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // -----------------------------------------------
-      // بررسی وجود توکن‌ها
-      // -----------------------------------------------
+      // =================================================
+      // بررسی توکن‌ها
+      // =================================================
 
       final accessToken =
       await TokenStorage.getAccessToken();
@@ -542,33 +826,45 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // -----------------------------------------------
+      // =================================================
       // دریافت اطلاعات واقعی کاربر
-      //
-      // این قسمت مهم است.
-      // دیگر user قبلی یا null را استفاده نمی‌کنیم.
-      // -----------------------------------------------
+      // =================================================
 
       final meResult =
       await apiService.getMeWithRefresh();
 
       debugPrint(
-        'BIOMETRIC ME RESULT: $meResult',
+        '==========================================',
       );
+
+      debugPrint(
+        'BIOMETRIC ME RESULT',
+      );
+
+      debugPrint(
+        '$meResult',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+      if (meResult.isEmpty) {
+        throw Exception(
+          'اطلاعات کاربر از سرور دریافت نشد.',
+        );
+      }
 
       if (!mounted) return;
 
-      // -----------------------------------------------
-      // ورود مستقیم به پنل
-      // -----------------------------------------------
+      // =================================================
+      // انتقال بر اساس نوع کاربر
+      //
+      // اولویت با مدیر
+      // =================================================
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            data: meResult,
-          ),
-        ),
+      navigateAfterLogin(
+        meResult,
       );
     } catch (e) {
       debugPrint(
@@ -577,9 +873,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
+      String message =
+      e.toString();
+
+      if (message.startsWith(
+        'Exception: ',
+      )) {
+        message =
+            message.replaceFirst(
+              'Exception: ',
+              '',
+            );
+      }
+
       setState(() {
-        error =
-        'جلسه ورود شما منقضی شده است. دوباره با رمز عبور وارد شوید.';
+        error = message.isNotEmpty
+            ? message
+            : 'جلسه ورود شما منقضی شده است. دوباره با رمز عبور وارد شوید.';
       });
     } finally {
       if (!mounted) return;
@@ -609,10 +919,13 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection:
+      TextDirection.rtl,
+
       child: Scaffold(
         backgroundColor:
         const Color(0xff00ACC1),
+
         body: Center(
           child: SingleChildScrollView(
             padding:
@@ -620,29 +933,45 @@ class _LoginScreenState extends State<LoginScreen> {
               horizontal: 20,
               vertical: 25,
             ),
+
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
+              constraints:
+              const BoxConstraints(
                 maxWidth: 320,
               ),
+
               child: Card(
                 elevation: 10,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+
+                shape:
+                RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(
+                    20,
+                  ),
                 ),
+
                 child: Padding(
-                  padding: const EdgeInsets.all(15),
+                  padding:
+                  const EdgeInsets.all(15),
+
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize:
+                    MainAxisSize.min,
+
                     children: [
-                      // =================================================
+                      // =================================
                       // لوگو
-                      // =================================================
+                      // =================================
 
                       Image.asset(
                         'assets/images/logo.png',
+
                         width: 170,
                         height: 100,
-                        fit: BoxFit.contain,
+
+                        fit:
+                        BoxFit.contain,
                       ),
 
                       const Padding(
@@ -650,42 +979,52 @@ class _LoginScreenState extends State<LoginScreen> {
                         EdgeInsets.only(
                           bottom: 30,
                         ),
+
                         child: Text(
                           'مدیریت مجتمع مسکونی رایا شارژ',
-                          style: TextStyle(
+
+                          style:
+                          TextStyle(
                             fontSize: 13,
+
                             fontWeight:
                             FontWeight.w500,
+
                             color:
                             Colors.black87,
                           ),
                         ),
                       ),
 
-                      // =================================================
-                      // موبایل
-                      // =================================================
+                      // =================================
+                      // شماره موبایل
+                      // =================================
 
                       TextField(
                         controller:
                         usernameController,
+
                         keyboardType:
                         TextInputType.phone,
+
                         decoration:
                         InputDecoration(
                           labelText:
                           'شماره موبایل',
+
                           prefixIcon:
                           const Icon(
                             Icons.phone,
                             size: 21,
                           ),
+
                           contentPadding:
                           const EdgeInsets
                               .symmetric(
                             horizontal: 14,
                             vertical: 14,
                           ),
+
                           border:
                           OutlineInputBorder(
                             borderRadius:
@@ -701,29 +1040,35 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 15,
                       ),
 
-                      // =================================================
+                      // =================================
                       // رمز عبور
-                      // =================================================
+                      // =================================
 
                       TextField(
                         controller:
                         passwordController,
-                        obscureText: true,
+
+                        obscureText:
+                        true,
+
                         decoration:
                         InputDecoration(
                           labelText:
                           'رمز عبور',
+
                           prefixIcon:
                           const Icon(
                             Icons.lock,
                             size: 21,
                           ),
+
                           contentPadding:
                           const EdgeInsets
                               .symmetric(
                             horizontal: 14,
                             vertical: 14,
                           ),
+
                           border:
                           OutlineInputBorder(
                             borderRadius:
@@ -739,20 +1084,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 15,
                       ),
 
-                      // =================================================
+                      // =================================
                       // خطا
-                      // =================================================
+                      // =================================
 
                       if (error.isNotEmpty)
                         Text(
                           error,
+
                           textAlign:
                           TextAlign.center,
+
                           style:
                           const TextStyle(
                             color: Colors.red,
+
                             fontWeight:
                             FontWeight.bold,
+
                             fontSize: 13,
                           ),
                         ),
@@ -762,14 +1111,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 15,
                         ),
 
-                      // =================================================
-                      // ورود با رمز
-                      // =================================================
+                      // =================================
+                      // ورود
+                      // =================================
 
                       SizedBox(
                         width:
                         double.infinity,
+
                         height: 46,
+
                         child:
                         ElevatedButton(
                           style:
@@ -779,10 +1130,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             const Color(
                               0xff00ACC1,
                             ),
+
                             disabledBackgroundColor:
                             const Color(
                               0xff80D5DF,
                             ),
+
                             shape:
                             RoundedRectangleBorder(
                               borderRadius:
@@ -792,15 +1145,19 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+
                           onPressed:
                           loading ||
                               biometricLoading
                               ? null
                               : login,
-                          child: loading
+
+                          child:
+                          loading
                               ? const SizedBox(
                             width: 22,
                             height: 22,
+
                             child:
                             CircularProgressIndicator(
                               color:
@@ -811,12 +1168,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                               : const Text(
                             'ورود',
+
                             style:
                             TextStyle(
                               color:
                               Colors.white,
+
                               fontSize:
                               17,
+
                               fontWeight:
                               FontWeight.w600,
                             ),
@@ -824,11 +1184,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      // =================================================
+                      // =================================
                       // بیومتریک
-                      //
-                      // فقط بعد از اولین ورود
-                      // =================================================
+                      // =================================
 
                       if (firstLoginCompleted &&
                           biometricAvailable) ...[
@@ -839,27 +1197,35 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Row(
                           children: [
                             Expanded(
-                              child: Divider(),
+                              child:
+                              Divider(),
                             ),
+
                             Padding(
                               padding:
                               EdgeInsets
                                   .symmetric(
                                 horizontal: 10,
                               ),
-                              child: Text(
+
+                              child:
+                              Text(
                                 'یا',
+
                                 style:
                                 TextStyle(
                                   color:
                                   Colors.grey,
+
                                   fontSize:
                                   12,
                                 ),
                               ),
                             ),
+
                             Expanded(
-                              child: Divider(),
+                              child:
+                              Divider(),
                             ),
                           ],
                         ),
@@ -868,9 +1234,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 8,
                         ),
 
-                        // =================================================
-                        // فعال‌سازی
-                        // =================================================
+                        // =================================
+                        // فعال‌سازی بیومتریک
+                        // =================================
 
                         if (!biometricEnabled)
                           InkWell(
@@ -879,27 +1245,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                 .circular(
                               15,
                             ),
+
                             onTap:
                             biometricLoading
                                 ? null
                                 : enableBiometric,
-                            child: Padding(
+
+                            child:
+                            Padding(
                               padding:
                               const EdgeInsets
                                   .symmetric(
                                 vertical: 8,
                                 horizontal: 15,
                               ),
-                              child: Column(
+
+                              child:
+                              Column(
                                 children: [
                                   biometricLoading
                                       ? const SizedBox(
                                     width: 42,
                                     height: 42,
+
                                     child:
                                     CircularProgressIndicator(
                                       strokeWidth:
                                       2,
+
                                       color:
                                       Color(
                                         0xff00ACC1,
@@ -909,28 +1282,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                       : const Icon(
                                     Icons
                                         .fingerprint,
+
                                     size: 48,
+
                                     color:
                                     Color(
                                       0xff00ACC1,
                                     ),
                                   ),
+
                                   const SizedBox(
                                     height: 4,
                                   ),
+
                                   const Text(
                                     'فعال‌سازی ورود با اثر انگشت',
+
                                     textAlign:
                                     TextAlign
                                         .center,
+
                                     style:
                                     TextStyle(
                                       color:
                                       Color(
                                         0xff00ACC1,
                                       ),
+
                                       fontSize:
                                       14,
+
                                       fontWeight:
                                       FontWeight
                                           .w600,
@@ -941,9 +1322,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
 
-                        // =================================================
-                        // ورود با اثر انگشت
-                        // =================================================
+                        // =================================
+                        // ورود با بیومتریک
+                        // =================================
 
                         else
                           InkWell(
@@ -952,27 +1333,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                 .circular(
                               15,
                             ),
+
                             onTap:
                             biometricLoading
                                 ? null
                                 : loginWithBiometric,
-                            child: Padding(
+
+                            child:
+                            Padding(
                               padding:
                               const EdgeInsets
                                   .symmetric(
                                 vertical: 7,
                                 horizontal: 15,
                               ),
-                              child: Column(
+
+                              child:
+                              Column(
                                 children: [
                                   biometricLoading
                                       ? const SizedBox(
                                     width: 42,
                                     height: 42,
+
                                     child:
                                     CircularProgressIndicator(
                                       strokeWidth:
                                       2,
+
                                       color:
                                       Color(
                                         0xff00ACC1,
@@ -982,25 +1370,32 @@ class _LoginScreenState extends State<LoginScreen> {
                                       : const Icon(
                                     Icons
                                         .fingerprint,
+
                                     size: 48,
+
                                     color:
                                     Color(
                                       0xff00ACC1,
                                     ),
                                   ),
+
                                   const SizedBox(
                                     height: 4,
                                   ),
+
                                   const Text(
                                     'ورود با اثر انگشت',
+
                                     style:
                                     TextStyle(
                                       color:
                                       Color(
                                         0xff00ACC1,
                                       ),
+
                                       fontSize:
                                       14,
+
                                       fontWeight:
                                       FontWeight
                                           .w600,

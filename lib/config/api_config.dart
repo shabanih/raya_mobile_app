@@ -1,9 +1,9 @@
 class ApiConfig {
-  // static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'http://10.0.2.2:8000/api';
   // static const String baseUrl = 'http://192.168.100.4:8000/api';
   // static const String baseUrl =
   //     'http://10.0.2.2:8000';
-  static const String baseUrl = 'https://www.rayacharge.ir/api';
+  // static const String baseUrl = 'https://www.rayacharge.ir/api';
 
   static const String login =
       '$baseUrl/auth/login/';
@@ -13,6 +13,9 @@ class ApiConfig {
 
   static const String me =
       '$baseUrl/auth/me/';
+
+  static const String managerDashboard =
+      '$baseUrl/manager/dashboard/';
 
   static const String dashboard =
       '$baseUrl/dashboard/';
@@ -152,6 +155,14 @@ class ApiConfig {
       int paymentId,
       ) =>
       '$baseUrl/user-payments/$paymentId/manual-payment/';
+
+  // Managers Urls
+
+
+  static const String managerAnnouncements =
+      '${baseUrl}manager/announcements/';
+
+
 
 
 }
