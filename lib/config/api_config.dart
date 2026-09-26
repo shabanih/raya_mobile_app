@@ -160,7 +160,44 @@ class ApiConfig {
 
 
   static const String managerAnnouncements =
-      '${baseUrl}manager/announcements/';
+      '${baseUrl}/manager/announcements/';
+
+  // =====================================================
+  // Manager Messages
+  // =====================================================
+
+  static String get managerMessages =>
+      '${baseUrl}/manager/messages/';
+
+  static String get managerMessageUnits =>
+      '${baseUrl}/manager/messages/units/';
+
+  static String managerMessageDetail(
+      int id,
+      ) =>
+      '${baseUrl}/manager/messages/$id/';
+
+  static String managerMessageSend(
+      int id,
+      ) =>
+      '${baseUrl}/manager/messages/$id/send/';
+
+  // =====================================================
+  // Manager Banks
+  // =====================================================
+
+
+  static const String managerBanks =
+      '$baseUrl/manager/banks/';
+
+  static String managerBankDetail(int id) =>
+      '$baseUrl/manager/banks/$id/';
+
+  static const String managerBankTransfers =
+      '$baseUrl/manager/bank-transfers/';
+
+  static String managerBankTransferDetail(int id) =>
+      '$baseUrl/manager/bank-transfers/$id/';
 
 
 

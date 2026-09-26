@@ -222,28 +222,41 @@ isActive: isActive,
 // تبدیل پاسخ API
 // =====================================================
 
-static Map<String, dynamic> _decodeResponse(
-http.Response response,
-) {
-try {
-final decoded = jsonDecode(
-utf8.decode(response.bodyBytes),
-);
+  static Map<String, dynamic> _decodeResponse(
+      http.Response response,
+      ) {
+    final body = utf8.decode(response.bodyBytes);
 
-if (decoded is Map<String, dynamic>) {
-return decoded;
+    print('======================================');
+    print('MANAGER ANNOUNCEMENT API');
+    print('STATUS: ${response.statusCode}');
+    print(
+      'CONTENT-TYPE: ${response.headers['content-type']}',
+    );
+    print('BODY: $body');
+    print('======================================');
+
+    try {
+      final decoded = jsonDecode(body);
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return {
+        'success': false,
+        'message': 'پاسخ سرور نامعتبر است.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message':
+        'پاسخ سرور قابل پردازش نیست. HTTP ${response.statusCode}',
+        'debug_body': body,
+      };
+    }
+  }
+
 }
 
-return {
-'success': false,
-'message': 'پاسخ سرور نامعتبر است.',
-};
-} catch (_) {
-return {
-'success': false,
-'message': 'پاسخ سرور قابل پردازش نیست.',
-};
-}
-}
-}
 

@@ -1754,4 +1754,246 @@ class ApiService {
               '${response.statusCode}',
     );
   }
+  // =====================================================
+  // درخواست GET عمومی برای سرویس‌های اختصاصی
+  // =====================================================
+
+  Future<http.Response> get(
+      String url,
+      ) async {
+    return await _getWithRefresh(url);
+  }
+
+  // =====================================================
+  // درخواست POST عمومی برای سرویس‌های اختصاصی
+  // =====================================================
+
+  Future<http.Response> post(
+      String url, {
+        Map<String, dynamic>? body,
+      }) async {
+    return await _postWithRefresh(
+      url,
+      body: body,
+    );
+  }
+
+  // =====================================================
+  // درخواست DELETE عمومی
+  // =====================================================
+
+  Future<http.Response> delete(
+      String url,
+      ) async {
+    var token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.trim().isEmpty) {
+      throw Exception('توکن ورود پیدا نشد');
+    }
+
+    token = token.trim();
+
+    http.Response response;
+
+    try {
+      response = await http
+          .delete(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      )
+          .timeout(
+        const Duration(seconds: 20),
+      );
+    } on SocketException {
+      throw Exception('NO_INTERNET');
+    } on http.ClientException {
+      throw Exception('NO_INTERNET');
+    } on TimeoutException {
+      throw Exception('REQUEST_TIMEOUT');
+    }
+
+    if (response.statusCode != 401) {
+      return response;
+    }
+
+    debugPrint(
+      'API DELETE 401 -> TRY REFRESH',
+    );
+
+    final refreshed =
+    await refreshAccessToken();
+
+    if (!refreshed) {
+      throw Exception('TOKEN_EXPIRED');
+    }
+
+    token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null || token.trim().isEmpty) {
+      throw Exception('TOKEN_EXPIRED');
+    }
+
+    token = token.trim();
+
+    try {
+      response = await http
+          .delete(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      )
+          .timeout(
+        const Duration(seconds: 20),
+      );
+    } on SocketException {
+      throw Exception('NO_INTERNET');
+    } on http.ClientException {
+      throw Exception('NO_INTERNET');
+    } on TimeoutException {
+      throw Exception('REQUEST_TIMEOUT');
+    }
+
+    if (response.statusCode == 401) {
+      throw Exception('TOKEN_EXPIRED');
+    }
+
+    return response;
+  }
+
+  // =====================================================
+  // درخواست PATCH عمومی
+  //
+  // برای ویرایش اطلاعات
+  // با Refresh خودکار Token
+  // =====================================================
+
+  Future<http.Response> patch(
+      String url, {
+        Map<String, dynamic>? body,
+      }) async {
+    var token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null ||
+        token.trim().isEmpty) {
+      throw Exception(
+        'توکن ورود پیدا نشد',
+      );
+    }
+
+    token = token.trim();
+
+    http.Response response;
+
+    try {
+      response = await http
+          .patch(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: body != null
+            ? jsonEncode(body)
+            : null,
+      )
+          .timeout(
+        const Duration(seconds: 20),
+      );
+    } on SocketException {
+      throw Exception('NO_INTERNET');
+    } on http.ClientException {
+      throw Exception('NO_INTERNET');
+    } on TimeoutException {
+      throw Exception('REQUEST_TIMEOUT');
+    }
+
+    debugPrint(
+      'API PATCH URL: $url',
+    );
+
+    debugPrint(
+      'API PATCH STATUS: ${response.statusCode}',
+    );
+
+    if (response.statusCode != 401) {
+      return response;
+    }
+
+    // =====================================================
+    // Token expired -> Refresh
+    // =====================================================
+
+    debugPrint(
+      'API PATCH 401 -> TRY REFRESH',
+    );
+
+    final refreshed =
+    await refreshAccessToken();
+
+    if (!refreshed) {
+      throw Exception(
+        'TOKEN_EXPIRED',
+      );
+    }
+
+    token =
+    await TokenStorage.getAccessToken();
+
+    if (token == null ||
+        token.trim().isEmpty) {
+      throw Exception(
+        'TOKEN_EXPIRED',
+      );
+    }
+
+    token = token.trim();
+
+    try {
+      response = await http
+          .patch(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: body != null
+            ? jsonEncode(body)
+            : null,
+      )
+          .timeout(
+        const Duration(seconds: 20),
+      );
+    } on SocketException {
+      throw Exception('NO_INTERNET');
+    } on http.ClientException {
+      throw Exception('NO_INTERNET');
+    } on TimeoutException {
+      throw Exception('REQUEST_TIMEOUT');
+    }
+
+    debugPrint(
+      'API PATCH RETRY STATUS: '
+          '${response.statusCode}',
+    );
+
+    if (response.statusCode == 401) {
+      throw Exception(
+        'TOKEN_EXPIRED',
+      );
+    }
+
+    return response;
+  }
 }

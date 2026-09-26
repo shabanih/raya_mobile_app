@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_announcement_service.dart';
 
@@ -201,7 +202,8 @@ Navigator.pop(context);
 setState(() {
 announcements.removeWhere(
 (item) =>
-item['id'].toString() == id.toString(),
+item['id'].toString() ==
+id.toString(),
 );
 });
 
@@ -335,6 +337,24 @@ return text;
 }
 
 // =====================================================
+// تبدیل اعداد انگلیسی به فارسی
+// =====================================================
+
+String toPersianDigits(String value) {
+const english = '0123456789';
+const persian = '۰۱۲۳۴۵۶۷۸۹';
+
+for (int i = 0; i < english.length; i++) {
+value = value.replaceAll(
+english[i],
+persian[i],
+);
+}
+
+return value;
+}
+
+// =====================================================
 // تعداد فایل‌ها
 // =====================================================
 
@@ -352,33 +372,34 @@ return 0;
 }
 
 // =====================================================
-// تاریخ
+// تاریخ شمسی
 // =====================================================
 
-String _formatDate(String? value) {
-if (value == null || value.isEmpty) {
-return '';
+String formatPersianDate(dynamic value) {
+if (value == null) {
+return '-';
+}
+
+final text = value.toString().trim();
+
+if (text.isEmpty) {
+return '-';
 }
 
 try {
-final date =
-DateTime.parse(value).toLocal();
+final date = DateTime.parse(text);
 
-final year = date.year
-    .toString()
-    .padLeft(4, '0');
+final jalali =
+Jalali.fromDateTime(date);
 
-final month = date.month
-    .toString()
-    .padLeft(2, '0');
+final result =
+'${jalali.year}/'
+'${jalali.month.toString().padLeft(2, '0')}/'
+'${jalali.day.toString().padLeft(2, '0')}';
 
-final day = date.day
-    .toString()
-    .padLeft(2, '0');
-
-return '$year/$month/$day';
+return toPersianDigits(result);
 } catch (_) {
-return value;
+return toPersianDigits(text);
 }
 }
 
@@ -438,9 +459,9 @@ const AlwaysScrollableScrollPhysics(),
 children: [
 SizedBox(
 height:
-MediaQuery.of(context)
-    .size
-    .height *
+MediaQuery.of(
+context,
+).size.height *
 0.28,
 ),
 Icon(
@@ -482,8 +503,7 @@ fontSize: 13,
 )
     : ListView.builder(
 padding:
-const EdgeInsets
-    .fromLTRB(
+const EdgeInsets.fromLTRB(
 12,
 14,
 12,
@@ -515,13 +535,14 @@ final isActive =
 announcement['is_active'] == true;
 
 final showInMarquee =
-announcement['show_in_marquee'] == true;
+announcement['show_in_marquee'] ==
+true;
 
 final title =
 announcement['title']?.toString() ?? '';
 
-final date = _formatDate(
-announcement['created_at']?.toString(),
+final date = formatPersianDate(
+announcement['created_at'],
 );
 
 final documentsCount =
@@ -539,7 +560,8 @@ BoxShadow(
 color:
 Colors.black.withOpacity(0.05),
 blurRadius: 12,
-offset: const Offset(0, 4),
+offset:
+const Offset(0, 4),
 ),
 ],
 ),
@@ -551,19 +573,25 @@ crossAxisAlignment:
 CrossAxisAlignment.start,
 children: [
 Row(
+crossAxisAlignment:
+CrossAxisAlignment.start,
 children: [
 Container(
 width: 44,
 height: 44,
-decoration: BoxDecoration(
+decoration:
+BoxDecoration(
 color:
 const Color(0xff00ACC1)
     .withOpacity(0.10),
 borderRadius:
-BorderRadius.circular(13),
+BorderRadius.circular(
+13,
+),
 ),
 child: const Icon(
-Icons.campaign_outlined,
+Icons
+    .campaign_outlined,
 color:
 Color(0xff00ACC1),
 ),
@@ -574,9 +602,10 @@ child: Text(
 title.isEmpty
 ? 'بدون متن'
     : title,
-maxLines: 2,
-overflow:
-TextOverflow.ellipsis,
+textAlign:
+TextAlign.right,
+textDirection:
+TextDirection.rtl,
 style:
 const TextStyle(
 fontSize: 15,
@@ -584,13 +613,22 @@ fontWeight:
 FontWeight.bold,
 color:
 Color(0xff263238),
-height: 1.6,
+height: 1.8,
 ),
 ),
 ),
 PopupMenuButton<String>(
-onSelected: (value) {
-if (value == 'edit') {
+padding:
+EdgeInsets.zero,
+icon: const Icon(
+Icons.more_vert,
+color:
+Color(0xff546E7A),
+),
+onSelected:
+(value) {
+if (value ==
+'edit') {
 editAnnouncement(
 announcement,
 );
@@ -612,11 +650,16 @@ value: 'edit',
 child: Row(
 children: [
 Icon(
-Icons.edit_outlined,
+Icons
+    .edit_outlined,
 size: 20,
 ),
-SizedBox(width: 8),
-Text('ویرایش'),
+SizedBox(
+width: 8,
+),
+Text(
+'ویرایش',
+),
 ],
 ),
 ),
@@ -650,13 +693,17 @@ children: [
 Icon(
 Icons
     .delete_outline,
-color: Colors.red,
+color:
+Colors.red,
 size: 20,
 ),
-SizedBox(width: 8),
+SizedBox(
+width: 8,
+),
 Text(
 'حذف',
-style: TextStyle(
+style:
+TextStyle(
 color:
 Colors.red,
 ),
@@ -668,7 +715,15 @@ Colors.red,
 ),
 ],
 ),
-const SizedBox(height: 13),
+
+const SizedBox(
+height: 13,
+),
+
+// =================================================
+// اطلاعات اطلاعیه
+// =================================================
+
 Wrap(
 spacing: 7,
 runSpacing: 7,
@@ -693,75 +748,7 @@ _buildInfoChip(
 icon: Icons
     .attach_file_rounded,
 text:
-'$documentsCount فایل',
-),
-],
-),
-const SizedBox(height: 14),
-Row(
-children: [
-Expanded(
-child:
-OutlinedButton.icon(
-onPressed: () {
-editAnnouncement(
-announcement,
-);
-},
-style: OutlinedButton
-    .styleFrom(
-foregroundColor:
-const Color(
-0xff00ACC1),
-side: const BorderSide(
-color:
-Color(0xff00ACC1),
-),
-shape:
-RoundedRectangleBorder(
-borderRadius:
-BorderRadius
-    .circular(12),
-),
-),
-icon: const Icon(
-Icons.edit_outlined,
-size: 18,
-),
-label:
-const Text('ویرایش'),
-),
-),
-const SizedBox(width: 8),
-Expanded(
-child:
-OutlinedButton.icon(
-onPressed: () {
-deleteAnnouncement(
-announcement,
-);
-},
-style: OutlinedButton
-    .styleFrom(
-foregroundColor:
-Colors.red,
-side: const BorderSide(
-color: Colors.red,
-),
-shape:
-RoundedRectangleBorder(
-borderRadius:
-BorderRadius
-    .circular(12),
-),
-),
-icon: const Icon(
-Icons.delete_outline,
-size: 18,
-),
-label:
-const Text('حذف'),
-),
+'${toPersianDigits(documentsCount.toString())} فایل',
 ),
 ],
 ),
@@ -770,6 +757,10 @@ const Text('حذف'),
 ),
 );
 }
+
+// =====================================================
+// وضعیت
+// =====================================================
 
 Widget _buildStatusChip(
 bool isActive,
@@ -782,10 +773,12 @@ vertical: 6,
 ),
 decoration: BoxDecoration(
 color: isActive
-? Colors.green
-    .withOpacity(0.10)
-    : Colors.red
-    .withOpacity(0.10),
+? Colors.green.withOpacity(
+0.10,
+)
+    : Colors.red.withOpacity(
+0.10,
+),
 borderRadius:
 BorderRadius.circular(20),
 ),
@@ -803,9 +796,13 @@ color: isActive
 ? Colors.green
     : Colors.red,
 ),
-const SizedBox(width: 5),
+const SizedBox(
+width: 5,
+),
 Text(
-isActive ? 'فعال' : 'غیرفعال',
+isActive
+? 'فعال'
+    : 'غیرفعال',
 style: TextStyle(
 fontSize: 12,
 fontWeight:
@@ -819,6 +816,10 @@ color: isActive
 ),
 );
 }
+
+// =====================================================
+// چیپ اطلاعات
+// =====================================================
 
 Widget _buildInfoChip({
 required IconData icon,
@@ -846,10 +847,13 @@ size: 15,
 color:
 const Color(0xff607D8B),
 ),
-const SizedBox(width: 5),
+const SizedBox(
+width: 5,
+),
 Text(
 text,
-style: const TextStyle(
+style:
+const TextStyle(
 fontSize: 12,
 color:
 Color(0xff546E7A),
@@ -867,7 +871,8 @@ Color(0xff546E7A),
 
 class ManagerAnnouncementFormScreen
 extends StatefulWidget {
-final Map<String, dynamic>? announcement;
+final Map<String, dynamic>?
+announcement;
 
 const ManagerAnnouncementFormScreen({
 super.key,
@@ -878,7 +883,8 @@ bool get isEdit =>
 announcement != null;
 
 @override
-State<ManagerAnnouncementFormScreen>
+State<
+ManagerAnnouncementFormScreen>
 createState() =>
 _ManagerAnnouncementFormScreenState();
 }
@@ -953,7 +959,8 @@ super.dispose();
 
 Future<void> pickFiles() async {
 try {
-final List<XFile> pickedImages =
+final List<XFile>
+pickedImages =
 await _imagePicker.pickMultiImage(
 imageQuality: 85,
 );
@@ -967,7 +974,8 @@ if (!mounted) return;
 setState(() {
 selectedFiles.addAll(
 pickedImages.map(
-(image) => File(image.path),
+(image) =>
+File(image.path),
 ),
 );
 });
@@ -988,7 +996,8 @@ void removeSelectedFile(
 int index,
 ) {
 if (index < 0 ||
-index >= selectedFiles.length) {
+index >=
+selectedFiles.length) {
 return;
 }
 
@@ -1110,7 +1119,8 @@ SnackBarBehavior.floating,
 String _fileName(File file) {
 final path = file.path;
 
-final index = path.lastIndexOf(
+final index =
+path.lastIndexOf(
 Platform.pathSeparator,
 );
 
@@ -1171,8 +1181,7 @@ const EdgeInsets.fromLTRB(
 ),
 child: Column(
 crossAxisAlignment:
-CrossAxisAlignment
-    .start,
+CrossAxisAlignment.start,
 children: [
 // =========================================
 // متن اطلاعیه
@@ -1180,7 +1189,8 @@ children: [
 
 _buildSectionTitle(
 'متن اطلاعیه',
-Icons.campaign_outlined,
+Icons
+    .campaign_outlined,
 ),
 
 const SizedBox(
@@ -1213,7 +1223,8 @@ const Offset(
 ),
 ],
 ),
-child: TextField(
+child:
+TextField(
 controller:
 titleController,
 focusNode:
@@ -1277,7 +1288,8 @@ value:
 showInMarquee,
 activeColor:
 const Color(
-0xff00ACC1),
+0xff00ACC1,
+),
 title:
 const Text(
 'نمایش در نوار اطلاعیه',
@@ -1396,8 +1408,7 @@ isActive
     .check_circle_outline
     : Icons
     .cancel_outlined,
-color:
-isActive
+color: isActive
 ? Colors.green
     : Colors.red,
 ),
@@ -1431,7 +1442,8 @@ height: 10,
 ),
 
 InkWell(
-onTap: pickFiles,
+onTap:
+pickFiles,
 borderRadius:
 BorderRadius
     .circular(
@@ -1529,8 +1541,7 @@ style:
 TextStyle(
 fontSize: 13,
 fontWeight:
-FontWeight
-    .bold,
+FontWeight.bold,
 color:
 Color(
 0xff455A64,
@@ -1578,8 +1589,8 @@ BorderRadius
     .circular(
 8,
 ),
-child:
-url.isNotEmpty
+child: url
+    .isNotEmpty
 ? Image.network(
 url,
 width:
@@ -1662,8 +1673,7 @@ style:
 TextStyle(
 fontSize: 13,
 fontWeight:
-FontWeight
-    .bold,
+FontWeight.bold,
 color:
 Color(
 0xff455A64,
@@ -1723,10 +1733,8 @@ error,
 stackTrace,
 ) {
 return Container(
-width:
-55,
-height:
-55,
+width: 55,
+height: 55,
 color:
 const Color(
 0xffECEFF1,
@@ -1748,15 +1756,13 @@ child: Text(
 _fileName(
 file,
 ),
-maxLines:
-2,
+maxLines: 2,
 overflow:
 TextOverflow
     .ellipsis,
 style:
 const TextStyle(
-fontSize:
-12,
+fontSize: 12,
 color:
 Color(
 0xff455A64,
@@ -1800,8 +1806,7 @@ double.infinity,
 height: 52,
 child:
 ElevatedButton.icon(
-onPressed:
-isSaving
+onPressed: isSaving
 ? null
     : saveAnnouncement,
 style:
@@ -1832,8 +1837,7 @@ width: 20,
 height: 20,
 child:
 CircularProgressIndicator(
-strokeWidth:
-2,
+strokeWidth: 2,
 color:
 Colors.white,
 ),
@@ -1855,8 +1859,7 @@ style:
 const TextStyle(
 fontSize: 15,
 fontWeight:
-FontWeight
-    .bold,
+FontWeight.bold,
 ),
 ),
 ),
@@ -1881,7 +1884,9 @@ size: 20,
 color:
 const Color(0xff00ACC1),
 ),
-const SizedBox(width: 7),
+const SizedBox(
+width: 7,
+),
 Text(
 title,
 style:
@@ -1897,4 +1902,3 @@ Color(0xff37474F),
 );
 }
 }
-

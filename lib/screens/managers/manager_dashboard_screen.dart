@@ -13,6 +13,9 @@ import '../login_screen.dart';
 import '../messages_screen.dart';
 import '../finance_menu_screen.dart';
 import 'manager_announcements_screen.dart';
+import 'manager_messages_screen.dart';
+import 'manager_banks_screen.dart';
+
 
 // =====================================================
 // صفحه اصلی مدیران
@@ -607,8 +610,7 @@ class _ManagerDashboardScreenState
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-        const MessagesScreen(),
+        builder: (_) => ManagerMessagesScreen(),
       ),
     );
 
@@ -907,7 +909,7 @@ class _ManagerDashboardScreenState
                     child:
                     _ManagerTopMenuItem(
                       title:
-                      'اطلاعیه‌ها',
+                      'مدیریت اطلاعیه‌ها',
                       icon:
                       Icons
                           .notifications_none_rounded,
@@ -915,10 +917,10 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xff00ACC1,
                       ),
-                      badge:
-                      hasNewAnnouncements
-                          ? 1
-                          : null,
+                      // badge:
+                      // hasNewAnnouncements
+                      //     ? 1
+                      //     : null,
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -941,7 +943,7 @@ class _ManagerDashboardScreenState
                     child:
                     _ManagerTopMenuItem(
                       title:
-                      'پیام‌ها',
+                      'مدیریت پیام‌ها',
                       icon:
                       Icons
                           .mail_outline_rounded,
@@ -949,11 +951,11 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xff5E35B1,
                       ),
-                      badge:
-                      unreadMessageCount >
-                          0
-                          ? unreadMessageCount
-                          : null,
+                      // badge:
+                      // unreadMessageCount >
+                      //     0
+                      //     ? unreadMessageCount
+                      //     : null,
                       onTap:
                       openMessages,
                     ),
@@ -967,7 +969,7 @@ class _ManagerDashboardScreenState
                     child:
                     _ManagerTopMenuItem(
                       title:
-                      'تیکت‌ها',
+                      'مدیریت تیکت‌ها',
                       icon:
                       Icons
                           .support_agent_outlined,
@@ -1118,9 +1120,13 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xff1565C0,
                       ),
-                      onTap: () {
-                        _showComingSoon(
-                          'بانک‌ها',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                            const ManagerBanksScreen(),
+                          ),
                         );
                       },
                     ),

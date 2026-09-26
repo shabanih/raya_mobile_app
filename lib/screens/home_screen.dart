@@ -53,7 +53,25 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    // debugPrint('HOME DATA = ${widget.data}');
+    debugPrint(
+      '================ HOME DATA ================',
+    );
+
+    debugPrint(
+      widget.data.toString(),
+    );
+
+    debugPrint(
+      'HOUSE: ${widget.data['house']}',
+    );
+
+    debugPrint(
+      'UNITS: ${widget.data['units']}',
+    );
+
+    debugPrint(
+      '===========================================',
+    );
 
     loadDashboard();
     loadPollStatus();
