@@ -185,7 +185,8 @@ class ApiConfig {
   // =====================================================
   // Manager Banks
   // =====================================================
-
+  static const String managerHouses =
+      '$baseUrl/manager/houses/';
 
   static const String managerBanks =
       '$baseUrl/manager/banks/';

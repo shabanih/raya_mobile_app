@@ -1112,7 +1112,7 @@ class _ManagerDashboardScreenState
                     child:
                     _ManagerTopMenuItem(
                       title:
-                      'بانک‌ها',
+                      'مدیریت بانک‌ها',
                       icon:
                       Icons
                           .account_balance_outlined,
@@ -1164,7 +1164,7 @@ class _ManagerDashboardScreenState
                     child:
                     _ManagerTopMenuItem(
                       title:
-                      'نظرسنجی',
+                      'مدیریت نظرسنجی',
                       icon:
                       Icons
                           .poll_outlined,

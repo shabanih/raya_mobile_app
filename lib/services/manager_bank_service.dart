@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../config/api_config.dart';
 import 'api_service.dart';
+import '../config/api_config.dart';
 
 class ManagerBankService {
   final ApiService apiService;
@@ -11,7 +11,7 @@ class ManagerBankService {
   });
 
   // =====================================================
-  // دریافت لیست حساب‌های بانکی مدیر
+  // دریافت لیست حساب‌های بانکی
   // =====================================================
 
   Future<List<Map<String, dynamic>>> getBanks() async {
@@ -19,49 +19,56 @@ class ManagerBankService {
       ApiConfig.managerBanks,
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecodeSafe(response.body);
+    final data = _decodeResponse(response);
 
-      if (data is! List) {
-        throw Exception(
-          'ساختار پاسخ حساب‌های بانکی نامعتبر است.',
-        );
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      dynamic items;
+
+      if (data is List) {
+        items = data;
+      } else if (data is Map) {
+        items =
+            data['results'] ??
+                data['banks'] ??
+                [];
       }
 
-      return data
-          .whereType<Map>()
-          .map(
-            (item) => Map<String, dynamic>.from(item),
-      )
-          .toList();
-    }
+      if (items is List) {
+        return items
+            .whereType<Map>()
+            .map(
+              (item) =>
+          Map<String, dynamic>.from(item),
+        )
+            .toList();
+      }
 
-    if (response.statusCode == 403) {
-      throw Exception(
-        'شما دسترسی به حساب‌های بانکی را ندارید.',
-      );
+      return [];
     }
 
     throw Exception(
-      'خطا در دریافت حساب‌های بانکی: '
-          '${response.statusCode}',
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // دریافت جزئیات یک حساب
+  // دریافت جزئیات یک حساب بانکی
   // =====================================================
 
-  Future<Map<String, dynamic>> getBank(int id) async {
+  Future<Map<String, dynamic>> getBank(
+      int id,
+      ) async {
     final response = await apiService.get(
       ApiConfig.managerBankDetail(id),
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecodeSafe(response.body);
+    final data = _decodeResponse(response);
 
-      if (data is Map<String, dynamic>) {
-        return data;
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
       }
 
       throw Exception(
@@ -69,71 +76,63 @@ class ManagerBankService {
       );
     }
 
-    if (response.statusCode == 404) {
-      throw Exception(
-        'حساب بانکی مورد نظر پیدا نشد.',
-      );
-    }
-
     throw Exception(
-      'خطا در دریافت اطلاعات حساب بانکی: '
-          '${response.statusCode}',
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // ثبت حساب بانکی
+  // ایجاد حساب بانکی
   // =====================================================
 
   Future<Map<String, dynamic>> createBank({
     required int houseId,
     required String bankName,
-    required String accountNo,
     required String accountHolderName,
+    required String accountNo,
     required String shebaNumber,
     required String cartNumber,
-    required dynamic initialFund,
+    required String createAt,
+    required int initialFund,
+    required bool isActive,
     required bool isDefault,
     required bool isGateway,
-    required String createAt,
-    required bool isActive,
   }) async {
+    final body = <String, dynamic>{
+      'house': houseId,
+      'bank_name': bankName,
+      'account_holder_name':
+      accountHolderName,
+      'account_no': accountNo,
+      'sheba_number': shebaNumber,
+      'cart_number': cartNumber,
+      'create_at': createAt,
+      'initial_fund': initialFund,
+      'is_active': isActive,
+      'is_default': isDefault,
+      'is_gateway': isGateway,
+    };
+
     final response = await apiService.post(
       ApiConfig.managerBanks,
-      body: {
-        'house': houseId,
-        'bank_name': bankName,
-        'account_no': accountNo,
-        'account_holder_name': accountHolderName,
-        'sheba_number': shebaNumber,
-        'cart_number': cartNumber,
-        'initial_fund': initialFund,
-        'is_default': isDefault,
-        'is_gateway': isGateway,
-        'create_at': createAt,
-        'is_active': isActive,
-      },
+      body: body,
     );
 
-    final data = jsonDecodeSafe(response.body);
+    final data = _decodeResponse(response);
 
-    if (response.statusCode == 200 ||
-        response.statusCode == 201) {
-      if (data is Map<String, dynamic>) {
-        return data;
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
       }
 
       throw Exception(
-        'پاسخ ثبت حساب بانکی نامعتبر است.',
+        'پاسخ سرور برای ایجاد حساب نامعتبر است.',
       );
     }
 
     throw Exception(
-      extractErrorMessage(
-        data,
-        defaultMessage:
-        'خطا در ثبت حساب بانکی.',
-      ),
+      _extractErrorMessage(data),
     );
   }
 
@@ -141,34 +140,55 @@ class ManagerBankService {
   // ویرایش حساب بانکی
   // =====================================================
 
-  Future<Map<String, dynamic>> updateBank(
-      int id,
-      Map<String, dynamic> data,
-      ) async {
+  Future<Map<String, dynamic>> updateBank({
+    required int id,
+    required int houseId,
+    required String bankName,
+    required String accountHolderName,
+    required String accountNo,
+    required String shebaNumber,
+    required String cartNumber,
+    required String createAt,
+    required int initialFund,
+    required bool isActive,
+    required bool isDefault,
+    required bool isGateway,
+  }) async {
+    final body = <String, dynamic>{
+      'house': houseId,
+      'bank_name': bankName,
+      'account_holder_name':
+      accountHolderName,
+      'account_no': accountNo,
+      'sheba_number': shebaNumber,
+      'cart_number': cartNumber,
+      'create_at': createAt,
+      'initial_fund': initialFund,
+      'is_active': isActive,
+      'is_default': isDefault,
+      'is_gateway': isGateway,
+    };
+
     final response = await apiService.patch(
       ApiConfig.managerBankDetail(id),
-      body: data,
+      body: body,
     );
 
-    final responseData =
-    jsonDecodeSafe(response.body);
+    final data = _decodeResponse(response);
 
-    if (response.statusCode == 200) {
-      if (responseData is Map<String, dynamic>) {
-        return responseData;
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
       }
 
       throw Exception(
-        'پاسخ ویرایش حساب بانکی نامعتبر است.',
+        'پاسخ سرور برای ویرایش حساب نامعتبر است.',
       );
     }
 
     throw Exception(
-      extractErrorMessage(
-        responseData,
-        defaultMessage:
-        'خطا در ویرایش حساب بانکی.',
-      ),
+      _extractErrorMessage(data),
     );
   }
 
@@ -176,202 +196,371 @@ class ManagerBankService {
   // حذف حساب بانکی
   // =====================================================
 
-  Future<void> deleteBank(int id) async {
+  Future<void> deleteBank(
+      int id,
+      ) async {
     final response = await apiService.delete(
       ApiConfig.managerBankDetail(id),
     );
 
-    if (response.statusCode == 200 ||
-        response.statusCode == 204) {
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
       return;
     }
 
-    final data = jsonDecodeSafe(response.body);
+    dynamic data;
+
+    try {
+      data = _decodeResponse(response);
+    } catch (_) {
+      data = null;
+    }
 
     throw Exception(
-      extractErrorMessage(
-        data,
-        defaultMessage:
-        'حذف حساب بانکی انجام نشد.',
-      ),
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // دریافت لیست انتقال‌ها
+  // دریافت لیست انتقال‌های بین بانکی
   // =====================================================
 
   Future<List<Map<String, dynamic>>>
-  getTransfers() async {
+  getBankTransfers() async {
     final response = await apiService.get(
       ApiConfig.managerBankTransfers,
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecodeSafe(response.body);
+    final data = _decodeResponse(response);
 
-      if (data is! List) {
-        throw Exception(
-          'ساختار پاسخ انتقال‌های بانکی نامعتبر است.',
-        );
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      dynamic items;
+
+      if (data is List) {
+        items = data;
+      } else if (data is Map) {
+        items =
+            data['results'] ??
+                data['transfers'] ??
+                [];
       }
 
-      return data
-          .whereType<Map>()
-          .map(
-            (item) => Map<String, dynamic>.from(item),
-      )
-          .toList();
+      if (items is List) {
+        return items
+            .whereType<Map>()
+            .map(
+              (item) =>
+          Map<String, dynamic>.from(item),
+        )
+            .toList();
+      }
+
+      return [];
     }
 
     throw Exception(
-      'خطا در دریافت انتقال‌های بانکی: '
-          '${response.statusCode}',
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // ثبت انتقال بین دو حساب
+  // ایجاد انتقال بین بانکی
   // =====================================================
 
-  Future<void> createTransfer({
+  Future<Map<String, dynamic>>
+  createBankTransfer({
     required int fromBankId,
     required int toBankId,
-    required dynamic amount,
-    required String paymentDate,
+    required int amount,
     String? transactionReference,
+    required String paymentDate,
     String? paymentDescription,
   }) async {
-    final response = await apiService.post(
-      ApiConfig.managerBankTransfers,
-      body: {
-        'from_bank': fromBankId,
-        'to_bank': toBankId,
-        'amount': amount,
-        'payment_date': paymentDate,
-        'transaction_reference':
-        transactionReference ?? '',
-        'payment_description':
-        paymentDescription ??
-            'انتقال وجه داخلی',
-      },
-    );
-
-    if (response.statusCode == 200 ||
-        response.statusCode == 201) {
-      return;
+    if (fromBankId == toBankId) {
+      throw Exception(
+        'حساب مبدأ و مقصد نمی‌توانند یکسان باشند.',
+      );
     }
 
-    final data = jsonDecodeSafe(response.body);
+    if (amount <= 0) {
+      throw Exception(
+        'مبلغ انتقال باید بیشتر از صفر باشد.',
+      );
+    }
+
+    final body = <String, dynamic>{
+      'from_bank': fromBankId,
+      'to_bank': toBankId,
+      'amount': amount,
+      'payment_date': paymentDate,
+    };
+
+    if (transactionReference != null &&
+        transactionReference.trim().isNotEmpty) {
+      body['transaction_reference'] =
+          transactionReference.trim();
+    }
+
+    if (paymentDescription != null &&
+        paymentDescription.trim().isNotEmpty) {
+      body['payment_description'] =
+          paymentDescription.trim();
+    }
+
+    final response = await apiService.post(
+      ApiConfig.managerBankTransfers,
+      body: body,
+    );
+
+    final data = _decodeResponse(response);
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+
+      return {
+        'detail': 'انتقال وجه با موفقیت انجام شد.',
+      };
+    }
 
     throw Exception(
-      extractErrorMessage(
-        data,
-        defaultMessage:
-        'ثبت انتقال وجه انجام نشد.',
-      ),
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // لغو انتقال
+  // لغو انتقال بین بانکی
   // =====================================================
 
-  Future<void> deleteTransfer(int id) async {
+  Future<void> deleteBankTransfer(
+      int id,
+      ) async {
     final response = await apiService.delete(
       ApiConfig.managerBankTransferDetail(id),
     );
 
-    if (response.statusCode == 200 ||
-        response.statusCode == 204) {
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
       return;
     }
 
-    final data = jsonDecodeSafe(response.body);
+    dynamic data;
+
+    try {
+      data = _decodeResponse(response);
+    } catch (_) {
+      data = null;
+    }
 
     throw Exception(
-      extractErrorMessage(
-        data,
-        defaultMessage:
-        'لغو انتقال انجام نشد.',
-      ),
+      _extractErrorMessage(data),
     );
   }
 
   // =====================================================
-  // JSON امن
+  // Decode پاسخ سرور
   // =====================================================
 
-  dynamic jsonDecodeSafe(String body) {
+  dynamic _decodeResponse(
+      dynamic response,
+      ) {
+    final bodyBytes = response.bodyBytes;
+
+    if (bodyBytes.isEmpty) {
+      return null;
+    }
+
+    final body =
+    utf8.decode(
+      bodyBytes,
+      allowMalformed: true,
+    ).trim();
+
+    if (body.isEmpty) {
+      return null;
+    }
+
     try {
       return jsonDecode(body);
     } catch (_) {
-      return null;
+      return body;
     }
   }
 
   // =====================================================
-  // استخراج پیام خطا
+  // استخراج متن خطا
   // =====================================================
 
-  String extractErrorMessage(
-      dynamic data, {
-        required String defaultMessage,
-      }) {
-    if (data is Map<String, dynamic>) {
-      if (data['detail'] != null) {
-        return data['detail'].toString();
-      }
+  String _extractErrorMessage(
+      dynamic data,
+      ) {
+    if (data == null) {
+      return 'خطایی در ارتباط با سرور رخ داده است.';
+    }
 
-      if (data['message'] != null) {
-        return data['message'].toString();
-      }
+    if (data is String &&
+        data.trim().isNotEmpty) {
+      return data.trim();
+    }
 
-      if (data['error'] != null) {
-        return data['error'].toString();
-      }
+    if (data is Map) {
+      final message =
+          data['message'] ??
+              data['detail'] ??
+              data['error'];
 
-      final errors = data['errors'];
-
-      if (errors is Map) {
-        final messages = <String>[];
-
-        errors.forEach((key, value) {
-          if (value is List) {
-            messages.addAll(
-              value.map(
-                    (item) => item.toString(),
-              ),
-            );
-          } else {
-            messages.add(value.toString());
-          }
-        });
-
-        if (messages.isNotEmpty) {
-          return messages.join('\n');
+      if (message != null) {
+        if (message is List) {
+          return message
+              .map(
+                (item) => item.toString(),
+          )
+              .join('\n');
         }
-      }
 
-      // خطاهای validation خود DRF ممکن است مستقیماً
-      // به شکل {"field": ["error"]} باشند.
-      final messages = <String>[];
-
-      data.forEach((key, value) {
-        if (value is List) {
-          messages.addAll(
-            value.map(
-                  (item) => item.toString(),
-            ),
+        if (message is Map) {
+          return _formatMapErrors(
+            message,
           );
         }
-      });
 
-      if (messages.isNotEmpty) {
-        return messages.join('\n');
+        return message.toString();
+      }
+
+      final errors = <String>[];
+
+      data.forEach(
+            (key, value) {
+          final field =
+          _fieldTitle(
+            key.toString(),
+          );
+
+          if (value is List) {
+            errors.add(
+              '$field: '
+                  '${value.map((e) => e.toString()).join('، ')}',
+            );
+          } else if (value is Map) {
+            errors.add(
+              '$field: '
+                  '${_formatMapErrors(value)}',
+            );
+          } else {
+            errors.add(
+              '$field: $value',
+            );
+          }
+        },
+      );
+
+      if (errors.isNotEmpty) {
+        return errors.join('\n');
       }
     }
 
-    return defaultMessage;
+    return 'خطایی در ارتباط با سرور رخ داده است.';
+  }
+
+  // =====================================================
+  // خطاهای Map تو در تو
+  // =====================================================
+
+  String _formatMapErrors(
+      Map data,
+      ) {
+    final messages = <String>[];
+
+    data.forEach(
+          (key, value) {
+        if (value is List) {
+          messages.add(
+            '${_fieldTitle(key.toString())}: '
+                '${value.map((e) => e.toString()).join('، ')}',
+          );
+        } else {
+          messages.add(
+            '${_fieldTitle(key.toString())}: $value',
+          );
+        }
+      },
+    );
+
+    return messages.join('\n');
+  }
+
+  // =====================================================
+  // عنوان فارسی فیلدها
+  // =====================================================
+
+  String _fieldTitle(
+      String field,
+      ) {
+    const titles = {
+      'house': 'ساختمان',
+      'house_id': 'ساختمان',
+      'house_name': 'ساختمان',
+
+      'bank_name': 'نام بانک',
+
+      'account_holder_name':
+      'نام صاحب حساب',
+
+      'account_no':
+      'شماره حساب',
+
+      'sheba_number':
+      'شماره شبا',
+
+      'cart_number':
+      'شماره کارت',
+
+      'create_at':
+      'تاریخ افتتاح حساب',
+
+      'initial_fund':
+      'موجودی اولیه',
+
+      'current_balance':
+      'موجودی فعلی',
+
+      'is_active':
+      'وضعیت حساب',
+
+      'is_default':
+      'حساب پیش‌فرض',
+
+      'is_gateway':
+      'حساب درگاه',
+
+      'from_bank':
+      'حساب مبدأ',
+
+      'to_bank':
+      'حساب مقصد',
+
+      'amount':
+      'مبلغ',
+
+      'transaction_reference':
+      'شماره تراکنش',
+
+      'payment_date':
+      'تاریخ انتقال',
+
+      'payment_description':
+      'شرح انتقال',
+
+      'detail':
+      'توضیحات',
+
+      'non_field_errors':
+      'خطا',
+    };
+
+    return titles[field] ?? field;
   }
 }
