@@ -15,6 +15,7 @@ import '../finance_menu_screen.dart';
 import 'manager_announcements_screen.dart';
 import 'manager_messages_screen.dart';
 import 'manager_banks_screen.dart';
+import 'manager_polls_screen.dart';
 
 
 // =====================================================
@@ -1176,9 +1177,13 @@ class _ManagerDashboardScreenState
                       // hasNewPolls
                       //     ? 1
                       //     : null,
-                      onTap: () {
-                        _showComingSoon(
-                          'نظرسنجی',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                            const ManagerPollsScreen(),
+                          ),
                         );
                       },
                     ),

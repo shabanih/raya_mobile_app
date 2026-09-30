@@ -200,6 +200,22 @@ class ApiConfig {
   static String managerBankTransferDetail(int id) =>
       '$baseUrl/manager/bank-transfers/$id/';
 
+  // =====================================================
+// Manager Polls
+// =====================================================
+
+  static const String managerPolls =
+      '$baseUrl/manager/polls/';
+
+  static String managerPollDetail(int id) =>
+      '$baseUrl/manager/polls/$id/';
+
+  static String managerPollToggleActive(int id) =>
+      '$baseUrl/manager/polls/$id/toggle-active/';
+
+  static String managerPollResults(int id) =>
+      '$baseUrl/manager/polls/$id/results/';
+
 
 
 

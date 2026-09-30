@@ -3,21 +3,29 @@ import 'dart:convert';
 import 'api_service.dart';
 import '../config/api_config.dart';
 
-class ManagerBankService {
+class ManagerPollService {
   final ApiService apiService;
 
-  ManagerBankService({
+  ManagerPollService({
     required this.apiService,
   });
 
   // =====================================================
-  // دریافت لیست حساب‌های بانکی
+  // دریافت لیست نظرسنجی‌ها
   // =====================================================
 
-  Future<List<Map<String, dynamic>>> getBanks() async {
-    final response = await apiService.get(
-      ApiConfig.managerBanks,
-    );
+  Future<List<Map<String, dynamic>>> getPolls({
+    String? search,
+  }) async {
+    String url = ApiConfig.managerPolls;
+
+    if (search != null &&
+        search.trim().isNotEmpty) {
+      url +=
+      '?search=${Uri.encodeQueryComponent(search.trim())}';
+    }
+
+    final response = await apiService.get(url);
 
     final data = _decodeResponse(response);
 
@@ -30,7 +38,7 @@ class ManagerBankService {
       } else if (data is Map) {
         items =
             data['results'] ??
-                data['banks'] ??
+                data['polls'] ??
                 [];
       }
 
@@ -53,14 +61,14 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // دریافت جزئیات یک حساب بانکی
+  // دریافت جزئیات یک نظرسنجی
   // =====================================================
 
-  Future<Map<String, dynamic>> getBank(
+  Future<Map<String, dynamic>> getPoll(
       int id,
       ) async {
     final response = await apiService.get(
-      ApiConfig.managerBankDetail(id),
+      ApiConfig.managerPollDetail(id),
     );
 
     final data = _decodeResponse(response);
@@ -72,7 +80,7 @@ class ManagerBankService {
       }
 
       throw Exception(
-        'اطلاعات حساب بانکی نامعتبر است.',
+        'اطلاعات نظرسنجی نامعتبر است.',
       );
     }
 
@@ -82,39 +90,28 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // ایجاد حساب بانکی
+  // ایجاد نظرسنجی
   // =====================================================
 
-  Future<Map<String, dynamic>> createBank({
-    required int houseId,
-    required String bankName,
-    required String accountHolderName,
-    required String accountNo,
-    required String shebaNumber,
-    required String cartNumber,
-    required String createAt,
-    required int initialFund,
+  Future<Map<String, dynamic>> createPoll({
+    required String title,
+    String? description,
+    required String startDate,
+    required String endDate,
     required bool isActive,
-    required bool isDefault,
-    required bool isGateway,
+    required List<Map<String, dynamic>> questions,
   }) async {
     final body = <String, dynamic>{
-      'house': houseId,
-      'bank_name': bankName,
-      'account_holder_name':
-      accountHolderName,
-      'account_no': accountNo,
-      'sheba_number': shebaNumber,
-      'cart_number': cartNumber,
-      'create_at': createAt,
-      'initial_fund': initialFund,
+      'title': title,
+      'description': description ?? '',
+      'start_date': startDate,
+      'end_date': endDate,
       'is_active': isActive,
-      'is_default': isDefault,
-      'is_gateway': isGateway,
+      'questions': questions,
     };
 
     final response = await apiService.post(
-      ApiConfig.managerBanks,
+      ApiConfig.managerPolls,
       body: body,
     );
 
@@ -127,7 +124,7 @@ class ManagerBankService {
       }
 
       throw Exception(
-        'پاسخ سرور برای ایجاد حساب نامعتبر است.',
+        'پاسخ سرور برای ایجاد نظرسنجی نامعتبر است.',
       );
     }
 
@@ -137,40 +134,31 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // ویرایش حساب بانکی
+  // ویرایش نظرسنجی
+  //
+  // فقط زمانی مجاز است که Vote وجود نداشته باشد.
   // =====================================================
 
-  Future<Map<String, dynamic>> updateBank({
+  Future<Map<String, dynamic>> updatePoll({
     required int id,
-    required int houseId,
-    required String bankName,
-    required String accountHolderName,
-    required String accountNo,
-    required String shebaNumber,
-    required String cartNumber,
-    required String createAt,
-    required int initialFund,
+    required String title,
+    String? description,
+    required String startDate,
+    required String endDate,
     required bool isActive,
-    required bool isDefault,
-    required bool isGateway,
+    required List<Map<String, dynamic>> questions,
   }) async {
     final body = <String, dynamic>{
-      'house': houseId,
-      'bank_name': bankName,
-      'account_holder_name':
-      accountHolderName,
-      'account_no': accountNo,
-      'sheba_number': shebaNumber,
-      'cart_number': cartNumber,
-      'create_at': createAt,
-      'initial_fund': initialFund,
+      'title': title,
+      'description': description ?? '',
+      'start_date': startDate,
+      'end_date': endDate,
       'is_active': isActive,
-      'is_default': isDefault,
-      'is_gateway': isGateway,
+      'questions': questions,
     };
 
     final response = await apiService.patch(
-      ApiConfig.managerBankDetail(id),
+      ApiConfig.managerPollDetail(id),
       body: body,
     );
 
@@ -183,7 +171,7 @@ class ManagerBankService {
       }
 
       throw Exception(
-        'پاسخ سرور برای ویرایش حساب نامعتبر است.',
+        'پاسخ سرور برای ویرایش نظرسنجی نامعتبر است.',
       );
     }
 
@@ -193,14 +181,16 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // حذف حساب بانکی
+  // حذف نظرسنجی
+  //
+  // فقط زمانی مجاز است که هیچ Vote نداشته باشد.
   // =====================================================
 
-  Future<void> deleteBank(
+  Future<void> deletePoll(
       int id,
       ) async {
     final response = await apiService.delete(
-      ApiConfig.managerBankDetail(id),
+      ApiConfig.managerPollDetail(id),
     );
 
     if (response.statusCode >= 200 &&
@@ -222,94 +212,19 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // دریافت لیست انتقال‌های بین بانکی
+  // فعال / غیرفعال کردن نظرسنجی
   // =====================================================
 
-  Future<List<Map<String, dynamic>>>
-  getBankTransfers() async {
-    final response = await apiService.get(
-      ApiConfig.managerBankTransfers,
-    );
-
-    final data = _decodeResponse(response);
-
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300) {
-      dynamic items;
-
-      if (data is List) {
-        items = data;
-      } else if (data is Map) {
-        items =
-            data['results'] ??
-                data['transfers'] ??
-                [];
-      }
-
-      if (items is List) {
-        return items
-            .whereType<Map>()
-            .map(
-              (item) =>
-          Map<String, dynamic>.from(item),
-        )
-            .toList();
-      }
-
-      return [];
-    }
-
-    throw Exception(
-      _extractErrorMessage(data),
-    );
-  }
-
-  // =====================================================
-  // ایجاد انتقال بین بانکی
-  // =====================================================
-
-  Future<Map<String, dynamic>>
-  createBankTransfer({
-    required int fromBankId,
-    required int toBankId,
-    required int amount,
-    String? transactionReference,
-    required String paymentDate,
-    String? paymentDescription,
+  Future<Map<String, dynamic>> togglePollActive({
+    required int id,
+    required bool isActive,
   }) async {
-    if (fromBankId == toBankId) {
-      throw Exception(
-        'حساب مبدأ و مقصد نمی‌توانند یکسان باشند.',
-      );
-    }
-
-    if (amount <= 0) {
-      throw Exception(
-        'مبلغ انتقال باید بیشتر از صفر باشد.',
-      );
-    }
-
     final body = <String, dynamic>{
-      'from_bank': fromBankId,
-      'to_bank': toBankId,
-      'amount': amount,
-      'payment_date': paymentDate,
+      'is_active': isActive,
     };
 
-    if (transactionReference != null &&
-        transactionReference.trim().isNotEmpty) {
-      body['transaction_reference'] =
-          transactionReference.trim();
-    }
-
-    if (paymentDescription != null &&
-        paymentDescription.trim().isNotEmpty) {
-      body['description'] =
-          paymentDescription.trim();
-    }
-
-    final response = await apiService.post(
-      ApiConfig.managerBankTransfers,
+    final response = await apiService.patch(
+      ApiConfig.managerPollToggleActive(id),
       body: body,
     );
 
@@ -322,7 +237,10 @@ class ManagerBankService {
       }
 
       return {
-        'detail': 'انتقال وجه با موفقیت انجام شد.',
+        'detail': isActive
+            ? 'نظرسنجی فعال شد.'
+            : 'نظرسنجی غیرفعال شد.',
+        'is_active': isActive,
       };
     }
 
@@ -332,27 +250,27 @@ class ManagerBankService {
   }
 
   // =====================================================
-  // لغو انتقال بین بانکی
+  // دریافت نتایج نظرسنجی
   // =====================================================
 
-  Future<void> deleteBankTransfer(
+  Future<Map<String, dynamic>> getPollResults(
       int id,
       ) async {
-    final response = await apiService.delete(
-      ApiConfig.managerBankTransferDetail(id),
+    final response = await apiService.get(
+      ApiConfig.managerPollResults(id),
     );
+
+    final data = _decodeResponse(response);
 
     if (response.statusCode >= 200 &&
         response.statusCode < 300) {
-      return;
-    }
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
 
-    dynamic data;
-
-    try {
-      data = _decodeResponse(response);
-    } catch (_) {
-      data = null;
+      throw Exception(
+        'اطلاعات نتایج نظرسنجی نامعتبر است.',
+      );
     }
 
     throw Exception(
@@ -374,10 +292,12 @@ class ManagerBankService {
     }
 
     final body =
-    utf8.decode(
+    utf8
+        .decode(
       bodyBytes,
       allowMalformed: true,
-    ).trim();
+    )
+        .trim();
 
     if (body.isEmpty) {
       return null;
@@ -500,62 +420,48 @@ class ManagerBankService {
       String field,
       ) {
     const titles = {
-      'house': 'ساختمان',
-      'house_id': 'ساختمان',
-      'house_name': 'ساختمان',
+      'title': 'عنوان نظرسنجی',
+      'description': 'توضیحات',
 
-      'bank_name': 'نام بانک',
+      'start_date': 'تاریخ شروع',
+      'end_date': 'تاریخ پایان',
 
-      'account_holder_name':
-      'نام صاحب حساب',
+      'is_active': 'وضعیت نظرسنجی',
 
-      'account_no':
-      'شماره حساب',
+      'questions': 'سؤالات',
 
-      'sheba_number':
-      'شماره شبا',
+      'question_type': 'نوع سؤال',
+      'question': 'سؤال',
 
-      'cart_number':
-      'شماره کارت',
+      'choices': 'گزینه‌ها',
+      'choice': 'گزینه',
 
-      'create_at':
-      'تاریخ افتتاح حساب',
+      'order': 'ترتیب',
 
-      'initial_fund':
-      'موجودی اولیه',
+      'poll': 'نظرسنجی',
 
-      'current_balance':
-      'موجودی فعلی',
+      'detail': 'توضیحات',
 
-      'is_active':
-      'وضعیت حساب',
+      'has_votes': 'وضعیت پاسخ‌ها',
 
-      'is_default':
-      'حساب پیش‌فرض',
+      'can_edit': 'امکان ویرایش',
+      'can_delete': 'امکان حذف',
+      'can_deactivate': 'امکان غیرفعال کردن',
 
-      'is_gateway':
-      'حساب درگاه',
+      'eligible_count':
+      'تعداد افراد مجاز',
 
-      'from_bank':
-      'حساب مبدأ',
+      'participant_count':
+      'تعداد شرکت‌کنندگان',
 
-      'to_bank':
-      'حساب مقصد',
+      'not_participated_count':
+      'تعداد شرکت‌نکرده‌ها',
 
-      'amount':
-      'مبلغ',
+      'percentage':
+      'درصد مشارکت',
 
-      'transaction_reference':
-      'شماره تراکنش',
-
-      'payment_date':
-      'تاریخ انتقال',
-
-      'payment_description':
-      'شرح انتقال',
-
-      'detail':
-      'توضیحات',
+      'vote_count':
+      'تعداد رأی',
 
       'non_field_errors':
       'خطا',

@@ -161,7 +161,7 @@ class _ManagerBankTransfersScreenState
               'آیا از لغو این انتقال مطمئن هستید؟\n\n'
                   'از: $fromBank\n'
                   'به: $toBank\n'
-                  'مبلغ: $amount ریال',
+                  'مبلغ: $amount تومان',
               textAlign: TextAlign.right,
             ),
           ),
@@ -173,7 +173,9 @@ class _ManagerBankTransfersScreenState
                   false,
                 );
               },
-              child: const Text('انصراف'),
+              child: const Text(
+                'انصراف',
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -375,8 +377,6 @@ class _ManagerBankTransfersScreenState
       transfer['payment_date'],
     );
 
-    // توجه:
-    // در BankFund فیلد صحیح created_at است.
     final createDate = _formatDateTime(
       transfer['created_at'],
     );
@@ -387,8 +387,10 @@ class _ManagerBankTransfersScreenState
     final documentNumber =
     transfer['financial_document_number']?.toString();
 
-    final description =
-    transfer['payment_description']?.toString();
+    final description = (
+        transfer['payment_description'] ??
+            transfer['description']
+    )?.toString().trim();
 
     return Card(
       margin: const EdgeInsets.only(
@@ -413,8 +415,8 @@ class _ManagerBankTransfersScreenState
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xff00ACC1)
-                        .withOpacity(.10),
+                    color:
+                    const Color(0xff00ACC1).withOpacity(.10),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -423,9 +425,9 @@ class _ManagerBankTransfersScreenState
                     size: 26,
                   ),
                 ),
-
-                const SizedBox(width: 10),
-
+                const SizedBox(
+                  width: 10,
+                ),
                 const Expanded(
                   child: Text(
                     'انتقال بین بانکی',
@@ -435,7 +437,6 @@ class _ManagerBankTransfersScreenState
                     ),
                   ),
                 ),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 9,
@@ -457,10 +458,12 @@ class _ManagerBankTransfersScreenState
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
             // =================================================
-            // مسیر انتقال - خلاصه شده
+            // مسیر انتقال
             // =================================================
 
             _buildTransferSummary(
@@ -468,7 +471,9 @@ class _ManagerBankTransfersScreenState
               toBank,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
             // =================================================
             // اطلاعات انتقال
@@ -484,37 +489,32 @@ class _ManagerBankTransfersScreenState
                 children: [
                   _buildInfoRow(
                     'مبلغ',
-                    '$amount ریال',
+                    '$amount تومان',
                     isAmount: true,
                   ),
-
                   if (date.isNotEmpty)
                     _buildInfoRow(
                       'تاریخ انتقال',
                       date,
                     ),
-
                   if (transactionNo != null &&
                       transactionNo.trim().isNotEmpty)
                     _buildInfoRow(
                       'شماره تراکنش',
                       transactionNo,
                     ),
-
                   if (documentNumber != null &&
                       documentNumber.trim().isNotEmpty)
                     _buildInfoRow(
                       'شماره سند مالی',
                       documentNumber,
                     ),
-
                   if (description != null &&
                       description.trim().isNotEmpty)
                     _buildInfoRow(
-                      'توضیحات',
+                      'شرح انتقال',
                       description,
                     ),
-
                   if (createDate.isNotEmpty)
                     _buildInfoRow(
                       'تاریخ ثبت',
@@ -524,7 +524,9 @@ class _ManagerBankTransfersScreenState
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(
+              height: 14,
+            ),
 
             // =================================================
             // لغو
@@ -599,9 +601,9 @@ class _ManagerBankTransfersScreenState
               size: 20,
             ),
           ),
-
-          const SizedBox(width: 10),
-
+          const SizedBox(
+            width: 10,
+          ),
           Expanded(
             child: RichText(
               textAlign: TextAlign.right,
@@ -670,18 +672,17 @@ class _ManagerBankTransfersScreenState
               ),
             ),
           ),
-
-          const SizedBox(width: 8),
-
+          const SizedBox(
+            width: 8,
+          ),
           Expanded(
             child: Text(
               _toPersianDigits(value),
               textAlign: TextAlign.left,
               style: TextStyle(
                 fontSize: isAmount ? 14 : 12,
-                fontWeight: isAmount
-                    ? FontWeight.bold
-                    : FontWeight.w500,
+                fontWeight:
+                isAmount ? FontWeight.bold : FontWeight.w500,
                 color: isAmount
                     ? const Color(0xff00ACC1)
                     : Colors.black87,
@@ -754,9 +755,7 @@ class _ManagerBankTransfersScreenState
         );
       }
 
-      final jalali = Jalali.fromDateTime(
-        date,
-      );
+      final jalali = Jalali.fromDateTime(date);
 
       return _toPersianDigits(
         '${jalali.year}/'
@@ -786,9 +785,7 @@ class _ManagerBankTransfersScreenState
         return '';
       }
 
-      final jalali = Jalali.fromDateTime(
-        date,
-      );
+      final jalali = Jalali.fromDateTime(date);
 
       return _toPersianDigits(
         '${jalali.year}/'
@@ -828,16 +825,17 @@ class _ManagerBankTransfersScreenState
           message,
           textAlign: TextAlign.right,
         ),
-        backgroundColor: isError
-            ? Colors.red.shade700
-            : Colors.green.shade700,
+        backgroundColor:
+        isError ? Colors.red.shade700 : Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context,
+      ) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -901,14 +899,11 @@ class _BankTransferFormSheetState
     extends State<_BankTransferFormSheet> {
   final _formKey = GlobalKey<FormState>();
 
-  final _amountController =
-  TextEditingController();
+  final _amountController = TextEditingController();
 
-  final _transactionController =
-  TextEditingController();
+  final _transactionController = TextEditingController();
 
-  final _descriptionController =
-  TextEditingController();
+  final _descriptionController = TextEditingController();
 
   int? _fromBankId;
   int? _toBankId;
@@ -1143,17 +1138,21 @@ class _BankTransferFormSheetState
   String _bankSubtitle(
       Map<String, dynamic> bank,
       ) {
-    final account =
-    bank['account_no']?.toString().trim();
+    final account = bank['account_no']
+        ?.toString()
+        .trim();
 
-    if (account != null && account.isNotEmpty) {
+    if (account != null &&
+        account.isNotEmpty) {
       return 'حساب: ${_toPersianDigits(account)}';
     }
 
-    final house =
-    bank['house_name']?.toString().trim();
+    final house = bank['house_name']
+        ?.toString()
+        .trim();
 
-    if (house != null && house.isNotEmpty) {
+    if (house != null &&
+        house.isNotEmpty) {
       return house;
     }
 
@@ -1201,12 +1200,12 @@ class _BankTransferFormSheetState
           _fromBankId = value;
 
           if (_toBankId == value) {
-            final other =
-            widget.banks.firstWhere(
+            final other = widget.banks.firstWhere(
                   (bank) =>
               _toInt(
                 bank['id'],
-              ) != value,
+              ) !=
+                  value,
               orElse: () => {},
             );
 
@@ -1233,7 +1232,10 @@ class _BankTransferFormSheetState
   Widget _buildToBankSelector() {
     final availableBanks = widget.banks.where(
           (bank) =>
-      _toInt(bank['id']) != _fromBankId,
+      _toInt(
+        bank['id'],
+      ) !=
+          _fromBankId,
     );
 
     return DropdownButtonFormField<int>(
@@ -1300,14 +1302,16 @@ class _BankTransferFormSheetState
       textAlign: TextAlign.left,
       inputFormatters: [
         FilteringTextInputFormatter.allow(
-          RegExp(r'[0-9۰-۹٠-٩,]'),
+          RegExp(
+            r'[0-9۰-۹٠-٩,]',
+          ),
         ),
       ],
       decoration: _inputDecoration(
         'مبلغ انتقال',
         Icons.payments_outlined,
       ).copyWith(
-        suffixText: 'ریال',
+        suffixText: 'تومان',
       ),
       validator: (value) {
         final amount = _parseAmount(
@@ -1349,11 +1353,15 @@ class _BankTransferFormSheetState
     return TextFormField(
       controller: _descriptionController,
       maxLines: 3,
+      enabled: !_isSaving,
+      textDirection: TextDirection.rtl,
+      textAlign: TextAlign.right,
       decoration: _inputDecoration(
         'شرح انتقال',
         Icons.description_outlined,
       ).copyWith(
-        hintText: 'اختیاری',
+        hintText:
+        'مثلاً بابت پرداخت قبض برق، خرید لوازم مشاعات و...',
       ),
     );
   }
@@ -1367,7 +1375,9 @@ class _BankTransferFormSheetState
       onTap: _isSaving
           ? null
           : _selectPaymentDate,
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(
+        13,
+      ),
       child: InputDecorator(
         decoration: _inputDecoration(
           'تاریخ انتقال',
@@ -1411,13 +1421,17 @@ class _BankTransferFormSheetState
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(
+          13,
+        ),
         borderSide: BorderSide(
           color: Colors.grey.shade300,
         ),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(
+          13,
+        ),
         borderSide: BorderSide(
           color: Colors.grey.shade300,
         ),
@@ -1453,7 +1467,9 @@ class _BankTransferFormSheetState
     );
   }
 
-  String _cleanError(dynamic error) {
+  String _cleanError(
+      dynamic error,
+      ) {
     var text = error.toString();
 
     if (text.startsWith('Exception: ')) {
@@ -1465,18 +1481,28 @@ class _BankTransferFormSheetState
     return text.trim();
   }
 
-  int? _toInt(dynamic value) {
+  int? _toInt(
+      dynamic value,
+      ) {
     if (value == null) return null;
 
-    if (value is int) return value;
+    if (value is int) {
+      return value;
+    }
 
     return int.tryParse(
       value.toString(),
     );
   }
 
+  // =====================================================
+  // Build
+  // =====================================================
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context,
+      ) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SafeArea(
@@ -1488,7 +1514,9 @@ class _BankTransferFormSheetState
             decoration: const BoxDecoration(
               color: Color(0xffF7F9FA),
               borderRadius: BorderRadius.vertical(
-                top: Radius.circular(25),
+                top: Radius.circular(
+                  25,
+                ),
               ),
             ),
             child: Column(
@@ -1515,7 +1543,6 @@ class _BankTransferFormSheetState
                           ),
                         ),
                       ),
-
                       IconButton(
                         onPressed: _isSaving
                             ? null
@@ -1591,8 +1618,9 @@ class _BankTransferFormSheetState
                           SizedBox(
                             height: 50,
                             child: ElevatedButton.icon(
-                              onPressed:
-                              _isSaving ? null : _save,
+                              onPressed: _isSaving
+                                  ? null
+                                  : _save,
                               icon: _isSaving
                                   ? const SizedBox(
                                 width: 20,
@@ -1611,16 +1639,11 @@ class _BankTransferFormSheetState
                                     ? 'در حال ثبت...'
                                     : 'ثبت انتقال',
                               ),
-                              style:
-                              ElevatedButton.styleFrom(
+                              style: ElevatedButton.styleFrom(
                                 backgroundColor:
-                                const Color(
-                                  0xff00ACC1,
-                                ),
-                                foregroundColor:
-                                Colors.white,
-                                shape:
-                                RoundedRectangleBorder(
+                                const Color(0xff00ACC1),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
                                   borderRadius:
                                   BorderRadius.circular(
                                     13,
