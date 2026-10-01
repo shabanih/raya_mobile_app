@@ -204,7 +204,7 @@ class _ManagerCreateMessageScreenState
           ),
           centerTitle: true,
           backgroundColor:
-          const Color(0xff5E35B1),
+          const Color(0xff00ACC1),
           foregroundColor:
           Colors.white,
           elevation: 0,
@@ -472,7 +472,7 @@ class _ManagerCreateMessageScreenState
                               .styleFrom(
                             backgroundColor:
                             const Color(
-                              0xff5E35B1,
+                              0xff00ACC1,
                             ),
                             foregroundColor:
                             Colors.white,

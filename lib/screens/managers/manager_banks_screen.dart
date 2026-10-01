@@ -534,7 +534,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor:
-        const Color(0xffF5F7FA),
+        const Color(0xff00ACC1),
         appBar: AppBar(
           title: const Text(
             'حساب‌های بانکی',
@@ -545,7 +545,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
           centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor:
-          const Color(0xff263238),
+          const Color(0xffF5F7FA),
           elevation: 0,
         ),
         body: RefreshIndicator(

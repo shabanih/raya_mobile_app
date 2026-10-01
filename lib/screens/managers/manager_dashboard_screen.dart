@@ -1248,29 +1248,7 @@ class _ManagerDashboardScreenState
   Widget _buildStatisticsSlider() {
     final items = [
 
-      // ---------------------------------------------
-      // 1. تعداد واحدها
-      // ---------------------------------------------
 
-      _StatisticItem(
-        title:
-        'تعداد واحدها',
-        value:
-        unitCount,
-        icon:
-        Icons.apartment_rounded,
-        gradient:
-        const LinearGradient(
-          begin:
-          Alignment.topLeft,
-          end:
-          Alignment.bottomRight,
-          colors: [
-            Color(0xfff3c582),
-            Color(0xffFFC107),
-          ],
-        ),
-      ),
 
       // ---------------------------------------------
       // 2. موجودی صندوق
@@ -1299,6 +1277,29 @@ class _ManagerDashboardScreenState
         true,
       ),
 
+      // ---------------------------------------------
+      // 1. تعداد واحدها
+      // ---------------------------------------------
+
+      _StatisticItem(
+        title:
+        'تعداد واحدها',
+        value:
+        unitCount,
+        icon:
+        Icons.apartment_rounded,
+        gradient:
+        const LinearGradient(
+          begin:
+          Alignment.topLeft,
+          end:
+          Alignment.bottomRight,
+          colors: [
+            Color(0xfff3c582),
+            Color(0xffFFC107),
+          ],
+        ),
+      ),
       // ---------------------------------------------
       // 3. شارژهای پرداخت‌نشده
       // ---------------------------------------------

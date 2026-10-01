@@ -1004,9 +1004,17 @@ class _ManagerMessageRecipientsScreenState
       TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title:
-          const Text(
+          elevation: 0,
+          backgroundColor: const Color(0xff00ACC1),
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          title: const Text(
             'انتخاب گیرندگان پیام',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
         body: _isLoading

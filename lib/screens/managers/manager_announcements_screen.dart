@@ -411,19 +411,19 @@ child: Scaffold(
 backgroundColor:
 const Color(0xffF5F7FA),
 appBar: AppBar(
-elevation: 0,
-backgroundColor: Colors.white,
-foregroundColor:
-const Color(0xff263238),
-centerTitle: true,
-title: const Text(
-'مدیریت اطلاعیه‌ها',
-style: TextStyle(
-fontSize: 17,
-fontWeight: FontWeight.bold,
-),
-),
-),
+    elevation: 0,
+    backgroundColor: const Color(0xff00ACC1),
+    foregroundColor: Colors.white,
+    centerTitle: true,
+    title: const Text(
+      'مدیریت اطلاعیه‌ها',
+      style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+    ),
+  ),
 floatingActionButton:
 FloatingActionButton.extended(
 backgroundColor:
@@ -1151,24 +1151,21 @@ child: Scaffold(
 backgroundColor:
 const Color(0xffF5F7FA),
 appBar: AppBar(
-elevation: 0,
-backgroundColor:
-Colors.white,
-foregroundColor:
-const Color(0xff263238),
-centerTitle: true,
-title: Text(
-isEdit
-? 'ویرایش اطلاعیه'
-    : 'ایجاد اطلاعیه',
-style:
-const TextStyle(
-fontSize: 17,
-fontWeight:
-FontWeight.bold,
-),
-),
-),
+    elevation: 0,
+    backgroundColor: const Color(0xff00ACC1),
+    foregroundColor: Colors.white,
+    centerTitle: true,
+    title: Text(
+      isEdit
+          ? 'ویرایش اطلاعیه'
+          : 'ایجاد اطلاعیه',
+      style: const TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+    ),
+  ),
 body: SafeArea(
 child:
 SingleChildScrollView(

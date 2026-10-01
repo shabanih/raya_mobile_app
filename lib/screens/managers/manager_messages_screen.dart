@@ -544,10 +544,18 @@ class _ManagerMessagesScreenState
       TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xff00ACC1),
+          foregroundColor: Colors.white,
+          centerTitle: true,
           title: const Text(
             'مدیریت پیام‌ها',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-          centerTitle: true,
         ),
         body: RefreshIndicator(
           onRefresh: () =>

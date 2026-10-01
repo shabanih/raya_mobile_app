@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/manager_poll_service.dart';
 
+import 'manager_poll_create_screen.dart';
+import 'manager_poll_detail_screen.dart';
+
 class ManagerPollsScreen extends StatefulWidget {
   const ManagerPollsScreen({
     super.key,
@@ -15,35 +18,17 @@ class ManagerPollsScreen extends StatefulWidget {
 
 class _ManagerPollsScreenState
     extends State<ManagerPollsScreen> {
-
-  // =====================================================
-  // Service
-  // =====================================================
-
   late final ManagerPollService pollService;
 
-  // =====================================================
-  // وضعیت
-  // =====================================================
-
   bool isLoading = true;
-
   bool isProcessing = false;
 
   String? errorMessage;
 
   List<Map<String, dynamic>> polls = [];
 
-  // =====================================================
-  // رنگ اصلی
-  // =====================================================
-
   static const Color primaryColor =
   Color(0xff00838F);
-
-  // =====================================================
-  // Init
-  // =====================================================
 
   @override
   void initState() {
@@ -57,66 +42,50 @@ class _ManagerPollsScreenState
   }
 
   // =====================================================
-  // دریافت نظرسنجی‌ها
+  // دریافت لیست
   // =====================================================
 
   Future<void> loadPolls() async {
-    if (mounted) {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-    }
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
     try {
-      final result = await pollService.getPolls();
+      final result =
+      await pollService.getPolls();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         polls = result;
         isLoading = false;
       });
     } catch (e) {
-      debugPrint(
-        'MANAGER POLLS ERROR: $e',
-      );
-
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         isLoading = false;
         errorMessage =
-            _errorMessage(e);
+            _cleanError(e);
       });
     }
   }
 
   // =====================================================
-  // متن خطا
+  // پاک کردن Exception
   // =====================================================
 
-  String _errorMessage(dynamic error) {
-    final message =
-    error.toString();
+  String _cleanError(Object error) {
+    String text = error.toString();
 
-    if (message.startsWith(
-      'Exception: ',
-    )) {
-      return message.substring(
-        11,
+    if (text.startsWith('Exception:')) {
+      text = text.substring(
+        'Exception:'.length,
       );
     }
 
-    if (message.trim().isNotEmpty) {
-      return message;
-    }
-
-    return 'دریافت نظرسنجی‌ها با خطا مواجه شد.';
+    return text.trim();
   }
 
   // =====================================================
@@ -126,17 +95,12 @@ class _ManagerPollsScreenState
   Future<void> togglePoll(
       Map<String, dynamic> poll,
       ) async {
-
     final int? pollId =
     int.tryParse(
       poll['id']?.toString() ?? '',
     );
 
     if (pollId == null) {
-      return;
-    }
-
-    if (isProcessing) {
       return;
     }
 
@@ -156,49 +120,43 @@ class _ManagerPollsScreenState
         isActive: newActive,
       );
 
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            newActive
-                ? 'نظرسنجی فعال شد.'
-                : 'نظرسنجی غیرفعال شد.',
-          ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
+      if (!mounted) return;
 
       await loadPolls();
-    } catch (e) {
-      debugPrint(
-        'TOGGLE POLL ERROR: $e',
-      );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            _errorMessage(e),
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              newActive
+                  ? 'نظرسنجی فعال شد.'
+                  : 'نظرسنجی غیرفعال شد.',
+            ),
+            behavior:
+            SnackBarBehavior.floating,
           ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isProcessing = false;
-        });
-      }
+        );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isProcessing = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              _cleanError(e),
+            ),
+            behavior:
+            SnackBarBehavior.floating,
+          ),
+        );
     }
   }
 
@@ -209,7 +167,6 @@ class _ManagerPollsScreenState
   Future<void> deletePoll(
       Map<String, dynamic> poll,
       ) async {
-
     final int? pollId =
     int.tryParse(
       poll['id']?.toString() ?? '',
@@ -219,48 +176,68 @@ class _ManagerPollsScreenState
       return;
     }
 
-    final bool? confirmed =
+    if (hasVotes(poll)) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'این نظرسنجی دارای پاسخ است و امکان حذف آن وجود ندارد.',
+            ),
+            behavior:
+            SnackBarBehavior.floating,
+          ),
+        );
+
+      return;
+    }
+
+    final confirmed =
     await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'حذف نظرسنجی',
-          ),
-          content: const Text(
-            'آیا از حذف این نظرسنجی مطمئن هستید؟',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'انصراف',
-              ),
+        return Directionality(
+          textDirection:
+          TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text(
+              'حذف نظرسنجی',
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                Colors.red,
-                foregroundColor:
-                Colors.white,
-              ),
-              child: const Text(
-                'حذف',
-              ),
+            content: Text(
+              'آیا از حذف نظرسنجی «${pollTitle(poll)}» اطمینان دارید؟',
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(
+                    context,
+                    false,
+                  );
+                },
+                child: const Text(
+                  'انصراف',
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(
+                    context,
+                    true,
+                  );
+                },
+                style:
+                ElevatedButton.styleFrom(
+                  backgroundColor:
+                  Colors.red,
+                  foregroundColor:
+                  Colors.white,
+                ),
+                child: const Text(
+                  'حذف',
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -269,78 +246,70 @@ class _ManagerPollsScreenState
       return;
     }
 
-    if (isProcessing) {
-      return;
-    }
+    setState(() {
+      isProcessing = true;
+    });
 
     try {
-      setState(() {
-        isProcessing = true;
-      });
-
       await pollService.deletePoll(
         pollId,
       );
 
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'نظرسنجی با موفقیت حذف شد.',
-          ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
+      if (!mounted) return;
 
       await loadPolls();
-    } catch (e) {
-      debugPrint(
-        'DELETE POLL ERROR: $e',
-      );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            _errorMessage(e),
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'نظرسنجی با موفقیت حذف شد.',
+            ),
+            behavior:
+            SnackBarBehavior.floating,
           ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isProcessing = false;
-        });
-      }
+        );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isProcessing = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              _cleanError(e),
+            ),
+            behavior:
+            SnackBarBehavior.floating,
+          ),
+        );
     }
   }
 
   // =====================================================
-  // ساخت نظرسنجی
+  // ایجاد
   // =====================================================
 
   Future<void> createPoll() async {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'صفحه ساخت نظرسنجی در مرحله بعد اضافه می‌شود.',
-        ),
-        behavior:
-        SnackBarBehavior.floating,
+    final result =
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+        const ManagerPollCreateScreen(),
       ),
     );
+
+    if (result == true) {
+      await loadPolls();
+    }
   }
 
   // =====================================================
@@ -350,41 +319,21 @@ class _ManagerPollsScreenState
   Future<void> editPoll(
       Map<String, dynamic> poll,
       ) async {
-
     if (hasVotes(poll)) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'این نظرسنجی دارای رأی است و امکان ویرایش ندارد.',
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'این نظرسنجی دارای پاسخ است و امکان ویرایش آن وجود ندارد.',
+            ),
+            behavior:
+            SnackBarBehavior.floating,
           ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
+        );
 
       return;
     }
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'صفحه ویرایش نظرسنجی در مرحله بعد اضافه می‌شود.',
-        ),
-        behavior:
-        SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  // =====================================================
-  // نتایج
-  // =====================================================
-
-  Future<void> showResults(
-      Map<String, dynamic> poll,
-      ) async {
 
     final int? pollId =
     int.tryParse(
@@ -395,19 +344,88 @@ class _ManagerPollsScreenState
       return;
     }
 
-    try {
-      setState(() {
-        isProcessing = true;
-      });
+    final result =
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ManagerPollCreateScreen(
+              pollId: pollId,
+            ),
+      ),
+    );
 
+    if (result == true) {
+      await loadPolls();
+    }
+  }
+
+  // =====================================================
+  // مشاهده جزئیات
+  // =====================================================
+
+  Future<void> showPollDetail(
+      Map<String, dynamic> poll,
+      ) async {
+    final int? pollId =
+    int.tryParse(
+      poll['id']?.toString() ?? '',
+    );
+
+    if (pollId == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'شناسه نظرسنجی نامعتبر است.',
+            ),
+            behavior:
+            SnackBarBehavior.floating,
+          ),
+        );
+
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ManagerPollDetailScreen(
+              pollId: pollId,
+            ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // نمایش نتایج
+  // =====================================================
+
+  Future<void> showResults(
+      Map<String, dynamic> poll,
+      ) async {
+    final int? pollId =
+    int.tryParse(
+      poll['id']?.toString() ?? '',
+    );
+
+    if (pollId == null) {
+      return;
+    }
+
+    setState(() {
+      isProcessing = true;
+    });
+
+    try {
       final result =
       await pollService.getPollResults(
         pollId,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         isProcessing = false;
@@ -417,39 +435,33 @@ class _ManagerPollsScreenState
         result,
       );
     } catch (e) {
-      debugPrint(
-        'POLL RESULTS ERROR: $e',
-      );
-
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         isProcessing = false;
       });
 
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            _errorMessage(e),
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              _cleanError(e),
+            ),
+            behavior:
+            SnackBarBehavior.floating,
           ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
+        );
     }
   }
 
   // =====================================================
-  // نمایش نتایج
+  // دیالوگ نتایج
   // =====================================================
 
   Future<void> _showResultsDialog(
       Map<String, dynamic> result,
       ) async {
-
     await showDialog(
       context: context,
       builder: (context) {
@@ -461,9 +473,9 @@ class _ManagerPollsScreenState
               'نتایج نظرسنجی',
             ),
             content: SizedBox(
-              width:
-              double.maxFinite,
-              child: SingleChildScrollView(
+              width: 500,
+              child:
+              SingleChildScrollView(
                 child:
                 _buildResultsContent(
                   result,
@@ -495,133 +507,33 @@ class _ManagerPollsScreenState
   Widget _buildResultsContent(
       Map<String, dynamic> result,
       ) {
-
-    final participantCount =
-    result['participant_count'];
-
-    final eligibleCount =
-    result['eligible_count'];
-
-    final notParticipatedCount =
-    result[
-    'not_participated_count'];
-
-    final percentage =
-    result['percentage'];
-
     final questions =
     result['questions'];
 
-    return Column(
-      crossAxisAlignment:
-      CrossAxisAlignment.stretch,
-      children: [
-        if (eligibleCount != null)
-          _resultItem(
-            'تعداد افراد مجاز',
-            eligibleCount,
-          ),
-
-        if (participantCount != null)
-          _resultItem(
-            'تعداد شرکت‌کنندگان',
-            participantCount,
-          ),
-
-        if (notParticipatedCount != null)
-          _resultItem(
-            'تعداد شرکت‌نکرده‌ها',
-            notParticipatedCount,
-          ),
-
-        if (percentage != null)
-          _resultItem(
-            'درصد مشارکت',
-            percentage,
-          ),
-
-        if (questions is List) ...[
-          const SizedBox(
-            height: 12,
-          ),
-          const Text(
-            'نتایج سؤالات',
-            style: TextStyle(
-              fontWeight:
-              FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          ...questions.map(
-                (item) {
-              if (item is Map) {
-                return _buildQuestionResult(
-                  Map<String, dynamic>.from(
-                    item,
-                  ),
-                );
-              }
-
-              return const SizedBox();
-            },
-          ),
-        ],
-      ],
-    );
-  }
-
-  // =====================================================
-  // نتیجه یک مقدار
-  // =====================================================
-
-  Widget _resultItem(
-      String title,
-      dynamic value,
-      ) {
-    return Container(
-      margin:
-      const EdgeInsets.only(
-        bottom: 7,
-      ),
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 8,
-      ),
-      decoration:
-      BoxDecoration(
-        color:
-        const Color(0xffF5F8FA),
-        borderRadius:
-        BorderRadius.circular(
-          8,
+    if (questions is List &&
+        questions.isNotEmpty) {
+      return Column(
+        children: List.generate(
+          questions.length,
+              (index) {
+            return _buildQuestionResult(
+              questions[index],
+              index,
+            );
+          },
         ),
+      );
+    }
+
+    return const Padding(
+      padding:
+      EdgeInsets.symmetric(
+        vertical: 20,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style:
-              const TextStyle(
-                fontSize: 12,
-              ),
-            ),
-          ),
-          Text(
-            toPersianDigits(
-              value.toString(),
-            ),
-            style:
-            const TextStyle(
-              fontWeight:
-              FontWeight.bold,
-            ),
-          ),
-        ],
+      child: Center(
+        child: Text(
+          'نتیجه‌ای برای نمایش وجود ندارد.',
+        ),
       ),
     );
   }
@@ -631,181 +543,156 @@ class _ManagerPollsScreenState
   // =====================================================
 
   Widget _buildQuestionResult(
-      Map<String, dynamic> question,
+      dynamic question,
+      int index,
       ) {
+    if (question is! Map) {
+      return const SizedBox.shrink();
+    }
 
     final title =
-        question['question'] ??
-            question['title'] ??
-            question['text'] ??
-            'سؤال';
-
-    final voteCount =
-    question['vote_count'];
+        question['title'] ??
+            question['question'] ??
+            '';
 
     final choices =
     question['choices'];
 
     return Container(
+      width: double.infinity,
       margin:
       const EdgeInsets.only(
-        bottom: 10,
+        bottom: 14,
       ),
       padding:
-      const EdgeInsets.all(
-        10,
-      ),
-      decoration:
-      BoxDecoration(
-        border:
-        Border.all(
-          color:
-          const Color(
-            0xffECEFF1,
-          ),
-        ),
+      const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
         borderRadius:
-        BorderRadius.circular(
-          10,
-        ),
+        BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment:
         CrossAxisAlignment.start,
         children: [
           Text(
-            title.toString(),
-            style:
-            const TextStyle(
-              fontSize: 12,
+            '${toPersianDigits(index + 1)}. $title',
+            style: const TextStyle(
               fontWeight:
               FontWeight.bold,
+              fontSize: 14,
             ),
           ),
 
-          if (voteCount != null) ...[
-            const SizedBox(
-              height: 6,
-            ),
-            Text(
-              'تعداد رأی: '
-                  '${toPersianDigits(voteCount.toString())}',
-              style:
-              const TextStyle(
-                fontSize: 11,
-                color: Colors.grey,
-              ),
-            ),
-          ],
+          const SizedBox(height: 10),
 
-          if (choices is List) ...[
-            const SizedBox(
-              height: 8,
-            ),
-            ...choices.map(
-                  (choice) {
-                if (choice is Map) {
-                  final map =
-                  Map<String, dynamic>.from(
-                    choice,
-                  );
-
-                  final name =
-                      map['choice'] ??
-                          map['text'] ??
-                          map['title'] ??
-                          '';
-
-                  final count =
-                      map['vote_count'] ??
-                          map['count'];
-
-                  final percent =
-                  map['percentage'];
-
-                  return Padding(
-                    padding:
-                    const EdgeInsets.only(
-                      bottom: 5,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name.toString(),
-                            style:
-                            const TextStyle(
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                        if (count != null)
-                          Text(
-                            toPersianDigits(
-                              count.toString(),
-                            ),
-                            style:
-                            const TextStyle(
-                              fontSize: 11,
-                              fontWeight:
-                              FontWeight.bold,
-                            ),
-                          ),
-                        if (percent != null)
-                          Padding(
-                            padding:
-                            const EdgeInsets.only(
-                              right: 8,
-                            ),
-                            child: Text(
-                              '${toPersianDigits(percent.toString())}٪',
-                              style:
-                              const TextStyle(
-                                fontSize: 10,
-                                color:
-                                Colors.grey,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                }
-
-                return const SizedBox();
+          if (choices is List)
+            ...List.generate(
+              choices.length,
+                  (choiceIndex) {
+                return _resultItem(
+                  choices[choiceIndex],
+                );
               },
             ),
-          ],
         ],
       ),
     );
   }
 
   // =====================================================
-  // تبدیل اعداد
+  // آیتم نتیجه
+  // =====================================================
+
+  Widget _resultItem(
+      dynamic choice,
+      ) {
+    if (choice is! Map) {
+      return const SizedBox.shrink();
+    }
+
+    final title =
+        choice['title'] ??
+            choice['choice'] ??
+            choice['text'] ??
+            '';
+
+    final count =
+        choice['vote_count'] ??
+            choice['votes'] ??
+            choice['count'] ??
+            0;
+
+    final percentage =
+        choice['percentage'] ??
+            choice['percent'] ??
+            0;
+
+    return Padding(
+      padding:
+      const EdgeInsets.only(
+        bottom: 8,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title.toString(),
+              style: const TextStyle(
+                fontSize: 13,
+              ),
+            ),
+          ),
+
+          Text(
+            '${toPersianDigits(count)} رأی',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight:
+              FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Text(
+            '${toPersianDigits(percentage)}٪',
+            style: const TextStyle(
+              fontSize: 12,
+              color: primaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // ارقام فارسی
   // =====================================================
 
   String toPersianDigits(
-      String value,
+      dynamic value,
       ) {
+    String text =
+        value?.toString() ?? '';
+
     const english =
         '0123456789';
 
     const persian =
         '۰۱۲۳۴۵۶۷۸۹';
 
-    for (
-    int i = 0;
+    for (int i = 0;
     i < english.length;
-    i++
-    ) {
-      value = value.replaceAll(
+    i++) {
+      text = text.replaceAll(
         english[i],
         persian[i],
       );
     }
 
-    return value;
+    return text;
   }
 
   // =====================================================
@@ -815,15 +702,15 @@ class _ManagerPollsScreenState
   String pollTitle(
       Map<String, dynamic> poll,
       ) {
-
     final value =
-        poll['title'] ??
-            poll['name'] ??
-            'بدون عنوان';
+    poll['title'];
 
-    return value
-        .toString()
-        .trim();
+    if (value == null ||
+        value.toString().trim().isEmpty) {
+      return 'بدون عنوان';
+    }
+
+    return value.toString();
   }
 
   // =====================================================
@@ -833,7 +720,20 @@ class _ManagerPollsScreenState
   bool isActive(
       Map<String, dynamic> poll,
       ) {
-    return poll['is_active'] == true;
+    final value =
+    poll['is_active'];
+
+    if (value is bool) {
+      return value;
+    }
+
+    if (value is String) {
+      return value.toLowerCase() ==
+          'true' ||
+          value == '1';
+    }
+
+    return false;
   }
 
   // =====================================================
@@ -843,7 +743,24 @@ class _ManagerPollsScreenState
   bool hasVotes(
       Map<String, dynamic> poll,
       ) {
-    return poll['has_votes'] == true;
+    final value =
+    poll['has_votes'];
+
+    if (value is bool) {
+      return value;
+    }
+
+    final voteCount =
+        poll['vote_count'] ??
+            poll['votes_count'] ??
+            poll['participant_count'] ??
+            0;
+
+    return (int.tryParse(
+      voteCount.toString(),
+    ) ??
+        0) >
+        0;
   }
 
   // =====================================================
@@ -853,7 +770,6 @@ class _ManagerPollsScreenState
   Widget buildPollCard(
       Map<String, dynamic> poll,
       ) {
-
     final active =
     isActive(poll);
 
@@ -863,183 +779,291 @@ class _ManagerPollsScreenState
     return Container(
       margin:
       const EdgeInsets.only(
-        bottom: 12,
+        bottom: 14,
       ),
-      padding:
-      const EdgeInsets.all(
-        14,
-      ),
-      decoration:
-      BoxDecoration(
-        color:
-        Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius:
-        BorderRadius.circular(
-          16,
-        ),
-        border:
-        Border.all(
-          color:
-          const Color(
-            0xffECEFF1,
-          ),
+        BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
         ),
       ),
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        children: [
+      child: Padding(
+        padding:
+        const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
+          children: [
+            // =================================================
+            // عنوان
+            // =================================================
 
-          Row(
-            children: [
-
-              Container(
-                width: 46,
-                height: 46,
-                decoration:
-                BoxDecoration(
-                  color:
-                  primaryColor
-                      .withOpacity(
-                    0.10,
-                  ),
-                  shape:
-                  BoxShape.circle,
-                ),
-                child:
-                const Icon(
-                  Icons.poll_outlined,
-                  color:
-                  primaryColor,
-                  size: 25,
-                ),
-              ),
-
-              const SizedBox(
-                width: 12,
-              ),
-
-              Expanded(
-                child:
-                Text(
-                  pollTitle(
-                    poll,
-                  ),
-                  maxLines: 2,
-                  overflow:
-                  TextOverflow.ellipsis,
-                  style:
-                  const TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                    FontWeight.bold,
-                    color:
-                    Color(
-                      0xff263238,
+            Row(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration:
+                  BoxDecoration(
+                    color: primaryColor,
+                    borderRadius:
+                    BorderRadius.circular(
+                      12,
                     ),
                   ),
+                  child: const Icon(
+                    Icons.poll_outlined,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                    children: [
+                      Text(
+                        pollTitle(poll),
+                        style:
+                        const TextStyle(
+                          fontSize: 15,
+                          fontWeight:
+                          FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 8,
+                      ),
+
+                      Container(
+                        padding:
+                        const EdgeInsets
+                            .symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration:
+                        BoxDecoration(
+                          color: active
+                              ? Colors.green
+                              .withOpacity(
+                            0.10,
+                          )
+                              : Colors.red
+                              .withOpacity(
+                            0.10,
+                          ),
+                          borderRadius:
+                          BorderRadius
+                              .circular(
+                            7,
+                          ),
+                        ),
+                        child: Text(
+                          active
+                              ? 'فعال'
+                              : 'غیرفعال',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight:
+                            FontWeight.bold,
+                            color: active
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            if (voted) ...[
+              const SizedBox(height: 12),
 
               Container(
+                width: double.infinity,
                 padding:
-                const EdgeInsets
-                    .symmetric(
-                  horizontal: 8,
-                  vertical: 5,
-                ),
-                decoration:
-                BoxDecoration(
-                  color: active
-                      ? Colors.green
-                      .withOpacity(
-                    0.10,
-                  )
-                      : Colors.grey
-                      .withOpacity(
-                    0.10,
-                  ),
+                const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color:
+                  Colors.orange.shade50,
                   borderRadius:
                   BorderRadius.circular(
-                    20,
+                    10,
                   ),
                 ),
-                child:
-                Text(
-                  active
-                      ? 'فعال'
-                      : 'غیرفعال',
-                  style:
-                  TextStyle(
-                    fontSize: 10,
-                    fontWeight:
-                    FontWeight.w600,
-                    color: active
-                        ? Colors.green
-                        : Colors.grey,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color:
+                      Colors.orange.shade800,
+                    ),
+
+                    const SizedBox(width: 7),
+
+                    const Expanded(
+                      child: Text(
+                        'برای این نظرسنجی رأی ثبت شده است.',
+                        style: TextStyle(
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
 
-          const SizedBox(
-            height: 12,
-          ),
+            const SizedBox(height: 14),
 
-          if (voted)
+            // =================================================
+            // ردیف اول
+            // =================================================
+
             Row(
               children: [
+                if (!voted)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                      isProcessing
+                          ? null
+                          : () => editPoll(
+                        poll,
+                      ),
+                      icon:
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                      ),
+                      label:
+                      const Text(
+                        'ویرایش',
+                      ),
+                      style:
+                      OutlinedButton.styleFrom(
+                        foregroundColor:
+                        primaryColor,
+                        side:
+                        const BorderSide(
+                          color:
+                          primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
 
-                const Icon(
-                  Icons.how_to_vote_outlined,
-                  size: 17,
-                  color: Colors.grey,
-                ),
+                if (!voted)
+                  const SizedBox(width: 8),
 
-                const SizedBox(
-                  width: 6,
-                ),
-
-                const Expanded(
-                  child:
-                  Text(
-                    'برای این نظرسنجی رأی ثبت شده است.',
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed:
+                    isProcessing
+                        ? null
+                        : () => togglePoll(
+                      poll,
+                    ),
+                    icon: Icon(
+                      active
+                          ? Icons
+                          .toggle_on_outlined
+                          : Icons
+                          .toggle_off_outlined,
+                      size: 20,
+                    ),
+                    label: Text(
+                      active
+                          ? 'غیرفعال'
+                          : 'فعال',
+                    ),
                     style:
-                    TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey,
+                    OutlinedButton.styleFrom(
+                      foregroundColor:
+                      active
+                          ? Colors.orange
+                          : Colors.green,
+                      side: BorderSide(
+                        color: active
+                            ? Colors.orange
+                            : Colors.green,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
 
-          const SizedBox(
-            height: 10,
-          ),
+            const SizedBox(height: 8),
 
-          Row(
-            children: [
+            // =================================================
+            // ردیف دوم
+            // =================================================
 
-              if (!voted)
+            Row(
+              children: [
+                if (!voted)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                      isProcessing
+                          ? null
+                          : () => deletePoll(
+                        poll,
+                      ),
+                      icon:
+                      const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                      ),
+                      label:
+                      const Text(
+                        'حذف',
+                      ),
+                      style:
+                      OutlinedButton.styleFrom(
+                        foregroundColor:
+                        Colors.red,
+                        side:
+                        const BorderSide(
+                          color:
+                          Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                if (!voted)
+                  const SizedBox(width: 8),
+
                 Expanded(
-                  child:
-                  OutlinedButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed:
                     isProcessing
                         ? null
-                        : () => editPoll(
+                        : () => showResults(
                       poll,
                     ),
                     icon:
                     const Icon(
-                      Icons.edit_outlined,
+                      Icons.bar_chart_outlined,
                       size: 18,
                     ),
                     label:
                     const Text(
-                      'ویرایش',
+                      'نتایج',
                     ),
                     style:
                     OutlinedButton.styleFrom(
@@ -1053,136 +1077,53 @@ class _ManagerPollsScreenState
                     ),
                   ),
                 ),
+              ],
+            ),
 
-              if (!voted)
-                const SizedBox(
-                  width: 8,
-                ),
+            const SizedBox(height: 10),
 
-              Expanded(
-                child:
-                OutlinedButton.icon(
-                  onPressed:
-                  isProcessing
-                      ? null
-                      : () => togglePoll(
-                    poll,
-                  ),
-                  icon:
-                  Icon(
-                    active
-                        ? Icons
-                        .pause_circle_outline
-                        : Icons
-                        .play_circle_outline,
-                    size: 18,
-                  ),
-                  label:
-                  Text(
-                    active
-                        ? 'غیرفعال کردن'
-                        : 'فعال کردن',
-                  ),
-                  style:
-                  OutlinedButton.styleFrom(
-                    foregroundColor:
-                    active
-                        ? Colors.orange
-                        : Colors.green,
-                    side:
-                    BorderSide(
-                      color:
-                      active
-                          ? Colors.orange
-                          : Colors.green,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            // =================================================
+            // مشاهده جزئیات
+            // =================================================
 
-          const SizedBox(
-            height: 10,
-          ),
-
-          Row(
-            children: [
-
-              if (!voted)
-                Expanded(
-                  child:
-                  OutlinedButton.icon(
-                    onPressed:
-                    isProcessing
-                        ? null
-                        : () => deletePoll(
+            SizedBox(
+              width: double.infinity,
+              child:
+              OutlinedButton.icon(
+                onPressed:
+                isProcessing
+                    ? null
+                    : () =>
+                    showPollDetail(
                       poll,
                     ),
-                    icon:
-                    const Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                    ),
-                    label:
-                    const Text(
-                      'حذف',
-                    ),
-                    style:
-                    OutlinedButton.styleFrom(
-                      foregroundColor:
-                      Colors.red,
-                      side:
-                      const BorderSide(
-                        color:
-                        Colors.red,
-                      ),
-                    ),
-                  ),
+                icon:
+                const Icon(
+                  Icons.info_outline,
+                  size: 18,
                 ),
-
-              if (!voted)
-                const SizedBox(
-                  width: 8,
+                label:
+                const Text(
+                  'مشاهده جزئیات',
                 ),
-
-              Expanded(
-                child:
-                OutlinedButton.icon(
-                  onPressed:
-                  isProcessing
-                      ? null
-                      : () => showResults(
-                    poll,
+                style:
+                OutlinedButton.styleFrom(
+                  foregroundColor:
+                  primaryColor,
+                  side:
+                  const BorderSide(
+                    color: primaryColor,
                   ),
-                  icon:
-                  const Icon(
-                    Icons.bar_chart_outlined,
-                    size: 18,
-                  ),
-                  label:
-                  const Text(
-                    'نتایج',
-                  ),
-                  style:
-                  OutlinedButton.styleFrom(
-                    foregroundColor:
-                    const Color(
-                      0xff3949AB,
-                    ),
-                    side:
-                    const BorderSide(
-                      color:
-                      Color(
-                        0xff3949AB,
-                      ),
-                    ),
+                  padding:
+                  const EdgeInsets
+                      .symmetric(
+                    vertical: 11,
                   ),
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1198,36 +1139,37 @@ class _ManagerPollsScreenState
     return Directionality(
       textDirection:
       TextDirection.rtl,
-      child:
-      Scaffold(
+      child: Scaffold(
         backgroundColor:
-        const Color(
-          0xffF5F8FA,
-        ),
+        const Color(0xffF5F7F8),
 
-        appBar:
-        AppBar(
+        appBar: AppBar(
+          title: const Text(
+            'نظرسنجی‌ها',
+          ),
+          centerTitle: true,
           backgroundColor:
           primaryColor,
           foregroundColor:
           Colors.white,
           elevation: 0,
-          title:
-          const Text(
-            'مدیریت نظرسنجی',
-            style:
-            TextStyle(
-              fontSize: 18,
-              fontWeight:
-              FontWeight.bold,
+
+          actions: [
+            IconButton(
+              onPressed:
+              isLoading
+                  ? null
+                  : loadPolls,
+              icon: const Icon(
+                Icons.refresh,
+              ),
+              tooltip: 'بروزرسانی',
             ),
-          ),
-          centerTitle:
-          true,
+          ],
         ),
 
         floatingActionButton:
-        FloatingActionButton(
+        FloatingActionButton.extended(
           onPressed:
           isProcessing
               ? null
@@ -1236,21 +1178,15 @@ class _ManagerPollsScreenState
           primaryColor,
           foregroundColor:
           Colors.white,
-          child:
-          const Icon(
+          icon: const Icon(
             Icons.add,
+          ),
+          label: const Text(
+            'نظرسنجی جدید',
           ),
         ),
 
-        body:
-        RefreshIndicator(
-          color:
-          primaryColor,
-          onRefresh:
-          loadPolls,
-          child:
-          _buildBody(),
-        ),
+        body: _buildBody(),
       ),
     );
   }
@@ -1260,169 +1196,110 @@ class _ManagerPollsScreenState
   // =====================================================
 
   Widget _buildBody() {
-
     if (isLoading) {
       return const Center(
         child:
         CircularProgressIndicator(
-          color:
-          primaryColor,
+          color: primaryColor,
         ),
       );
     }
 
     if (errorMessage != null) {
-      return ListView(
-        physics:
-        const AlwaysScrollableScrollPhysics(),
-        children: [
-
-          const SizedBox(
-            height: 180,
-          ),
-
-          Icon(
-            Icons.error_outline,
-            size: 55,
-            color:
-            Colors.grey.shade400,
-          ),
-
-          const SizedBox(
-            height: 12,
-          ),
-
-          Center(
-            child:
-            Padding(
-              padding:
-              const EdgeInsets
-                  .symmetric(
-                horizontal: 25,
+      return Center(
+        child: Padding(
+          padding:
+          const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment:
+            MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 60,
+                color:
+                Colors.red.shade300,
               ),
-              child:
+
+              const SizedBox(height: 16),
+
               Text(
                 errorMessage!,
                 textAlign:
                 TextAlign.center,
                 style:
                 const TextStyle(
-                  color: Colors.grey,
+                  fontSize: 14,
+                  height: 1.7,
                 ),
               ),
-            ),
-          ),
 
-          const SizedBox(
-            height: 15,
-          ),
+              const SizedBox(height: 20),
 
-          Center(
-            child:
-            ElevatedButton(
-              onPressed:
-              loadPolls,
-              child:
-              const Text(
-                'تلاش مجدد',
+              ElevatedButton.icon(
+                onPressed:
+                loadPolls,
+                icon: const Icon(
+                  Icons.refresh,
+                ),
+                label: const Text(
+                  'تلاش مجدد',
+                ),
+                style:
+                ElevatedButton.styleFrom(
+                  backgroundColor:
+                  primaryColor,
+                  foregroundColor:
+                  Colors.white,
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       );
     }
 
     if (polls.isEmpty) {
-      return ListView(
-        physics:
-        const AlwaysScrollableScrollPhysics(),
-        children: [
-
-          const SizedBox(
-            height: 170,
-          ),
-
-          Center(
-            child:
-            Container(
-              width: 80,
-              height: 80,
-              decoration:
-              BoxDecoration(
-                color:
-                primaryColor
-                    .withOpacity(
-                  0.10,
+      return RefreshIndicator(
+        color: primaryColor,
+        onRefresh: loadPolls,
+        child: ListView(
+          physics:
+          const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 150),
+            Center(
+              child: Text(
+                'هنوز نظرسنجی‌ای ثبت نشده است.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
                 ),
-                shape:
-                BoxShape.circle,
-              ),
-              child:
-              const Icon(
-                Icons.poll_outlined,
-                size: 42,
-                color:
-                primaryColor,
               ),
             ),
-          ),
-
-          const SizedBox(
-            height: 15,
-          ),
-
-          const Center(
-            child:
-            Text(
-              'هنوز نظرسنجی‌ای ایجاد نشده است.',
-              style:
-              TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-
-          const SizedBox(
-            height: 8,
-          ),
-
-          const Center(
-            child:
-            Text(
-              'برای ایجاد نظرسنجی از دکمه + استفاده کنید.',
-              style:
-              TextStyle(
-                fontSize: 11,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
-    return ListView.builder(
-      physics:
-      const AlwaysScrollableScrollPhysics(),
-      padding:
-      const EdgeInsets.fromLTRB(
-        12,
-        16,
-        12,
-        90,
+    return RefreshIndicator(
+      color: primaryColor,
+      onRefresh: loadPolls,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          100,
+        ),
+        itemCount: polls.length,
+        itemBuilder:
+            (context, index) {
+          return buildPollCard(
+            polls[index],
+          );
+        },
       ),
-      itemCount:
-      polls.length,
-      itemBuilder:
-          (
-          context,
-          index,
-          ) {
-        return buildPollCard(
-          polls[index],
-        );
-      },
     );
   }
 }
