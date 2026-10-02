@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../services/announcement_service.dart';
 import '../services/api_service.dart';
 import '../services/poll_service.dart';
+import '../services/user_support_service.dart';
 import '../storage/token_storage.dart';
 
 import 'announcements_screen.dart';
@@ -15,6 +16,7 @@ import 'polls_screen.dart';
 import 'finance_screen.dart';
 import 'finance_menu_screen.dart';
 import 'messages_screen.dart';
+import 'user_support_tickets_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -34,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool hasNewAnnouncements = false;
   bool hasNewPolls = false;
   bool hasNewMessages = false;
+  bool hasSupportAnswer = false;
 
   int unreadMessageCount = 0;
   bool showNewMessageBanner = false;
@@ -77,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     loadPollStatus();
     loadAnnouncementData();
     loadMessageStatus();
+    loadSupportAnswerStatus();
   }
 
   @override
@@ -605,6 +609,60 @@ class _HomeScreenState extends State<HomeScreen> {
   //     isLoadingMessageStatus = false;
   //   }
   // }
+
+  // =====================================================
+// وضعیت پاسخ تیکت‌های پشتیبانی
+// =====================================================
+
+  Future<void> loadSupportAnswerStatus() async {
+    try {
+      final service = UserSupportService(
+        apiService: ApiService(),
+      );
+
+      final tickets =
+      await service.getTickets();
+
+      bool answered = false;
+
+      for (final ticket in tickets) {
+        final isClosed =
+            ticket['is_closed'] == true;
+
+        final isAnswer =
+            ticket['is_answer'] == true;
+
+        final status =
+        ticket['status']
+            ?.toString()
+            .trim();
+
+        /*
+       * اگر مدیر به تیکت پاسخ داده باشد،
+       * نقطه سبز نمایش داده می‌شود.
+       *
+       * تیکت بسته شده دیگر به عنوان پاسخ جدید
+       * در نظر گرفته نمی‌شود.
+       */
+        if (!isClosed &&
+            (isAnswer ||
+                status == 'پاسخ داده شده')) {
+          answered = true;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        hasSupportAnswer = answered;
+      });
+    } catch (e) {
+      debugPrint(
+        'LOAD SUPPORT ANSWER STATUS ERROR: $e',
+      );
+    }
+  }
   // =====================================================
   // اطلاعیه‌ها
   // =====================================================
@@ -817,6 +875,7 @@ class _HomeScreenState extends State<HomeScreen> {
             loadMessageStatus(
               forceShow: true,
             ),
+            loadSupportAnswerStatus(),
           ]);
         },
 
@@ -2231,104 +2290,136 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
 
-          actions: [
-            // =============================================
-            // نظرسنجی
-            // =============================================
 
-            Stack(
-              clipBehavior:
-              Clip.none,
-              children: [
-                IconButton(
-                  tooltip:
-                  'نظرسنجی',
-                  onPressed:
-                      () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                        const PollsScreen(),
-                      ),
-                    );
+        actions: [
+        // =============================================
+        // تیکت‌ها
+        // =============================================
 
-                    await loadPollStatus();
-                  },
-                  icon:
-                  const Icon(
-                    Icons
-                        .poll_outlined,
-                    size: 25,
-                  ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                tooltip: 'تیکت‌ها',
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                      const UserSupportTicketsScreen(),
+                    ),
+                  );
+
+                  // بعد از برگشت، دوباره وضعیت پاسخ تیکت‌ها بررسی شود
+                  await loadSupportAnswerStatus();
+                },
+                icon: const Icon(
+                  Icons.support_agent_rounded,
+                  size: 27,
                 ),
+              ),
 
-                if (hasNewPolls)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child:
-                    Container(
-                      width: 9,
-                      height: 9,
-                      decoration:
-                      const BoxDecoration(
-                        color:
-                        Colors.amber,
-                        shape:
-                        BoxShape.circle,
+              if (hasSupportAnswer)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: const Color(0xff121111),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xff00ACC1),
+                        width: 1.5,
                       ),
                     ),
                   ),
-              ],
-            ),
-
-            // =============================================
-            // اطلاعیه
-            // =============================================
-
-            Stack(
-              clipBehavior:
-              Clip.none,
-              children: [
-                IconButton(
-                  tooltip:
-                  'اطلاعیه‌ها',
-                  onPressed:
-                  openAnnouncements,
-                  icon:
-                  const Icon(
-                    Icons
-                        .notifications_none_rounded,
-                    size: 27,
-                  ),
                 ),
+            ],
+          ),
 
-                if (hasNewAnnouncements)
-                  Positioned(
-                    top: 15,
-                    right: 8,
-                    child:
-                    Container(
-                      width: 9,
-                      height: 9,
-                      decoration:
-                      const BoxDecoration(
-                        color:
-                        Colors.red,
-                        shape:
-                        BoxShape.circle,
-                      ),
+              // =============================================
+              // نظرسنجی
+              // =============================================
+
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: 'نظرسنجی',
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                          const PollsScreen(),
+                        ),
+                      );
+
+                      await loadPollStatus();
+                    },
+                    icon: const Icon(
+                      Icons.poll_outlined,
+                      size: 25,
                     ),
                   ),
-              ],
-            ),
 
-            const SizedBox(
-              width: 5,
-            ),
-          ],
-        ),
+                  if (hasNewPolls)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+              // =============================================
+              // اطلاعیه
+              // =============================================
+
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: 'اطلاعیه‌ها',
+                    onPressed: openAnnouncements,
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 27,
+                    ),
+                  ),
+
+                  if (hasNewAnnouncements)
+                    Positioned(
+                      top: 15,
+                      right: 8,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(
+                width: 5,
+              ),
+              ],
+
+
+          ),
 
         body:
         IndexedStack(

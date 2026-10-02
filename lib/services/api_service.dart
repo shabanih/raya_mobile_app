@@ -272,7 +272,82 @@ class ApiService {
       return false;
     }
   }
+  // =====================================================
+  // Attache File
+  // =====================================================
+  Future<http.Response> postMultipart({
+    required String url,
+    Map<String, String>? fields,
+    String? filePath,
+    String fileField = 'file',
+  }) async {
+    String? accessToken = await TokenStorage.getAccessToken();
 
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception('نشست کاربری شما منقضی شده است.');
+    }
+
+    Future<http.Response> sendRequest(
+        String token,
+        ) async {
+      final uri = Uri.parse(url);
+
+      final request = http.MultipartRequest(
+        'POST',
+        uri,
+      );
+
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      if (filePath != null && filePath.trim().isNotEmpty) {
+        final file = File(filePath);
+
+        if (await file.exists()) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              fileField,
+              file.path,
+            ),
+          );
+        }
+      }
+
+      final streamedResponse = await request.send();
+
+      return http.Response.fromStream(
+        streamedResponse,
+      );
+    }
+
+    http.Response response = await sendRequest(
+      accessToken,
+    );
+
+    if (response.statusCode == 401) {
+      final refreshed = await refreshAccessToken();
+
+      if (refreshed) {
+        final newToken =
+        await TokenStorage.getAccessToken();
+
+        if (newToken != null &&
+            newToken.isNotEmpty) {
+          response = await sendRequest(
+            newToken,
+          );
+        }
+      }
+    }
+
+    return response;
+  }
   // =====================================================
   // GET مرکزی با Refresh خودکار
   // =====================================================

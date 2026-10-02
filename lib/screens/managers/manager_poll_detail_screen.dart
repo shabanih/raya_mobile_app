@@ -26,7 +26,7 @@ String? errorMessage;
 
 Map<String, dynamic>? poll;
 
-static const Color primaryColor = Color(0xff00838F);
+static const Color primaryColor = Color(0xff00ACC1);
 
 @override
 void initState() {

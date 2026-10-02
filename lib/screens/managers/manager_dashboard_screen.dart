@@ -16,6 +16,7 @@ import 'manager_announcements_screen.dart';
 import 'manager_messages_screen.dart';
 import 'manager_banks_screen.dart';
 import 'manager_polls_screen.dart';
+import 'manager_support_tickets_screen.dart';
 
 
 // =====================================================
@@ -978,10 +979,21 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xffEF6C00,
                       ),
-                      onTap: () {
-                        _showComingSoon(
-                          'تیکت‌ها',
+                      // badge:
+                      // unreadTicketCount >
+                      //     0
+                      //     ? unreadTicketCount
+                      //     : null,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                            const ManagerSupportTicketsScreen(),
+                          ),
                         );
+
+                        await loadAnnouncementData();
                       },
                     ),
                   ),

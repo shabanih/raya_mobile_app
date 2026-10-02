@@ -216,6 +216,31 @@ class ApiConfig {
   static String managerPollResults(int id) =>
       '$baseUrl/manager/polls/$id/results/';
 
+  // =====================================================
+// Manager Support / Tickets
+// =====================================================
+
+  static const String managerSupportTickets =
+      '$baseUrl/manager/support/tickets/';
+
+  static String managerSupportTicketDetail(int ticketId) =>
+      '$baseUrl/manager/support/tickets/$ticketId/';
+
+  static String managerSupportTicketMessages(int ticketId) =>
+      '$baseUrl/manager/support/tickets/$ticketId/messages/';
+
+  static String managerSupportTicketWaiting(int ticketId) =>
+      '$baseUrl/manager/support/tickets/$ticketId/waiting/';
+
+  static String managerSupportTicketClose(int ticketId) =>
+      '$baseUrl/manager/support/tickets/$ticketId/close/';
+
+
+  static const String userSupportTickets =
+      '$baseUrl/user-support/tickets/';
+
+
+
 
 
 
