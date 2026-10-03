@@ -235,9 +235,40 @@ class ApiConfig {
   static String managerSupportTicketClose(int ticketId) =>
       '$baseUrl/manager/support/tickets/$ticketId/close/';
 
+  static const String managerSupportUnreadCount =
+      '$baseUrl/manager-support/unread-count/';
+
 
   static const String userSupportTickets =
       '$baseUrl/user-support/tickets/';
+
+  static const String userSupportUnreadCount =
+      '${baseUrl}/user-support/unread-count/';
+
+  // =====================================================
+// مدیریت پشتیبانی مدیر ساختمان
+// =====================================================
+
+  static const String managerAdminSupportTickets =
+      '$baseUrl/manager/admin-support/tickets/';
+
+  static const String managerAdminSupportCreateTicket =
+      '$baseUrl/manager/admin-support/tickets/create/';
+
+  static String managerAdminSupportTicketDetail(int ticketId) =>
+      '$baseUrl/manager/admin-support/tickets/$ticketId/';
+
+  static String managerAdminSupportTicketMessage(int ticketId) =>
+      '$baseUrl/manager/admin-support/tickets/$ticketId/message/';
+
+  static String managerAdminSupportTicketClose(int ticketId) =>
+      '$baseUrl/manager/admin-support/tickets/$ticketId/close/';
+
+  static String managerAdminSupportTicketRead(int ticketId) =>
+      '$baseUrl/manager/admin-support/tickets/$ticketId/read/';
+
+  static const String managerAdminSupportUnreadCount =
+      '$baseUrl/manager/admin-support/unread-count/';
 
 
 

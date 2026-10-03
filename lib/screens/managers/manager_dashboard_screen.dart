@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/announcement_service.dart';
+import '../../services/manager_support_service.dart';
 // import '../../services/poll_service.dart';
 import '../../storage/token_storage.dart';
 
@@ -17,6 +18,7 @@ import 'manager_messages_screen.dart';
 import 'manager_banks_screen.dart';
 import 'manager_polls_screen.dart';
 import 'manager_support_tickets_screen.dart';
+import 'manager_admin_support_tickets_screen.dart';
 
 
 // =====================================================
@@ -58,6 +60,7 @@ class _ManagerDashboardScreenState
   // bool hasNewPolls = false;
 
   int unreadMessageCount = 0;
+  int unreadTicketCount = 0;
 
   bool isLoadingMessageStatus = false;
 
@@ -110,6 +113,8 @@ class _ManagerDashboardScreenState
     // loadPollStatus();
 
     loadMessageStatus();
+
+    loadSupportTicketStatus();
 
     _startStatisticsSlider();
   }
@@ -605,6 +610,59 @@ class _ManagerDashboardScreenState
   }
 
   // =====================================================
+  // وضعیت تیکت‌های جدید
+  // =====================================================
+
+  Future<void> loadSupportTicketStatus() async {
+    try {
+      debugPrint(
+        '==========================================',
+      );
+
+      debugPrint(
+        'START LOAD MANAGER SUPPORT UNREAD COUNT',
+      );
+
+      final service = ManagerSupportService(
+        apiService: ApiService(),
+      );
+
+      final count =
+      await service.getUnreadCount();
+
+      debugPrint(
+        'MANAGER SUPPORT UNREAD COUNT: $count',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        unreadTicketCount = count;
+      });
+
+      debugPrint(
+        'UNREAD TICKET COUNT UPDATED: '
+            '$unreadTicketCount',
+      );
+
+      debugPrint(
+        '==========================================',
+      );
+
+    } catch (e, stackTrace) {
+      debugPrint(
+        'MANAGER SUPPORT STATUS ERROR: $e',
+      );
+
+      debugPrint(
+        stackTrace.toString(),
+      );
+    }
+  }
+
+  // =====================================================
   // باز کردن پیام‌ها
   // =====================================================
 
@@ -866,6 +924,7 @@ class _ManagerDashboardScreenState
             loadAnnouncementData(),
             // loadPollStatus(),
             loadMessageStatus(),
+            loadSupportTicketStatus(),
           ]);
         },
         child:
@@ -979,11 +1038,10 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xffEF6C00,
                       ),
-                      // badge:
-                      // unreadTicketCount >
-                      //     0
-                      //     ? unreadTicketCount
-                      //     : null,
+                      badge:
+                      unreadTicketCount > 0
+                          ? unreadTicketCount
+                          : null,
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -993,7 +1051,7 @@ class _ManagerDashboardScreenState
                           ),
                         );
 
-                        await loadAnnouncementData();
+                        await loadSupportTicketStatus();
                       },
                     ),
                   ),
@@ -1161,9 +1219,13 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xff7B1FA2,
                       ),
-                      onTap: () {
-                        _showComingSoon(
-                          'پشتیبانی',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                            const ManagerAdminSupportTicketsScreen(),
+                          ),
                         );
                       },
                     ),
@@ -1185,10 +1247,6 @@ class _ManagerDashboardScreenState
                       const Color(
                         0xffF9A825,
                       ),
-                      // badge:
-                      // hasNewPolls
-                      //     ? 1
-                      //     : null,
                       onTap: () async {
                         await Navigator.push(
                           context,

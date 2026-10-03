@@ -1,6 +1,6 @@
 
 import 'dart:convert';
-
+import 'package:flutter/foundation.dart';
 import 'api_service.dart';
 import '../config/api_config.dart';
 
@@ -127,6 +127,8 @@ throw Exception(
 );
 }
 
+
+
 // =====================================================
 // دریافت جزئیات تیکت
 // GET
@@ -194,6 +196,57 @@ throw Exception(
 
 
 
+
+  Future<int> getUnreadCount() async {
+    final url = ApiConfig.userSupportUnreadCount;
+
+    debugPrint(
+      'SUPPORT NOTIFICATION COUNT URL: $url',
+    );
+
+    final response = await apiService.get(url);
+
+    debugPrint(
+      'SUPPORT NOTIFICATION COUNT STATUS: '
+          '${response.statusCode}',
+    );
+
+    debugPrint(
+      'SUPPORT NOTIFICATION COUNT BODY: '
+          '${response.body}',
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractError(response),
+      );
+    }
+
+    try {
+      final data = jsonDecode(response.body);
+
+      if (data is Map) {
+        final value =
+            data['unread_count'] ??
+                data['count'];
+
+        if (value is num) {
+          return value.toInt();
+        }
+
+        return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+            0;
+      }
+    } catch (e) {
+      debugPrint(
+        'SUPPORT NOTIFICATION COUNT PARSE ERROR: $e',
+      );
+    }
+
+    return 0;
+  }
 // =====================================================
 // ارسال پیام جدید
 // POST Multipart

@@ -281,6 +281,13 @@ int.tryParse(
 ticket['unread_count']?.toString() ?? '0',
 ) ??
 0;
+debugPrint(
+  'MANAGER TICKET DEBUG: '
+      'id=${ticket['id']} '
+      'ticket_no=${ticket['ticket_no']} '
+      'unread_count=${ticket['unread_count']} '
+      'type=${ticket['unread_count']?.runtimeType}',
+);
 
 final lastMessage =
 ticket['last_message'];
@@ -558,42 +565,45 @@ const SizedBox(height: 9),
 Row(
 children: [
 
-if (unreadCount > 0)
-Container(
-padding:
-const EdgeInsets.symmetric(
-horizontal: 9,
-vertical: 5,
-),
-decoration: BoxDecoration(
-color: Colors.red.withValues(
-alpha: 0.10,
-),
-borderRadius:
-BorderRadius.circular(20),
-),
-child: Row(
-mainAxisSize:
-MainAxisSize.min,
-children: [
-const Icon(
-Icons.mark_chat_unread_outlined,
-size: 14,
-color: Colors.red,
-),
-const SizedBox(width: 5),
-Text(
-'$unreadCount پیام جدید',
-style: const TextStyle(
-color: Colors.red,
-fontSize: 10,
-fontWeight:
-FontWeight.bold,
-),
-),
-],
-),
-),
+  if (unreadCount > 0)
+    Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(
+          alpha: 0.10,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.red.withValues(
+            alpha: 0.15,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.mark_chat_unread_outlined,
+            size: 14,
+            color: Colors.red,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            unreadCount == 1
+                ? 'پیام جدید'
+                : '$unreadCount پیام جدید',
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
 
 const Spacer(),
 

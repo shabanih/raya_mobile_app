@@ -58,7 +58,53 @@ class ManagerSupportService {
       ),
     );
   }
+  // =====================================================
+  // تعداد تیکت‌های دارای پاسخ جدید
+  // =====================================================
 
+  Future<int> getUnreadCount() async {
+    final response = await apiService.get(
+      ApiConfig.managerSupportUnreadCount,
+    );
+
+    _debugResponse(
+      'GET MANAGER SUPPORT UNREAD COUNT',
+      response.statusCode,
+      response.body,
+    );
+
+    final data = _decodeResponse(response);
+
+    if (response.statusCode == 200) {
+      if (data['success'] == false) {
+        throw Exception(
+          _extractError(
+            data,
+            'دریافت تعداد تیکت‌های جدید با خطا مواجه شد.',
+          ),
+        );
+      }
+
+      final value = data['unread_count'];
+
+      if (value is num) {
+        return value.toInt();
+      }
+
+      return int.tryParse(
+        value?.toString() ?? '',
+      ) ??
+          0;
+    }
+
+    throw Exception(
+      _extractError(
+        data,
+        'خطا در دریافت تعداد تیکت‌های جدید: '
+            '${response.statusCode}',
+      ),
+    );
+  }
   // =====================================================
   // جزئیات تیکت
   // =====================================================

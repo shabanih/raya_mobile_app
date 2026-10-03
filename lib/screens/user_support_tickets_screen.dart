@@ -143,7 +143,7 @@ foregroundColor: Colors.white,
 elevation: 0,
 centerTitle: true,
 title: const Text(
-'تیکت‌های پشتیبانی',
+'تیکت‌های من',
 style: TextStyle(
 fontSize: 18,
 fontWeight: FontWeight.bold,

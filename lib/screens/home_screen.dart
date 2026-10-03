@@ -39,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool hasSupportAnswer = false;
 
   int unreadMessageCount = 0;
+  int unreadSupportCount = 0;
   bool showNewMessageBanner = false;
   bool isLoadingMessageStatus = false;
 
@@ -613,56 +614,111 @@ class _HomeScreenState extends State<HomeScreen> {
   // =====================================================
 // وضعیت پاسخ تیکت‌های پشتیبانی
 // =====================================================
-
+// =====================================================
+// تعداد Notification های خوانده نشده تیکت‌ها
+// =====================================================
   Future<void> loadSupportAnswerStatus() async {
     try {
+      debugPrint(
+        '========================================',
+      );
+
+      debugPrint(
+        'HOME SUPPORT: شروع دریافت تعداد Notification',
+      );
+
       final service = UserSupportService(
         apiService: ApiService(),
       );
 
-      final tickets =
-      await service.getTickets();
+      final count = await service.getUnreadCount();
 
-      bool answered = false;
+      debugPrint(
+        'HOME SUPPORT: تعداد دریافت شده = $count',
+      );
 
-      for (final ticket in tickets) {
-        final isClosed =
-            ticket['is_closed'] == true;
-
-        final isAnswer =
-            ticket['is_answer'] == true;
-
-        final status =
-        ticket['status']
-            ?.toString()
-            .trim();
-
-        /*
-       * اگر مدیر به تیکت پاسخ داده باشد،
-       * نقطه سبز نمایش داده می‌شود.
-       *
-       * تیکت بسته شده دیگر به عنوان پاسخ جدید
-       * در نظر گرفته نمی‌شود.
-       */
-        if (!isClosed &&
-            (isAnswer ||
-                status == 'پاسخ داده شده')) {
-          answered = true;
-          break;
-        }
+      if (!mounted) {
+        debugPrint(
+          'HOME SUPPORT: Widget دیگر mounted نیست',
+        );
+        return;
       }
 
-      if (!mounted) return;
-
       setState(() {
-        hasSupportAnswer = answered;
+        unreadSupportCount = count;
+        hasSupportAnswer = count > 0;
       });
-    } catch (e) {
+
       debugPrint(
-        'LOAD SUPPORT ANSWER STATUS ERROR: $e',
+        'HOME SUPPORT: unreadSupportCount = '
+            '$unreadSupportCount',
+      );
+
+      debugPrint(
+        '========================================',
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+        'HOME SUPPORT ERROR: $e',
+      );
+
+      debugPrint(
+        stackTrace.toString(),
       );
     }
   }
+
+
+
+  // Future<void> loadSupportAnswerStatus() async {
+  //   try {
+  //     final service = UserSupportService(
+  //       apiService: ApiService(),
+  //     );
+  //
+  //     final tickets =
+  //     await service.getTickets();
+  //
+  //     bool answered = false;
+  //
+  //     for (final ticket in tickets) {
+  //       final isClosed =
+  //           ticket['is_closed'] == true;
+  //
+  //       final isAnswer =
+  //           ticket['is_answer'] == true;
+  //
+  //       final status =
+  //       ticket['status']
+  //           ?.toString()
+  //           .trim();
+  //
+  //       /*
+  //      * اگر مدیر به تیکت پاسخ داده باشد،
+  //      * نقطه سبز نمایش داده می‌شود.
+  //      *
+  //      * تیکت بسته شده دیگر به عنوان پاسخ جدید
+  //      * در نظر گرفته نمی‌شود.
+  //      */
+  //       if (!isClosed &&
+  //           (isAnswer ||
+  //               status == 'پاسخ داده شده')) {
+  //         answered = true;
+  //         break;
+  //       }
+  //     }
+  //
+  //     if (!mounted) return;
+  //
+  //     setState(() {
+  //       hasSupportAnswer = answered;
+  //     });
+  //   } catch (e) {
+  //     debugPrint(
+  //       'LOAD SUPPORT ANSWER STATUS ERROR: $e',
+  //     );
+  //   }
+  // }
   // =====================================================
   // اطلاعیه‌ها
   // =====================================================
@@ -2206,6 +2262,7 @@ class _HomeScreenState extends State<HomeScreen> {
       loadMessageStatus(
         forceShow: true,
       );
+      loadSupportAnswerStatus();
     }
   }
   // =====================================================
@@ -2296,50 +2353,73 @@ class _HomeScreenState extends State<HomeScreen> {
         // تیکت‌ها
         // =============================================
 
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                tooltip: 'تیکت‌ها',
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                      const UserSupportTicketsScreen(),
-                    ),
-                  );
 
-                  // بعد از برگشت، دوباره وضعیت پاسخ تیکت‌ها بررسی شود
-                  await loadSupportAnswerStatus();
-                },
-                icon: const Icon(
-                  Icons.support_agent_rounded,
-                  size: 27,
-                ),
+        Stack(
+        clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              tooltip: 'تیکت‌ها',
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                    const UserSupportTicketsScreen(),
+                  ),
+                );
+
+                // بعد از برگشت، تعداد پیام‌های خوانده‌نشده دوباره بررسی شود
+                await loadSupportAnswerStatus();
+              },
+              icon: const Icon(
+                Icons.support_agent_rounded,
+                size: 27,
               ),
+            ),
 
-              if (hasSupportAnswer)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff121111),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xff00ACC1),
-                        width: 1.5,
-                      ),
+            if (unreadSupportCount > 0)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffD32F2F),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.5,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unreadSupportCount > 99
+                        ? '۹۹+'
+                        : toPersianDigits(
+                      unreadSupportCount.toString(),
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
+        ),
 
-              // =============================================
+
+
+
+
+      // =============================================
               // نظرسنجی
               // =============================================
 
