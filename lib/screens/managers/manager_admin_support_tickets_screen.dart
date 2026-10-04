@@ -110,25 +110,28 @@ class _ManagerAdminSupportTicketsScreenState
   // =====================================================
 
   Future<void> _createTicket() async {
-    /*
-    این قسمت بعد از ساخت صفحه
-    ManagerAdminSupportCreateScreen
-    به آن متصل می‌شود.
+    // صفحه ایجاد تیکت را بعداً اینجا متصل می‌کنیم.
+  }
 
-    نمونه:
+  // =====================================================
+  // تبدیل عدد به فارسی
+  // =====================================================
 
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const ManagerAdminSupportCreateScreen(),
-      ),
-    );
-
-    if (result == true && mounted) {
-      await _loadTickets();
-    }
-    */
+  String _persianNumber(
+      dynamic value,
+      ) {
+    return value
+        .toString()
+        .replaceAll('0', '۰')
+        .replaceAll('1', '۱')
+        .replaceAll('2', '۲')
+        .replaceAll('3', '۳')
+        .replaceAll('4', '۴')
+        .replaceAll('5', '۵')
+        .replaceAll('6', '۶')
+        .replaceAll('7', '۷')
+        .replaceAll('8', '۸')
+        .replaceAll('9', '۹');
   }
 
   // =====================================================
@@ -164,27 +167,6 @@ class _ManagerAdminSupportTicketsScreenState
           color: Colors.amber,
         );
     }
-  }
-
-  // =====================================================
-  // تبدیل اعداد انگلیسی به فارسی
-  // =====================================================
-
-  String _persianNumber(
-      dynamic value,
-      ) {
-    return value
-        .toString()
-        .replaceAll('0', '۰')
-        .replaceAll('1', '۱')
-        .replaceAll('2', '۲')
-        .replaceAll('3', '۳')
-        .replaceAll('4', '۴')
-        .replaceAll('5', '۵')
-        .replaceAll('6', '۶')
-        .replaceAll('7', '۷')
-        .replaceAll('8', '۸')
-        .replaceAll('9', '۹');
   }
 
   // =====================================================
@@ -314,7 +296,7 @@ class _ManagerAdminSupportTicketsScreenState
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'هنوز تیکتی ایجاد نکرده‌اید.',
+                    'تیکتی وجود ندارد.',
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontSize: 15,
@@ -323,7 +305,7 @@ class _ManagerAdminSupportTicketsScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'برای ارسال درخواست جدید روی + بزنید.',
+                    'برای ارسال تیکت جدید روی + بزنید.',
                     style: TextStyle(
                       color: Colors.grey.shade500,
                       fontSize: 12,
@@ -338,7 +320,7 @@ class _ManagerAdminSupportTicketsScreenState
     }
 
     // ===================================================
-    // لیست تیکت‌ها
+    // لیست
     // ===================================================
 
     return RefreshIndicator(
@@ -379,14 +361,30 @@ class _ManagerAdminSupportTicketsScreenState
     final ticketNo =
         ticket['ticket_no']?.toString() ?? '-';
 
+    // ===================================================
+    // تعداد پیام‌های خوانده نشده
+    // ===================================================
+
     final unreadCount =
         int.tryParse(
           ticket['unread_count']?.toString() ?? '0',
         ) ??
             0;
 
+    // ===================================================
+    // وضعیت
+    // ===================================================
+
     final status =
-        ticket['status']?.toString() ?? 'در انتظار پاسخ';
+        ticket['status']?.toString() ??
+            'در انتظار پاسخ';
+
+    final ticketStatus =
+    _getTicketStatus(status);
+
+    // ===================================================
+    // آخرین پیام
+    // ===================================================
 
     final lastMessage =
     ticket['last_message'];
@@ -398,9 +396,9 @@ class _ManagerAdminSupportTicketsScreenState
           lastMessage['message']?.toString() ?? '';
     }
 
-    final ticketStatus = _getTicketStatus(
-      status,
-    );
+    // ===================================================
+    // DEBUG
+    // ===================================================
 
     debugPrint(
       'ADMIN SUPPORT TICKET DEBUG: '
@@ -451,9 +449,10 @@ class _ManagerAdminSupportTicketsScreenState
                 crossAxisAlignment:
                 CrossAxisAlignment.start,
                 children: [
-                  // =====================================
+
+                  // ===================================
                   // وضعیت + شماره تیکت
-                  // =====================================
+                  // ===================================
 
                   Row(
                     children: [
@@ -490,9 +489,9 @@ class _ManagerAdminSupportTicketsScreenState
 
                   const SizedBox(height: 11),
 
-                  // =====================================
+                  // ===================================
                   // عنوان
-                  // =====================================
+                  // ===================================
 
                   Text(
                     subject,
@@ -505,12 +504,13 @@ class _ManagerAdminSupportTicketsScreenState
                     ),
                   ),
 
-                  // =====================================
+                  // ===================================
                   // آخرین پیام
-                  // =====================================
+                  // ===================================
 
                   if (lastMessageText.isNotEmpty) ...[
                     const SizedBox(height: 10),
+
                     Row(
                       crossAxisAlignment:
                       CrossAxisAlignment.start,
@@ -540,9 +540,9 @@ class _ManagerAdminSupportTicketsScreenState
 
                   const SizedBox(height: 11),
 
-                  // =====================================
-                  // جداکننده
-                  // =====================================
+                  // ===================================
+                  // خط جداکننده
+                  // ===================================
 
                   Divider(
                     height: 1,
@@ -554,12 +554,17 @@ class _ManagerAdminSupportTicketsScreenState
 
                   const SizedBox(height: 9),
 
-                  // =====================================
+                  // ===================================
                   // پیام جدید + مشاهده
-                  // =====================================
+                  // ===================================
 
                   Row(
                     children: [
+
+                      // =================================
+                      // پیام جدید
+                      // =================================
+
                       if (unreadCount > 0)
                         Container(
                           padding:
@@ -607,6 +612,10 @@ class _ManagerAdminSupportTicketsScreenState
                         ),
 
                       const Spacer(),
+
+                      // =================================
+                      // مشاهده تیکت
+                      // =================================
 
                       Text(
                         'مشاهده تیکت',

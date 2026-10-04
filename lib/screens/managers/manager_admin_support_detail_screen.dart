@@ -496,7 +496,7 @@ const EdgeInsets.all(12),
 decoration: BoxDecoration(
 color: isManager
 ? primaryColor.withOpacity(0.14)
-    : Colors.green.shade300,
+    : Colors.green.shade200,
 borderRadius:
 BorderRadius.circular(14),
 border: Border.all(
