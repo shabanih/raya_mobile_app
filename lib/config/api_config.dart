@@ -270,9 +270,21 @@ class ApiConfig {
   static const String managerAdminSupportUnreadCount =
       '$baseUrl/manager/admin-support/unread-count/';
 
+  // =====================================================
+  // Manager Units - مدیریت واحدها
+  // =====================================================
 
+  static const String managerUnits =
+      '$baseUrl/manager/units/';
 
+  static String managerUnitDetail(int unitId) =>
+      '$baseUrl/manager/units/$unitId/';
 
+  static String managerUnitOwner(int unitId) =>
+      '$baseUrl/manager/units/$unitId/owner/';
 
+  static String managerUnitRenter(int unitId) =>
+      '$baseUrl/manager/units/$unitId/renter/';
 
+  
 }

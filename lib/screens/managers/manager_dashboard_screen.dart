@@ -21,6 +21,7 @@ import 'manager_banks_screen.dart';
 import 'manager_polls_screen.dart';
 import 'manager_support_tickets_screen.dart';
 import 'manager_admin_support_tickets_screen.dart';
+import 'manager_units_screen.dart';
 
 // =====================================================
 // صفحه اصلی مدیران
@@ -1105,11 +1106,14 @@ color:
 const Color(
 0xff00897B,
 ),
-onTap: () {
-_showComingSoon(
-'مدیریت واحدها',
-);
-},
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ManagerUnitsScreen(),
+      ),
+    );
+  },
 ),
 ),
 
