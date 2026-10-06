@@ -57,9 +57,18 @@ class _ManagerUnitRenterScreenState
 
   bool _hasRenter = false;
 
+  /// افزودن مستاجر جدید
+  bool _isAddingNew = false;
+
+  /// ویرایش مستاجر فعلی
+  bool _isEditing = false;
+
   String? _errorMessage;
 
   Map<String, dynamic>? _unit;
+
+  /// شناسه مستاجر فعال
+  int? _renterId;
 
   // =========================================================
   // Init
@@ -91,7 +100,7 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Load unit
+  // Load Unit
   // =========================================================
 
   Future<void> _loadUnit() async {
@@ -100,6 +109,9 @@ class _ManagerUnitRenterScreenState
         _isLoading = true;
         _errorMessage = null;
         _hasRenter = false;
+        _renterId = null;
+        _isAddingNew = false;
+        _isEditing = false;
       });
     }
 
@@ -111,62 +123,55 @@ class _ManagerUnitRenterScreenState
 
       _unit = unit;
 
-      // -------------------------------------------------------
-      // پاک کردن اطلاعات قبلی فرم
-      // -------------------------------------------------------
-
       _clearForm();
 
       // -------------------------------------------------------
       // دریافت مستاجر فعال
       // -------------------------------------------------------
 
-      final renter = unit['active_renter'];
+      dynamic renterValue =
+      unit['active_renter'];
 
-      if (renter is Map) {
-        final renterMap =
-        Map<String, dynamic>.from(renter);
+      // برای سازگاری با پاسخ‌های احتمالی دیگر
+      renterValue ??= unit['renter'];
+
+      final renter =
+      _asMap(renterValue);
+
+      if (renter != null) {
+        _renterId =
+            _extractRenterId(renter);
 
         final name =
-            renterMap['name']?.toString().trim() ?? '';
+        _firstString(
+          renter,
+          [
+            'renter_name',
+            'name',
+          ],
+        );
 
-        _hasRenter = name.isNotEmpty;
+        _hasRenter =
+            name.trim().isNotEmpty;
 
         if (_hasRenter) {
-          _nameController.text = name;
-
-          _mobileController.text =
-              renterMap['mobile']?.toString() ?? '';
-
-          _nationalCodeController.text =
-              renterMap['national_code']?.toString() ?? '';
-
-          _peopleCountController.text =
-              renterMap['people_count']?.toString() ?? '';
-
-          _startDateController.text =
-              renterMap['start_date']?.toString() ?? '';
-
-          _endDateController.text =
-              renterMap['end_date']?.toString() ?? '';
-
-          _contractNumberController.text =
-              renterMap['contract_number']?.toString() ?? '';
-
-          _estateNameController.text =
-              renterMap['estate_name']?.toString() ?? '';
-
-          _detailsController.text =
-              renterMap['details']?.toString() ?? '';
+          _fillRenter(renter);
         }
       }
 
+      if (_peopleCountController.text
+          .trim()
+          .isEmpty) {
+        _peopleCountController.text = '1';
+      }
+
       // -------------------------------------------------------
-      // مقدار پیش فرض تعداد نفرات
+      // اگر مستاجر ندارد، مستقیماً حالت افزودن فعال شود
       // -------------------------------------------------------
 
-      if (_peopleCountController.text.trim().isEmpty) {
-        _peopleCountController.text = '1';
+      if (!_hasRenter) {
+        _isAddingNew = true;
+        _isEditing = false;
       }
 
       setState(() {
@@ -175,22 +180,168 @@ class _ManagerUnitRenterScreenState
     } catch (e) {
       if (!mounted) return;
 
-      String message = e.toString();
-
-      if (message.startsWith('Exception: ')) {
-        message =
-            message.substring('Exception: '.length);
-      }
-
       setState(() {
-        _errorMessage = message;
+        _errorMessage = _cleanError(e);
         _isLoading = false;
       });
     }
   }
 
   // =========================================================
-  // Clear form
+  // Map helpers
+  // =========================================================
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return null;
+  }
+
+  String _firstString(
+      Map<String, dynamic> map,
+      List<String> keys,
+      ) {
+    for (final key in keys) {
+      final value = map[key];
+
+      if (value != null &&
+          value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+
+    return '';
+  }
+
+  int? _extractRenterId(
+      Map<String, dynamic> renter,
+      ) {
+    final candidates = [
+      renter['id'],
+      renter['renter_id'],
+      renter['pk'],
+    ];
+
+    for (final value in candidates) {
+      if (value == null) {
+        continue;
+      }
+
+      if (value is int) {
+        return value;
+      }
+
+      final parsed =
+      int.tryParse(
+        value.toString(),
+      );
+
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  // =========================================================
+  // Fill
+  // =========================================================
+
+  void _fillRenter(
+      Map<String, dynamic> renter,
+      ) {
+    _renterId =
+        _extractRenterId(renter);
+
+    _nameController.text =
+        _firstString(
+          renter,
+          [
+            'renter_name',
+            'name',
+          ],
+        );
+
+    _mobileController.text =
+        _firstString(
+          renter,
+          [
+            'renter_mobile',
+            'mobile',
+          ],
+        );
+
+    _nationalCodeController.text =
+        _firstString(
+          renter,
+          [
+            'renter_national_code',
+            'national_code',
+          ],
+        );
+
+    _peopleCountController.text =
+        _firstString(
+          renter,
+          [
+            'renter_people_count',
+            'people_count',
+          ],
+        );
+
+    _startDateController.text =
+        _firstString(
+          renter,
+          [
+            'start_date',
+            'renter_start_date',
+          ],
+        );
+
+    _endDateController.text =
+        _firstString(
+          renter,
+          [
+            'end_date',
+            'renter_end_date',
+          ],
+        );
+
+    _contractNumberController.text =
+        _firstString(
+          renter,
+          [
+            'contract_number',
+          ],
+        );
+
+    _estateNameController.text =
+        _firstString(
+          renter,
+          [
+            'estate_name',
+          ],
+        );
+
+    _detailsController.text =
+        _firstString(
+          renter,
+          [
+            'renter_details',
+            'details',
+          ],
+        );
+  }
+
+  // =========================================================
+  // Clear
   // =========================================================
 
   void _clearForm() {
@@ -206,10 +357,111 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Persian / English digits
+  // Restore current renter
   // =========================================================
 
-  String _normalizeDigits(String value) {
+  void _restoreCurrentRenter() {
+    _clearForm();
+
+    if (_unit == null) {
+      return;
+    }
+
+    dynamic renterValue =
+    _unit!['active_renter'];
+
+    renterValue ??= _unit!['renter'];
+
+    final renter =
+    _asMap(renterValue);
+
+    if (renter != null) {
+      _fillRenter(renter);
+    }
+
+    if (_peopleCountController.text
+        .trim()
+        .isEmpty) {
+      _peopleCountController.text = '1';
+    }
+  }
+
+  // =========================================================
+  // Start Edit
+  // =========================================================
+
+  void _startEditRenter() {
+    if (!_hasRenter) {
+      return;
+    }
+
+    if (_renterId == null) {
+      _showError(
+        'شناسه مستاجر فعلی دریافت نشد. '
+            'لطفاً ابتدا اطلاعات واحد را بازخوانی کنید.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isEditing = true;
+      _isAddingNew = false;
+    });
+  }
+
+  // =========================================================
+  // Start Add New
+  // =========================================================
+
+  void _startAddNewRenter() {
+    setState(() {
+      _isAddingNew = true;
+      _isEditing = false;
+
+      _clearForm();
+
+      _peopleCountController.text = '1';
+    });
+  }
+
+  // =========================================================
+  // Cancel Edit
+  // =========================================================
+
+  void _cancelEdit() {
+    setState(() {
+      _isEditing = false;
+      _isAddingNew = false;
+
+      _restoreCurrentRenter();
+    });
+  }
+
+  // =========================================================
+  // Cancel Add
+  // =========================================================
+
+  void _cancelAdd() {
+    if (!_hasRenter) {
+      Navigator.pop(context, false);
+      return;
+    }
+
+    setState(() {
+      _isAddingNew = false;
+      _isEditing = false;
+
+      _restoreCurrentRenter();
+    });
+  }
+
+  // =========================================================
+  // Digits
+  // =========================================================
+
+  String _normalizeDigits(
+      String value,
+      ) {
     return value
         .replaceAll('۰', '0')
         .replaceAll('۱', '1')
@@ -223,7 +475,9 @@ class _ManagerUnitRenterScreenState
         .replaceAll('۹', '9');
   }
 
-  String _toPersianDigits(dynamic value) {
+  String _toPersianDigits(
+      dynamic value,
+      ) {
     if (value == null) {
       return '';
     }
@@ -259,10 +513,64 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Save renter
+  // Renter data
+  // =========================================================
+
+  Map<String, dynamic> _renterData() {
+    final peopleCount =
+        int.tryParse(
+          _normalizeDigits(
+            _peopleCountController.text.trim(),
+          ),
+        ) ??
+            1;
+
+    return <String, dynamic>{
+      'renter_name':
+      _nameController.text.trim(),
+
+      'renter_mobile':
+      _normalizeDigits(
+        _mobileController.text.trim(),
+      ),
+
+      'renter_national_code':
+      _normalizeDigits(
+        _nationalCodeController.text.trim(),
+      ),
+
+      'renter_people_count':
+      peopleCount,
+
+      'start_date':
+      _startDateController.text.trim(),
+
+      'end_date':
+      _endDateController.text.trim(),
+
+      'contract_number':
+      _contractNumberController.text.trim(),
+
+      'estate_name':
+      _estateNameController.text.trim(),
+
+      'renter_details':
+      _detailsController.text.trim(),
+
+      'renter_is_active':
+      true,
+    };
+  }
+
+  // =========================================================
+  // Save
   // =========================================================
 
   Future<void> _saveRenter() async {
+    if (!_isAddingNew && !_isEditing) {
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -271,94 +579,89 @@ class _ManagerUnitRenterScreenState
       return;
     }
 
+    // -------------------------------------------------------
+    // برای ویرایش باید شناسه مستاجر داشته باشیم
+    // -------------------------------------------------------
+
+    if (_isEditing &&
+        _renterId == null) {
+      _showError(
+        'شناسه مستاجر فعلی مشخص نیست. '
+            'لطفاً دوباره وارد صفحه شوید.',
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final peopleCount = int.tryParse(
-        _normalizeDigits(
-          _peopleCountController.text.trim(),
-        ),
-      );
+      final data =
+      _renterData();
 
-      final data = <String, dynamic>{
-        'renter_name':
-        _nameController.text.trim(),
+      // =====================================================
+      // ویرایش مستاجر فعلی
+      // =====================================================
 
-        'renter_mobile':
-        _mobileController.text.trim(),
+      if (_isEditing) {
+        debugPrint(
+          'Updating renter: '
+              'unit=${widget.unitId}, '
+              'renter=$_renterId',
+        );
 
-        'renter_national_code':
-        _nationalCodeController.text.trim(),
-
-        'renter_people_count':
-        peopleCount ?? 1,
-
-        'start_date':
-        _startDateController.text.trim(),
-
-        'end_date':
-        _endDateController.text.trim(),
-
-        'contract_number':
-        _contractNumberController.text.trim(),
-
-        'estate_name':
-        _estateNameController.text.trim(),
-
-        'renter_details':
-        _detailsController.text.trim(),
-
-        'renter_is_active': true,
-      };
-
-      // -------------------------------------------------------
-      // ویرایش مستاجر
-      // -------------------------------------------------------
-
-      if (_hasRenter) {
-        final result =
         await _unitService.updateRenter(
           widget.unitId,
+          _renterId!,
           data,
         );
 
-        debugPrint(
-          'update renter result: $result',
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'اطلاعات مستاجر با موفقیت ویرایش شد.',
+            ),
+            backgroundColor: primaryColor,
+          ),
         );
       }
 
-      // -------------------------------------------------------
-      // ایجاد مستاجر
-      // -------------------------------------------------------
+      // =====================================================
+      // افزودن مستاجر جدید
+      // =====================================================
 
-      else {
-        final result =
+      else if (_isAddingNew) {
+        debugPrint(
+          'Creating new renter: '
+              'unit=${widget.unitId}',
+        );
+
         await _unitService.createRenter(
           widget.unitId,
           data,
         );
 
-        debugPrint(
-          'create renter result: $result',
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'مستاجر جدید با موفقیت ثبت شد.',
+            ),
+            backgroundColor: primaryColor,
+          ),
         );
       }
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _hasRenter
-                ? 'اطلاعات مستاجر با موفقیت ویرایش شد.'
-                : 'مستاجر با موفقیت ثبت شد.',
-          ),
-          backgroundColor: primaryColor,
-        ),
+      Navigator.pop(
+        context,
+        true,
       );
-
-      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
@@ -373,28 +676,20 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Delete renter
+  // Delete / Deactivate
   // =========================================================
 
   Future<void> _deleteRenter() async {
-    // -------------------------------------------------------
-    // بررسی وجود مستاجر
-    // -------------------------------------------------------
-
-    if (!_hasRenter) {
-      _showError(
-        'مستاجر فعالی برای این واحد وجود ندارد.',
-      );
+    if (!_hasRenter ||
+        _renterId == null ||
+        _isAddingNew ||
+        _isEditing) {
       return;
     }
 
     if (_isSaving || _isDeleting) {
       return;
     }
-
-    // -------------------------------------------------------
-    // تایید حذف
-    // -------------------------------------------------------
 
     final confirmed =
     await showDialog<bool>(
@@ -404,11 +699,13 @@ class _ManagerUnitRenterScreenState
           textDirection: TextDirection.rtl,
           child: AlertDialog(
             title: const Text(
-              'حذف مستاجر',
+              'غیرفعال کردن مستاجر',
             ),
             content: const Text(
-              'آیا از حذف مستاجر این واحد اطمینان دارید؟\n\n'
-                  'سوابق سکونت مستاجر قبلی حذف نخواهد شد.',
+              'آیا از غیرفعال کردن مستاجر فعلی '
+                  'این واحد اطمینان دارید؟\n\n'
+                  'اطلاعات و سابقه سکونت مستاجر '
+                  'حذف نخواهد شد.',
             ),
             actions: [
               TextButton(
@@ -433,7 +730,7 @@ class _ManagerUnitRenterScreenState
                   );
                 },
                 child: const Text(
-                  'حذف مستاجر',
+                  'غیرفعال کردن',
                 ),
               ),
             ],
@@ -446,17 +743,20 @@ class _ManagerUnitRenterScreenState
       return;
     }
 
-    // -------------------------------------------------------
-    // Delete
-    // -------------------------------------------------------
-
     setState(() {
       _isDeleting = true;
     });
 
     try {
+      debugPrint(
+        'Deleting renter: '
+            'unit=${widget.unitId}, '
+            'renter=$_renterId',
+      );
+
       await _unitService.deleteRenter(
         widget.unitId,
+        _renterId!,
       );
 
       if (!mounted) return;
@@ -464,13 +764,16 @@ class _ManagerUnitRenterScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'مستاجر با موفقیت حذف شد.',
+            'مستاجر فعلی غیرفعال شد.',
           ),
           backgroundColor: primaryColor,
         ),
       );
 
-      Navigator.pop(context, true);
+      Navigator.pop(
+        context,
+        true,
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -488,22 +791,35 @@ class _ManagerUnitRenterScreenState
   // Error
   // =========================================================
 
-  void _showError(dynamic error) {
-    String message = error.toString();
+  String _cleanError(
+      dynamic error,
+      ) {
+    String message =
+    error.toString();
 
-    if (message.startsWith('Exception: ')) {
+    if (message.startsWith(
+      'Exception: ',
+    )) {
       message =
-          message.substring('Exception: '.length);
+          message.substring(
+            'Exception: '.length,
+          );
     }
 
     if (message.trim().isEmpty) {
-      message = 'خطایی رخ داده است.';
+      return 'خطایی رخ داده است.';
     }
 
+    return message;
+  }
+
+  void _showError(
+      dynamic error,
+      ) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          message,
+          _cleanError(error),
           textAlign: TextAlign.right,
         ),
         backgroundColor: Colors.red,
@@ -512,7 +828,7 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Text field
+  // Text Field
   // =========================================================
 
   Widget _textField({
@@ -551,16 +867,14 @@ class _ManagerUnitRenterScreenState
               color: Colors.grey.shade300,
             ),
           ),
-          enabledBorder:
-          OutlineInputBorder(
+          enabledBorder: OutlineInputBorder(
             borderRadius:
             BorderRadius.circular(12),
             borderSide: BorderSide(
               color: Colors.grey.shade300,
             ),
           ),
-          focusedBorder:
-          OutlineInputBorder(
+          focusedBorder: OutlineInputBorder(
             borderRadius:
             BorderRadius.circular(12),
             borderSide: const BorderSide(
@@ -578,6 +892,18 @@ class _ManagerUnitRenterScreenState
   // =========================================================
 
   Widget _buildHeader() {
+    String title;
+
+    if (_isAddingNew) {
+      title = 'افزودن مستاجر جدید';
+    } else if (_isEditing) {
+      title = 'ویرایش مستاجر';
+    } else if (_hasRenter) {
+      title = 'مستاجر فعلی';
+    } else {
+      title = 'افزودن مستاجر';
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -596,36 +922,32 @@ class _ManagerUnitRenterScreenState
               borderRadius:
               BorderRadius.circular(14),
             ),
-            child: const Icon(
-              Icons.people_outline,
+            child: Icon(
+              _isAddingNew
+                  ? Icons.person_add_outlined
+                  : _isEditing
+                  ? Icons.edit_outlined
+                  : Icons.people_outline,
               color: Colors.white,
               size: 30,
             ),
           ),
-
           const SizedBox(width: 14),
-
           Expanded(
             child: Column(
               crossAxisAlignment:
               CrossAxisAlignment.start,
               children: [
                 Text(
-                  _hasRenter
-                      ? 'مدیریت مستاجر'
-                      : 'افزودن مستاجر',
-                  textAlign: TextAlign.right,
+                  title,
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 Text(
                   'واحد ${_unitNumber()}',
-                  textAlign: TextAlign.right,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 21,
@@ -641,32 +963,192 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
+  // Current Renter
+  // =========================================================
+
+  Widget _buildCurrentRenterInfo() {
+    if (!_hasRenter ||
+        _isAddingNew ||
+        _isEditing) {
+      return const SizedBox();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.verified_user_outlined,
+                color: Colors.green,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'مستاجر فعال واحد',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green
+                      .withOpacity(0.1),
+                  borderRadius:
+                  BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'فعال',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _infoRow(
+            'نام',
+            _nameController.text,
+          ),
+          _infoRow(
+            'موبایل',
+            _mobileController.text,
+          ),
+          _infoRow(
+            'کد ملی',
+            _nationalCodeController.text,
+          ),
+          _infoRow(
+            'تعداد نفرات',
+            _peopleCountController.text,
+          ),
+          _infoRow(
+            'شروع سکونت',
+            _startDateController.text,
+          ),
+          if (_endDateController.text
+              .trim()
+              .isNotEmpty)
+            _infoRow(
+              'پایان سکونت',
+              _endDateController.text,
+            ),
+          if (_contractNumberController.text
+              .trim()
+              .isNotEmpty)
+            _infoRow(
+              'شماره قرارداد',
+              _contractNumberController.text,
+            ),
+          if (_estateNameController.text
+              .trim()
+              .isNotEmpty)
+            _infoRow(
+              'نام بنگاه',
+              _estateNameController.text,
+            ),
+          if (_detailsController.text
+              .trim()
+              .isNotEmpty)
+            _infoRow(
+              'توضیحات',
+              _detailsController.text,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(
+      String title,
+      String value,
+      ) {
+    return Padding(
+      padding:
+      const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 105,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty
+                  ? '-'
+                  : value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
   // Build
   // =========================================================
 
   @override
   Widget build(BuildContext context) {
+    String appBarTitle;
+
+    if (_isAddingNew) {
+      appBarTitle =
+      'افزودن مستاجر جدید';
+    } else if (_isEditing) {
+      appBarTitle =
+      'ویرایش مستاجر';
+    } else {
+      appBarTitle =
+      'مدیریت مستاجر';
+    }
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor:
         const Color(0xffF7F9FA),
-
         appBar: AppBar(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
+          backgroundColor:
+          primaryColor,
+          foregroundColor:
+          Colors.white,
           elevation: 0,
           centerTitle: true,
           title: Text(
-            _hasRenter
-                ? 'مدیریت مستاجر'
-                : 'افزودن مستاجر',
+            appBarTitle,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-
         body: _isLoading
             ? const Center(
           child:
@@ -682,7 +1164,7 @@ class _ManagerUnitRenterScreenState
   }
 
   // =========================================================
-  // Error view
+  // Error
   // =========================================================
 
   Widget _buildError() {
@@ -699,16 +1181,13 @@ class _ManagerUnitRenterScreenState
               size: 60,
               color: Colors.red,
             ),
-
             const SizedBox(height: 15),
-
             Text(
               _errorMessage!,
-              textAlign: TextAlign.center,
+              textAlign:
+              TextAlign.center,
             ),
-
             const SizedBox(height: 15),
-
             FilledButton.icon(
               style:
               FilledButton.styleFrom(
@@ -716,12 +1195,10 @@ class _ManagerUnitRenterScreenState
                 primaryColor,
               ),
               onPressed: _loadUnit,
-              icon: const Icon(
-                Icons.refresh,
-              ),
-              label: const Text(
-                'تلاش مجدد',
-              ),
+              icon:
+              const Icon(Icons.refresh),
+              label:
+              const Text('تلاش مجدد'),
             ),
           ],
         ),
@@ -734,6 +1211,165 @@ class _ManagerUnitRenterScreenState
   // =========================================================
 
   Widget _buildForm() {
+    // =======================================================
+    // نمایش مستاجر فعلی
+    // =======================================================
+
+    if (_hasRenter &&
+        !_isAddingNew &&
+        !_isEditing) {
+      return ListView(
+        padding:
+        const EdgeInsets.all(14),
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 18),
+          _buildCurrentRenterInfo(),
+          const SizedBox(height: 14),
+
+          // -------------------------------------------------
+          // ویرایش
+          // -------------------------------------------------
+
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              style:
+              FilledButton.styleFrom(
+                backgroundColor:
+                primaryColor,
+                foregroundColor:
+                Colors.white,
+                shape:
+                RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(
+                    12,
+                  ),
+                ),
+              ),
+              onPressed:
+              _startEditRenter,
+              icon: const Icon(
+                Icons.edit_outlined,
+              ),
+              label: const Text(
+                'ویرایش اطلاعات مستاجر',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // -------------------------------------------------
+          // افزودن مستاجر جدید
+          // -------------------------------------------------
+
+          SizedBox(
+            height: 52,
+            child:
+            OutlinedButton.icon(
+              style:
+              OutlinedButton.styleFrom(
+                foregroundColor:
+                primaryColor,
+                side:
+                const BorderSide(
+                  color: primaryColor,
+                ),
+                shape:
+                RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(
+                    12,
+                  ),
+                ),
+              ),
+              onPressed:
+              _startAddNewRenter,
+              icon: const Icon(
+                Icons.person_add_alt_1,
+              ),
+              label: const Text(
+                'افزودن مستاجر جدید',
+                style: TextStyle(
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // -------------------------------------------------
+          // غیرفعال کردن
+          // -------------------------------------------------
+
+          SizedBox(
+            height: 50,
+            child:
+            OutlinedButton.icon(
+              style:
+              OutlinedButton.styleFrom(
+                foregroundColor:
+                Colors.red,
+                side:
+                const BorderSide(
+                  color: Colors.red,
+                ),
+                shape:
+                RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(
+                    12,
+                  ),
+                ),
+              ),
+              onPressed:
+              _isDeleting
+                  ? null
+                  : _deleteRenter,
+              icon: _isDeleting
+                  ? const SizedBox(
+                width: 19,
+                height: 19,
+                child:
+                CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.red,
+                ),
+              )
+                  : const Icon(
+                Icons
+                    .delete_outline,
+              ),
+              label: const Text(
+                'غیرفعال کردن مستاجر',
+                style: TextStyle(
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+        ],
+      );
+    }
+
+    // =======================================================
+    // فرم ویرایش / افزودن
+    // =======================================================
+
+    final isEdit = _isEditing;
+
     return Form(
       key: _formKey,
       child: ListView(
@@ -744,9 +1380,100 @@ class _ManagerUnitRenterScreenState
 
           const SizedBox(height: 20),
 
-          const Text(
-            'اطلاعات مستاجر',
-            style: TextStyle(
+          // -------------------------------------------------
+          // پیام ویرایش
+          // -------------------------------------------------
+
+          if (isEdit)
+            Container(
+              padding:
+              const EdgeInsets.all(12),
+              margin:
+              const EdgeInsets.only(
+                bottom: 15,
+              ),
+              decoration:
+              BoxDecoration(
+                color: primaryColor
+                    .withOpacity(0.08),
+                borderRadius:
+                BorderRadius.circular(
+                  12,
+                ),
+                border: Border.all(
+                  color: primaryColor
+                      .withOpacity(0.25),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.edit_outlined,
+                    color: primaryColor,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'اطلاعات مستاجر فعلی را ویرایش می‌کنید. با ذخیره، همان رکورد مستاجر به‌روزرسانی می‌شود و سابقه سکونت جدیدی ایجاد نمی‌شود.',
+                      style: TextStyle(
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // -------------------------------------------------
+          // پیام افزودن مستاجر جدید
+          // -------------------------------------------------
+
+          if (_hasRenter &&
+              _isAddingNew)
+            Container(
+              padding:
+              const EdgeInsets.all(12),
+              margin:
+              const EdgeInsets.only(
+                bottom: 15,
+              ),
+              decoration:
+              BoxDecoration(
+                color: Colors.orange
+                    .withOpacity(0.10),
+                borderRadius:
+                BorderRadius.circular(
+                  12,
+                ),
+                border: Border.all(
+                  color: Colors.orange
+                      .withOpacity(0.35),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.orange,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'با ثبت مستاجر جدید، مستاجر فعلی غیرفعال شده و سابقه سکونت او حفظ می‌شود.',
+                      style: TextStyle(
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          Text(
+            isEdit
+                ? 'ویرایش اطلاعات مستاجر'
+                : 'اطلاعات مستاجر جدید',
+            style: const TextStyle(
               fontSize: 16,
               fontWeight:
               FontWeight.bold,
@@ -754,10 +1481,6 @@ class _ManagerUnitRenterScreenState
           ),
 
           const SizedBox(height: 12),
-
-          // ---------------------------------------------------
-          // Name
-          // ---------------------------------------------------
 
           _textField(
             controller:
@@ -777,10 +1500,6 @@ class _ManagerUnitRenterScreenState
               return null;
             },
           ),
-
-          // ---------------------------------------------------
-          // Mobile
-          // ---------------------------------------------------
 
           _textField(
             controller:
@@ -805,17 +1524,15 @@ class _ManagerUnitRenterScreenState
               );
 
               if (mobile.length != 11 ||
-                  !mobile.startsWith('09')) {
+                  !mobile.startsWith(
+                    '09',
+                  )) {
                 return 'شماره موبایل معتبر نیست';
               }
 
               return null;
             },
           ),
-
-          // ---------------------------------------------------
-          // National code
-          // ---------------------------------------------------
 
           _textField(
             controller:
@@ -827,10 +1544,6 @@ class _ManagerUnitRenterScreenState
             keyboardType:
             TextInputType.number,
           ),
-
-          // ---------------------------------------------------
-          // People count
-          // ---------------------------------------------------
 
           _textField(
             controller:
@@ -876,10 +1589,6 @@ class _ManagerUnitRenterScreenState
 
           const SizedBox(height: 10),
 
-          // ---------------------------------------------------
-          // Start date
-          // ---------------------------------------------------
-
           _textField(
             controller:
             _startDateController,
@@ -899,10 +1608,6 @@ class _ManagerUnitRenterScreenState
             },
           ),
 
-          // ---------------------------------------------------
-          // End date
-          // ---------------------------------------------------
-
           _textField(
             controller:
             _endDateController,
@@ -914,10 +1619,6 @@ class _ManagerUnitRenterScreenState
             'مثلاً 1406-01-01',
           ),
 
-          // ---------------------------------------------------
-          // Contract number
-          // ---------------------------------------------------
-
           _textField(
             controller:
             _contractNumberController,
@@ -927,10 +1628,6 @@ class _ManagerUnitRenterScreenState
             Icons.description_outlined,
           ),
 
-          // ---------------------------------------------------
-          // Estate
-          // ---------------------------------------------------
-
           _textField(
             controller:
             _estateNameController,
@@ -939,10 +1636,6 @@ class _ManagerUnitRenterScreenState
             icon:
             Icons.business_outlined,
           ),
-
-          // ---------------------------------------------------
-          // Details
-          // ---------------------------------------------------
 
           _textField(
             controller:
@@ -958,14 +1651,13 @@ class _ManagerUnitRenterScreenState
 
           const SizedBox(height: 8),
 
-          // ===================================================
-          // Save button
-          // ===================================================
+          // -------------------------------------------------
+          // Save
+          // -------------------------------------------------
 
           SizedBox(
             height: 52,
-            child:
-            FilledButton.icon(
+            child: FilledButton.icon(
               style:
               FilledButton.styleFrom(
                 backgroundColor:
@@ -997,18 +1689,17 @@ class _ManagerUnitRenterScreenState
                 ),
               )
                   : Icon(
-                _hasRenter
+                isEdit
                     ? Icons
                     .save_outlined
                     : Icons
                     .person_add_outlined,
               ),
               label: Text(
-                _hasRenter
+                isEdit
                     ? 'ذخیره تغییرات'
-                    : 'ثبت مستاجر',
-                style:
-                const TextStyle(
+                    : 'ثبت مستاجر جدید',
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight:
                   FontWeight.bold,
@@ -1017,64 +1708,22 @@ class _ManagerUnitRenterScreenState
             ),
           ),
 
-          // ===================================================
-          // Delete button
-          // ===================================================
+          const SizedBox(height: 10),
 
-          if (_hasRenter) ...[
-            const SizedBox(height: 10),
+          // -------------------------------------------------
+          // Cancel
+          // -------------------------------------------------
 
-            SizedBox(
-              height: 50,
-              child:
-              OutlinedButton.icon(
-                style:
-                OutlinedButton.styleFrom(
-                  foregroundColor:
-                  Colors.red,
-                  side:
-                  const BorderSide(
-                    color: Colors.red,
-                  ),
-                  shape:
-                  RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                ),
-                onPressed:
-                _isSaving ||
-                    _isDeleting
-                    ? null
-                    : _deleteRenter,
-                icon: _isDeleting
-                    ? const SizedBox(
-                  width: 19,
-                  height: 19,
-                  child:
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.red,
-                  ),
-                )
-                    : const Icon(
-                  Icons
-                      .delete_outline,
-                ),
-                label:
-                const Text(
-                  'حذف مستاجر',
-                  style:
-                  TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          OutlinedButton(
+            onPressed:
+            _isSaving
+                ? null
+                : isEdit
+                ? _cancelEdit
+                : _cancelAdd,
+            child:
+            const Text('انصراف'),
+          ),
 
           const SizedBox(height: 30),
         ],
