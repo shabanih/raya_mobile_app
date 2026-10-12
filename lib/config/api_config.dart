@@ -298,5 +298,11 @@ class ApiConfig {
       ) =>
       '$baseUrl/manager/units/$unitId/renters/$renterId/';
 
+  static const String managerCharges =
+      '${baseUrl}/manager/charges/';
+
+  static const String managerFixedCharges =
+      '$baseUrl/manager/charges/fixed/';
+
   
 }

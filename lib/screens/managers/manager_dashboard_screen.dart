@@ -22,6 +22,8 @@ import 'manager_polls_screen.dart';
 import 'manager_support_tickets_screen.dart';
 import 'manager_admin_support_tickets_screen.dart';
 import 'manager_units_screen.dart';
+import 'manager_charges_screen.dart';
+
 
 // =====================================================
 // صفحه اصلی مدیران
@@ -1133,11 +1135,16 @@ color:
 const Color(
 0xff00ACC1,
 ),
-onTap: () {
-_showComingSoon(
-'مدیریت شارژها',
-);
-},
+
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ManagerChargesScreen(),
+      ),
+    );
+  },
+
 ),
 ),
 ],
