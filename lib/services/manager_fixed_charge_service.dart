@@ -9,50 +9,82 @@ import 'api_service.dart';
 class ManagerFixedChargeService {
   final ApiService _api = ApiService();
 
-  // =====================================================
+  String get _baseUrl => ApiConfig.managerFixedCharges;
+
+  // ==================================================
   // تبدیل پاسخ JSON به Map
-  // =====================================================
+  // ==================================================
+  Map<String, dynamic> _decodeMap(dynamic response) {
+    dynamic data = _decodeBody(response);
 
-  Map<String, dynamic> _decodeMap(String body) {
-    final decoded = jsonDecode(body);
-
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+    if (data is Map<String, dynamic>) {
+      return data;
     }
 
-    throw Exception('پاسخ سرور معتبر نیست.');
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return <String, dynamic>{};
   }
 
-  // =====================================================
-  // استخراج پیام خطای سرور
-  // =====================================================
+  dynamic _decodeBody(dynamic response) {
+    if (response == null) return null;
 
-  String _errorMessage(
-      int statusCode,
-      String body,
-      ) {
+    // پاسخ معمول http.Response
     try {
-      final data = _decodeMap(body);
+      final dynamic body = response.body;
 
-      final detail = data['detail']?.toString();
-      if (detail != null && detail.isNotEmpty) {
-        return detail;
+      if (body is String) {
+        if (body.trim().isEmpty) return <String, dynamic>{};
+        return jsonDecode(body);
       }
 
-      final message = data['message']?.toString();
-      if (message != null && message.isNotEmpty) {
-        return message;
+      if (body != null) return body;
+    } catch (_) {
+      // ممکن است پاسخ از قبل Map یا List باشد.
+    }
+
+    if (response is String) {
+      if (response.trim().isEmpty) return <String, dynamic>{};
+      return jsonDecode(response);
+    }
+
+    return response;
+  }
+
+  bool _isSuccess(dynamic response) {
+    try {
+      final int code = response.statusCode as int;
+      return code >= 200 && code < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _errorMessage(
+      dynamic response, {
+        String fallback = 'خطا در انجام عملیات',
+      }) {
+    try {
+      final data = _decodeMap(response);
+
+      final detail = data['detail'] ??
+          data['message'] ??
+          data['error'];
+
+      if (detail != null && detail.toString().trim().isNotEmpty) {
+        return detail.toString();
       }
 
       final errors = data['errors'];
+
       if (errors is Map) {
         final messages = <String>[];
 
         errors.forEach((key, value) {
           if (value is List) {
-            messages.addAll(
-              value.map((item) => item.toString()),
-            );
+            messages.addAll(value.map((item) => item.toString()));
           } else {
             messages.add(value.toString());
           }
@@ -62,207 +94,282 @@ class ManagerFixedChargeService {
           return messages.join('\n');
         }
       }
-    } catch (_) {}
-
-    switch (statusCode) {
-      case 400:
-        return 'اطلاعات ارسالی صحیح نیست.';
-      case 401:
-        return 'نشست شما منقضی شده است؛ دوباره وارد شوید.';
-      case 403:
-        return 'شما اجازه انجام این عملیات را ندارید.';
-      case 404:
-        return 'شارژ موردنظر پیدا نشد.';
-      case 409:
-        return 'این شارژ به دلیل وضعیت مالی یا ارسال اطلاعیه قابل تغییر نیست.';
-      default:
-        return 'خطای سرور: $statusCode';
+    } catch (_) {
+      // استفاده از پیام پیش‌فرض
     }
+
+    return fallback;
   }
 
   Never _throwResponseError(
-      int statusCode,
-      String body,
-      ) {
-    final message = _errorMessage(statusCode, body);
-
-    debugPrint('FIXED CHARGE ERROR: $statusCode');
-    debugPrint('FIXED CHARGE ERROR BODY: $body');
-
-    throw Exception(message);
+      dynamic response, {
+        String fallback = 'خطا در انجام عملیات',
+      }) {
+    throw Exception(
+      _errorMessage(response, fallback: fallback),
+    );
   }
 
-  // =====================================================
-  // دریافت فهرست شارژهای واحدی
-  // GET /api/manager/charges/fixed/
-  // =====================================================
+  List<Map<String, dynamic>> _decodeList(
+      dynamic response, {
+        List<String> keys = const ['results', 'data', 'items'],
+      }) {
+    final dynamic data = _decodeBody(response);
+    dynamic items;
 
-  Future<List<Map<String, dynamic>>> getCharges() async {
-    final response = await _api.get(
-      ApiConfig.managerFixedCharges,
-    );
-
-    debugPrint('FIXED CHARGES STATUS: ${response.statusCode}');
-
-    if (response.statusCode != 200) {
-      _throwResponseError(
-        response.statusCode,
-        response.body,
-      );
+    if (data is List) {
+      items = data;
+    } else if (data is Map) {
+      for (final key in keys) {
+        if (data[key] is List) {
+          items = data[key];
+          break;
+        }
+      }
     }
 
-    final data = _decodeMap(response.body);
-    final results = data['results'];
-
-    if (results is! List) {
-      throw Exception('ساختار فهرست شارژهای واحدی معتبر نیست.');
+    if (items is! List) {
+      return <Map<String, dynamic>>[];
     }
 
-    return results
+    return items
         .whereType<Map>()
-        .map(
-          (item) => Map<String, dynamic>.from(item),
-    )
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 
-  // =====================================================
-  // دریافت جزئیات یک شارژ
-  // GET /api/manager/charges/fixed/{id}/
-  // =====================================================
+  // ==================================================
+  // دریافت فهرست شارژهای ثابت
+  // GET /manager/charges/fixed/
+  // ==================================================
+  Future<List<Map<String, dynamic>>> getCharges() async {
+    final response = await _api.get(_baseUrl);
 
-  Future<Map<String, dynamic>> getCharge(int id) async {
-    final response = await _api.get(
-      '${ApiConfig.managerFixedCharges}$id/',
-    );
-
-    if (response.statusCode != 200) {
+    if (!_isSuccess(response)) {
       _throwResponseError(
-        response.statusCode,
-        response.body,
+        response,
+        fallback: 'دریافت فهرست شارژهای ثابت ناموفق بود',
       );
     }
 
-    final data = _decodeMap(response.body);
+    final result = _decodeList(
+      response,
+      keys: const ['results', 'charges', 'data', 'items'],
+    );
 
-    // API فعلی جزئیات را مستقیماً برمی‌گرداند.
-    // پشتیبانی از پاسخ دارای کلید charge نیز اضافه شده است.
-    final charge = data['charge'];
+    debugPrint('FIXED CHARGES COUNT: ${result.length}');
 
-    if (charge is Map) {
-      return Map<String, dynamic>.from(charge);
+    return result;
+  }
+
+  // ==================================================
+  // دریافت جزئیات یک شارژ
+  // GET /manager/charges/fixed/{id}/
+  // ==================================================
+  Future<Map<String, dynamic>> getCharge(int id) async {
+    final response = await _api.get('$_baseUrl$id/');
+
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'دریافت اطلاعات شارژ ناموفق بود',
+      );
+    }
+
+    final data = _decodeMap(response);
+
+    if (data['charge'] is Map) {
+      return Map<String, dynamic>.from(data['charge'] as Map);
     }
 
     return data;
   }
 
-  // =====================================================
-  // افزودن شارژ واحدی
-  // POST /api/manager/charges/fixed/
-  // =====================================================
-
+  // ==================================================
+  // ایجاد شارژ ثابت
+  // ==================================================
   Future<Map<String, dynamic>> createCharge({
     required String name,
-    required int fixAmount,
+    required dynamic fixAmount,
     required String paymentDeadline,
-    int otherCostAmount = 0,
-    int paymentPenaltyAmount = 0,
+    dynamic otherCostAmount = 0,
+    dynamic paymentPenaltyAmount = 0,
     String details = '',
   }) async {
     final response = await _api.post(
-      ApiConfig.managerFixedCharges,
-      body: {
-        'name': name.trim(),
+      _baseUrl,
+      body: <String, dynamic>{
+        'name': name,
         'fix_amount': fixAmount,
         'payment_deadline': paymentDeadline,
         'other_cost_amount': otherCostAmount,
         'payment_penalty_amount': paymentPenaltyAmount,
-        'details': details.trim(),
+        'details': details,
       },
     );
 
-    if (response.statusCode != 200 &&
-        response.statusCode != 201) {
+    if (!_isSuccess(response)) {
       _throwResponseError(
-        response.statusCode,
-        response.body,
+        response,
+        fallback: 'ایجاد شارژ ثابت ناموفق بود',
       );
     }
 
-    final data = _decodeMap(response.body);
-    final charge = data['charge'];
+    final data = _decodeMap(response);
 
-    if (charge is Map) {
-      return Map<String, dynamic>.from(charge);
+    if (data['charge'] is Map) {
+      return Map<String, dynamic>.from(data['charge'] as Map);
     }
 
     return data;
   }
 
-  // =====================================================
-  // ویرایش شارژ واحدی
-  // PATCH /api/manager/charges/fixed/{id}/
-  // =====================================================
-
-  Future<Map<String, dynamic>> updateCharge({
-    required int id,
-    required String name,
-    required int fixAmount,
-    required String paymentDeadline,
-    int otherCostAmount = 0,
-    int paymentPenaltyAmount = 0,
-    String details = '',
-  }) async {
+  // ==================================================
+  // ویرایش شارژ ثابت
+  // توجه: شناسه شارژ باید آرگومان اول باشد.
+  // ==================================================
+  Future<Map<String, dynamic>> updateCharge(
+      int id, {
+        required String name,
+        required dynamic fixAmount,
+        required String paymentDeadline,
+        dynamic otherCostAmount = 0,
+        dynamic paymentPenaltyAmount = 0,
+        String details = '',
+      }) async {
     final response = await _api.patch(
-      '${ApiConfig.managerFixedCharges}$id/',
-      body: {
-        'name': name.trim(),
+      '$_baseUrl$id/',
+      body: <String, dynamic>{
+        'name': name,
         'fix_amount': fixAmount,
         'payment_deadline': paymentDeadline,
         'other_cost_amount': otherCostAmount,
         'payment_penalty_amount': paymentPenaltyAmount,
-        'details': details.trim(),
+        'details': details,
       },
     );
 
-    if (response.statusCode != 200 &&
-        response.statusCode != 201) {
+    if (!_isSuccess(response)) {
       _throwResponseError(
-        response.statusCode,
-        response.body,
+        response,
+        fallback: 'ویرایش شارژ ثابت ناموفق بود',
       );
     }
 
-    final data = _decodeMap(response.body);
-    final charge = data['charge'];
+    final data = _decodeMap(response);
 
-    if (charge is Map) {
-      return Map<String, dynamic>.from(charge);
+    if (data['charge'] is Map) {
+      return Map<String, dynamic>.from(data['charge'] as Map);
     }
 
     return data;
   }
 
-  // =====================================================
-  // حذف شارژ واحدی
-  // DELETE /api/manager/charges/fixed/{id}/
-  // =====================================================
-
+  // ==================================================
+  // حذف شارژ ثابت
+  // ==================================================
   Future<void> deleteCharge(int id) async {
-    final response = await _api.delete(
-      '${ApiConfig.managerFixedCharges}$id/',
+    final response = await _api.delete('$_baseUrl$id/');
+
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'حذف شارژ ثابت ناموفق بود',
+      );
+    }
+  }
+
+  // ==================================================
+  // دریافت واحدهای مربوط به یک شارژ
+  // GET /manager/charges/fixed/{id}/units/
+  // ==================================================
+  Future<List<Map<String, dynamic>>> getChargeUnits(
+      int chargeId,
+      ) async {
+    final response = await _api.get(
+      '$_baseUrl$chargeId/units/',
     );
 
-    if (response.statusCode == 200 ||
-        response.statusCode == 202 ||
-        response.statusCode == 204) {
-      return;
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'دریافت وضعیت واحدها ناموفق بود',
+      );
     }
 
-    // خطای 409 با پیام دقیق سرور به صفحه منتقل می‌شود.
-    _throwResponseError(
-      response.statusCode,
-      response.body,
+    final result = _decodeList(
+      response,
+      keys: const ['results', 'units', 'data', 'items'],
     );
+
+    debugPrint('FIXED CHARGE UNITS COUNT: ${result.length}');
+
+    return result;
+  }
+
+  // ==================================================
+  // ارسال شارژ به واحدهای انتخاب‌شده
+  // POST /manager/charges/fixed/{id}/units/send/
+  //
+  // sendSms=false : فقط ارسال سیستمی
+  // sendSms=true  : ارسال سیستمی و پیامکی
+  // ==================================================
+  Future<Map<String, dynamic>> sendChargeToUnits(
+      int chargeId,
+      List<int> unitIds, {
+        bool sendSms = false,
+      }) async {
+    if (unitIds.isEmpty) {
+      throw Exception('حداقل یک واحد را انتخاب کنید.');
+    }
+
+    final response = await _api.post(
+      '$_baseUrl$chargeId/units/send/',
+      body: <String, dynamic>{
+        'unit_ids': unitIds,
+        'send_sms': sendSms,
+      },
+    );
+
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'ارسال شارژ به واحدها ناموفق بود',
+      );
+    }
+
+    final data = _decodeMap(response);
+
+    debugPrint('FIXED CHARGE SEND RESPONSE: $data');
+
+    return data;
+  }
+
+  // ==================================================
+  // لغو شارژ برای واحدهای انتخاب‌شده
+  // ==================================================
+  Future<Map<String, dynamic>> cancelChargeForUnits(
+      int chargeId,
+      List<int> unitIds,
+      ) async {
+    if (unitIds.isEmpty) {
+      throw Exception('حداقل یک واحد را انتخاب کنید.');
+    }
+
+    final response = await _api.post(
+      '$_baseUrl$chargeId/units/cancel/',
+      body: <String, dynamic>{
+        'unit_ids': unitIds,
+      },
+    );
+
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'لغو شارژ برای واحدها ناموفق بود',
+      );
+    }
+
+    return _decodeMap(response);
   }
 }
