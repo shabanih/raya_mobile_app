@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../services/manager_unit_service.dart';
@@ -21,70 +22,46 @@ class _ManagerUnitDetailScreenState
     extends State<ManagerUnitDetailScreen> {
   static const Color primaryColor = Color(0xff00ACC1);
   static const Color unitColor = Color(0xff610DB5);
+  static const Color backgroundColor = Color(0xffF7F9FA);
 
   final ManagerUnitService _unitService = ManagerUnitService();
-
-  final GlobalKey<FormState> _editFormKey =
-  GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   Map<String, dynamic>? _unit;
 
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isEditingUnit = false;
+  bool _isEditing = false;
+  bool _isChangingStatus = false;
 
   String? _errorMessage;
 
-  // =========================================================
-  // Unit edit controllers
-  // =========================================================
-
   final TextEditingController _unitNumberController =
   TextEditingController();
-
   final TextEditingController _floorController =
   TextEditingController();
-
   final TextEditingController _areaController =
   TextEditingController();
-
   final TextEditingController _bedroomsController =
   TextEditingController();
-
   final TextEditingController _parkingNumberController =
   TextEditingController();
-
   final TextEditingController _parkingPlaceController =
   TextEditingController();
-
   final TextEditingController _extraParkingFirstController =
   TextEditingController();
-
   final TextEditingController _extraParkingSecondController =
   TextEditingController();
-
   final TextEditingController _unitPhoneController =
   TextEditingController();
-
-  final TextEditingController _peopleCountController =
+  final TextEditingController _detailsController =
   TextEditingController();
-
-  final TextEditingController _unitDetailsController =
-  TextEditingController();
-
-  // =========================================================
-  // Init
-  // =========================================================
 
   @override
   void initState() {
     super.initState();
     _loadUnit();
   }
-
-  // =========================================================
-  // Dispose
-  // =========================================================
 
   @override
   void dispose() {
@@ -97,36 +74,33 @@ class _ManagerUnitDetailScreenState
     _extraParkingFirstController.dispose();
     _extraParkingSecondController.dispose();
     _unitPhoneController.dispose();
-    _peopleCountController.dispose();
-    _unitDetailsController.dispose();
-
+    _detailsController.dispose();
     super.dispose();
   }
 
   // =========================================================
-  // Load
+  // Load unit
   // =========================================================
 
   Future<void> _loadUnit() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
-      final unit = await _unitService.getUnit(widget.unitId);
+      final result = await _unitService.getUnit(widget.unitId);
 
       if (!mounted) return;
 
-      _unit = unit;
-
-      _fillUnitEditForm();
+      _unit = _extractUnit(result);
+      _fillForm();
 
       setState(() {
         _isLoading = false;
-        _isEditingUnit = false;
+        _isEditing = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -138,210 +112,258 @@ class _ManagerUnitDetailScreenState
     }
   }
 
-  // =========================================================
-  // Fill edit form
-  // =========================================================
+  Map<String, dynamic>? _extractUnit(dynamic result) {
+    if (result is! Map) return null;
 
-  void _fillUnitEditForm() {
-    if (_unit == null) return;
+    final map = Map<String, dynamic>.from(result);
 
-    _unitNumberController.text = _toPersianDigits(
-      _rawValue([
-        'unit_number',
-        'unit',
-        'number',
-      ]),
-    );
+    // اگر پاسخ API شامل یک شیء داخلی به نام unit باشد
+    final nestedUnit = map['unit'];
+    if (nestedUnit is Map) {
+      return Map<String, dynamic>.from(nestedUnit);
+    }
 
-    _floorController.text = _toPersianDigits(
-      _rawValue([
-        'floor_number',
-        'floor',
-        'floor_name',
-      ]),
-    );
+    // اگر پاسخ به صورت data ارسال شده باشد
+    final data = map['data'];
+    if (data is Map) {
+      final nestedDataUnit = data['unit'];
+      if (nestedDataUnit is Map) {
+        return Map<String, dynamic>.from(nestedDataUnit);
+      }
+      return Map<String, dynamic>.from(data);
+    }
 
-    _areaController.text = _toPersianDigits(
-      _rawValue([
-        'area',
-        'unit_area',
-        'square_meter',
-      ]),
-    );
+    final resultData = map['result'];
+    if (resultData is Map) {
+      return Map<String, dynamic>.from(resultData);
+    }
 
-    _bedroomsController.text = _toPersianDigits(
-      _rawValue([
-        'bedrooms_count',
-        'bedrooms',
-        'room_count',
-      ]),
-    );
-
-    _parkingNumberController.text = _toPersianDigits(
-      _rawValue([
-        'parking_number',
-      ]),
-    );
-
-    _parkingPlaceController.text = _rawValue([
-      'parking_place',
-    ]);
-
-    _extraParkingFirstController.text = _rawValue([
-      'extra_parking_first',
-    ]);
-
-    _extraParkingSecondController.text = _rawValue([
-      'extra_parking_second',
-    ]);
-
-    _unitPhoneController.text = _toPersianDigits(
-      _rawValue([
-        'unit_phone',
-        'phone',
-      ]),
-    );
-
-    _peopleCountController.text = _toPersianDigits(
-      _rawValue([
-        'people_count',
-      ]),
-    );
-
-    _unitDetailsController.text = _rawValue([
-      'unit_details',
-      'details',
-      'description',
-    ]);
+    return map;
   }
 
   // =========================================================
-  // Raw value
+  // Form
   // =========================================================
 
-  String _rawValue(List<String> keys) {
-    if (_unit == null) {
-      return '';
-    }
+  void _fillForm() {
+    final unit = _unit;
+    if (unit == null) return;
 
+    _unitNumberController.text = _toPersianDigits(
+      _firstValue(unit, ['unit', 'unit_number', 'number']),
+    );
+
+    _floorController.text = _toPersianDigits(
+      _firstValue(unit, ['floor_number', 'floor']),
+    );
+
+    _areaController.text = _toPersianDigits(
+      _firstValue(unit, ['area', 'unit_area']),
+    );
+
+    _bedroomsController.text = _toPersianDigits(
+      _firstValue(unit, ['bedrooms_count', 'bedrooms']),
+    );
+
+    _parkingNumberController.text = _toPersianDigits(
+      _firstValue(unit, ['parking_number']),
+    );
+
+    _parkingPlaceController.text =
+        _firstValue(unit, ['parking_place']);
+
+    _extraParkingFirstController.text =
+        _firstValue(unit, ['extra_parking_first']);
+
+    _extraParkingSecondController.text =
+        _firstValue(unit, ['extra_parking_second']);
+
+    _unitPhoneController.text = _toPersianDigits(
+      _firstValue(unit, ['unit_phone']),
+    );
+
+    _detailsController.text =
+        _firstValue(unit, ['unit_details', 'details']);
+  }
+
+  String _firstValue(
+      Map<String, dynamic> map,
+      List<String> keys, {
+        String fallback = '',
+      }) {
     for (final key in keys) {
-      final value = _unit![key];
+      final value = map[key];
 
-      if (value == null) {
-        continue;
-      }
-
-      if (value is Map) {
+      if (value == null || value is Map || value is List) {
         continue;
       }
 
       final text = value.toString().trim();
-
-      if (text.isNotEmpty && text != '-') {
+      if (text.isNotEmpty && text != 'null') {
         return text;
       }
     }
 
-    return '';
+    return fallback;
   }
 
-  // =========================================================
-  // Start edit unit
-  // =========================================================
+  String _normalizeDigits(String value) {
+    const persian = '۰۱۲۳۴۵۶۷۸۹';
+    const arabic = '٠١٢٣٤٥٦٧٨٩';
 
-  void _startEditUnit() {
-    _fillUnitEditForm();
+    var result = value;
+
+    for (var i = 0; i < 10; i++) {
+      result = result.replaceAll(persian[i], '$i');
+      result = result.replaceAll(arabic[i], '$i');
+    }
+
+    return result;
+  }
+
+  String _toPersianDigits(dynamic value) {
+    if (value == null) return '';
+
+    var result = value.toString();
+    const persian = '۰۱۲۳۴۵۶۷۸۹';
+
+    for (var i = 0; i < 10; i++) {
+      result = result.replaceAll('$i', persian[i]);
+    }
+
+    return result;
+  }
+
+  void _startEditing() {
+    _fillForm();
 
     setState(() {
-      _isEditingUnit = true;
+      _isEditing = true;
       _errorMessage = null;
     });
   }
 
-  // =========================================================
-  // Cancel edit
-  // =========================================================
-
-  void _cancelEditUnit() {
-    _fillUnitEditForm();
+  void _cancelEditing() {
+    _fillForm();
 
     setState(() {
-      _isEditingUnit = false;
+      _isEditing = false;
     });
   }
-
   // =========================================================
-  // Normalize digits
-  // =========================================================
+  // DeActive or Active unit
+  // ========================================================
 
-  String _normalizeDigits(String value) {
-    return value
-        .replaceAll('۰', '0')
-        .replaceAll('۱', '1')
-        .replaceAll('۲', '2')
-        .replaceAll('۳', '3')
-        .replaceAll('۴', '4')
-        .replaceAll('۵', '5')
-        .replaceAll('۶', '6')
-        .replaceAll('۷', '7')
-        .replaceAll('۸', '8')
-        .replaceAll('۹', '9');
-  }
+  Future<void> _changeUnitStatus() async {
+    if (_isChangingStatus || _unit == null) return;
 
-  // =========================================================
-  // Persian digits
-  // =========================================================
+    final newStatus = !_unitIsActive();
 
-  String _toPersianDigits(dynamic value) {
-    if (value == null) {
-      return '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          newStatus ? 'فعال‌سازی واحد' : 'غیرفعال کردن واحد',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('تأیید'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _unit!['is_active'] = newStatus;
+    });
+
+    try {
+      await _unitService.updateUnitStatus(
+        widget.unitId,
+        newStatus,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _unit!['is_active'] = newStatus;
+      });
+
+      _showMessage(
+        newStatus
+            ? 'واحد با موفقیت فعال شد.'
+            : 'واحد با موفقیت غیرفعال شد.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage(
+        _cleanError(e),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isChangingStatus = false);
+      }
     }
-
-    return value
-        .toString()
-        .replaceAll('0', '۰')
-        .replaceAll('1', '۱')
-        .replaceAll('2', '۲')
-        .replaceAll('3', '۳')
-        .replaceAll('4', '۴')
-        .replaceAll('5', '۵')
-        .replaceAll('6', '۶')
-        .replaceAll('7', '۷')
-        .replaceAll('8', '۸')
-        .replaceAll('9', '۹');
   }
+
 
   // =========================================================
   // Save unit
   // =========================================================
 
   Future<void> _saveUnit() async {
-    if (!_editFormKey.currentState!.validate()) {
+    if (_isSaving) return;
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    if (_isSaving) {
+    final unitNumber = int.tryParse(
+      _normalizeDigits(_unitNumberController.text.trim()),
+    );
+
+    if (unitNumber == null || unitNumber <= 0) {
+      _showMessage('شماره واحد معتبر نیست.', isError: true);
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    final areaText =
+    _normalizeDigits(_areaController.text.trim())
+        .replaceAll(',', '.');
+
+    final area = double.tryParse(areaText);
+
+    if (area == null || area <= 0) {
+      _showMessage('متراژ معتبر نیست.', isError: true);
+      return;
+    }
+
+    int? parseOptionalInt(String value) {
+      final text = _normalizeDigits(value.trim());
+      if (text.isEmpty) return null;
+      return int.tryParse(text);
+    }
+
+    setState(() => _isSaving = true);
 
     try {
+      // فقط فیلدهای خود واحد ارسال می‌شوند.
+      // مالک و مستأجر باید از APIهای مربوط به خودشان ویرایش شوند.
       final data = <String, dynamic>{
-        'unit_number': _normalizeDigits(
-          _unitNumberController.text.trim(),
-        ),
-        'floor_number': _normalizeDigits(
-          _floorController.text.trim(),
-        ),
-        'area': _normalizeDigits(
-          _areaController.text.trim(),
-        ),
-        'bedrooms_count': _normalizeDigits(
-          _bedroomsController.text.trim(),
-        ),
+        'unit': unitNumber,
+        'floor_number': parseOptionalInt(_floorController.text),
+        'area': areaText,
+        'bedrooms_count':
+        parseOptionalInt(_bedroomsController.text),
         'parking_number':
         _parkingNumberController.text.trim(),
         'parking_place':
@@ -353,864 +375,439 @@ class _ManagerUnitDetailScreenState
         'unit_phone': _normalizeDigits(
           _unitPhoneController.text.trim(),
         ),
-        'people_count': _normalizeDigits(
-          _peopleCountController.text.trim(),
-        ),
-        'unit_details':
-        _unitDetailsController.text.trim(),
+        'unit_details': _detailsController.text.trim(),
       };
 
-      await _unitService.updateUnit(
-        widget.unitId,
-        data,
-      );
+      await _unitService.updateUnit(widget.unitId, data);
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'اطلاعات واحد با موفقیت ویرایش شد.',
-          ),
-          backgroundColor: primaryColor,
-        ),
-      );
+      _showMessage('اطلاعات واحد با موفقیت ویرایش شد.');
 
       await _loadUnit();
     } catch (e) {
       if (!mounted) return;
-
-      _showError(e);
+      _showMessage(_cleanError(e), isError: true);
     } finally {
       if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
+        setState(() => _isSaving = false);
       }
     }
   }
 
   // =========================================================
-  // Error
+  // Errors
   // =========================================================
 
   String _cleanError(dynamic error) {
-    String message = error.toString();
+    var message = error.toString().trim();
 
     if (message.startsWith('Exception: ')) {
       message = message.substring('Exception: '.length);
     }
 
-    if (message.trim().isEmpty) {
-      return 'خطایی رخ داده است.';
-    }
-
-    return message;
+    return message.isEmpty ? 'خطایی رخ داده است.' : message;
   }
 
-  void _showError(dynamic error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _cleanError(error),
-          textAlign: TextAlign.right,
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            textAlign: TextAlign.right,
+          ),
+          backgroundColor: isError ? Colors.red : primaryColor,
         ),
-        backgroundColor: Colors.red,
-      ),
-    );
+      );
   }
 
   // =========================================================
-  // Boolean parser
+  // Unit values
   // =========================================================
 
-  bool _parseBool(
-      dynamic value, {
-        bool fallback = false,
+  String _unitNumber() {
+    final value = _firstValue(
+      _unit ?? {},
+      ['unit', 'unit_number', 'number'],
+      fallback: '-',
+    );
+
+    return _toPersianDigits(value);
+  }
+
+  String _unitField(
+      List<String> keys, {
+        String fallback = '-',
       }) {
-    if (value == null) {
-      return fallback;
-    }
+    return _firstValue(_unit ?? {}, keys, fallback: fallback);
+  }
 
-    if (value is bool) {
-      return value;
-    }
+  bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
 
-    if (value is num) {
-      return value != 0;
-    }
+    final text = _normalizeDigits(value.toString())
+        .toLowerCase()
+        .trim();
 
-    final text =
-    value.toString().toLowerCase().trim();
-
-    if (text == 'true' ||
-        text == '1' ||
-        text == 'active' ||
-        text == 'فعال' ||
-        text == 'yes') {
+    if (['true', '1', 'yes', 'active', 'فعال'].contains(text)) {
       return true;
     }
 
-    if (text == 'false' ||
-        text == '0' ||
-        text == 'inactive' ||
-        text == 'غیرفعال' ||
-        text == 'no') {
+    if ([
+      'false',
+      '0',
+      'no',
+      'inactive',
+      'غیرفعال',
+    ].contains(text)) {
       return false;
     }
 
     return fallback;
   }
 
-  // =========================================================
-  // Helpers
-  // =========================================================
 
-  String _value(
-      List<String> keys, {
-        String defaultValue = '-',
-      }) {
-    if (_unit == null) {
-      return defaultValue;
-    }
-
-    for (final key in keys) {
-      final value = _unit![key];
-
-      if (value == null) {
-        continue;
-      }
-
-      if (value is Map) {
-        continue;
-      }
-
-      if (value.toString().trim().isNotEmpty) {
-        return value.toString();
-      }
-    }
-
-    return defaultValue;
-  }
-
-  // =========================================================
-  // Unit information
-  // =========================================================
-
-  String _unitNumber() {
-    if (_unit == null) {
-      return '-';
-    }
-
-    final candidates = [
-      _unit!['unit_number'],
-      _unit!['unit'],
-      _unit!['number'],
-    ];
-
-    for (final value in candidates) {
-      if (value == null) {
-        continue;
-      }
-
-      if (value is Map) {
-        final map =
-        Map<String, dynamic>.from(value);
-
-        final nested =
-            map['unit_number'] ??
-                map['unit'] ??
-                map['number'] ??
-                map['value'];
-
-        if (nested != null &&
-            nested.toString().trim().isNotEmpty) {
-          return _toPersianDigits(nested);
-        }
-
-        continue;
-      }
-
-      if (value.toString().trim().isNotEmpty) {
-        return _toPersianDigits(value);
-      }
-    }
-
-    return '-';
-  }
-
-  String _floor() {
-    return _toPersianDigits(
-      _value([
-        'floor_number',
-        'floor',
-        'floor_name',
-      ]),
-    );
-  }
-
-  String _area() {
-    final value = _value([
-      'area',
-      'unit_area',
-      'square_meter',
-    ]);
-
-    if (value == '-') {
-      return value;
-    }
-
-    return '${_toPersianDigits(value)} مترمربع';
-  }
-
-  String _bedrooms() {
-    final value = _value([
-      'bedrooms_count',
-      'bedrooms',
-      'room_count',
-    ]);
-
-    return _toPersianDigits(value);
-  }
-
-  String _parkingNumber() {
-    return _toPersianDigits(
-      _value([
-        'parking_number',
-      ]),
-    );
-  }
-
-  String _parkingPlace() {
-    return _value([
-      'parking_place',
-    ]);
-  }
-
-  String _extraParkingFirst() {
-    return _value([
-      'extra_parking_first',
-    ]);
-  }
-
-  String _extraParkingSecond() {
-    return _value([
-      'extra_parking_second',
-    ]);
-  }
-
-  String _unitPhone() {
-    return _toPersianDigits(
-      _value([
-        'unit_phone',
-        'phone',
-      ]),
-    );
-  }
-
-  String _peopleCount() {
-    return _toPersianDigits(
-      _value([
-        'people_count',
-      ]),
-    );
-  }
-
-  String _unitDetails() {
-    return _value([
-      'unit_details',
-      'details',
-      'description',
-    ]);
-  }
-
-  // =========================================================
-  // Unit active status
-  // =========================================================
 
   bool _unitIsActive() {
-    if (_unit == null) {
-      return true;
+    final dynamic data = _unit;
+
+    if (data is! Map) return false;
+
+    dynamic value = data['is_active'];
+
+    // فقط اگر مقدار unit یک Map باشد، وضعیت داخلی را بخوان.
+    if (value == null && data['unit'] is Map) {
+      value = data['unit']['is_active'];
     }
 
-    return _parseBool(
-      _unit!['is_active'] ??
-          _unit!['unit_is_active'] ??
-          _unit!['active'],
-      fallback: true,
-    );
+    if (value == null && data['data'] is Map) {
+      value = data['data']['is_active'];
+    }
+
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes') {
+        return true;
+      }
+
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no') {
+        return false;
+      }
+    }
+
+    return false;
   }
+
+
 
   // =========================================================
   // Owner
   // =========================================================
 
   Map<String, dynamic>? _owner() {
-    if (_unit == null) {
+    final unit = _unit;
+    if (unit == null) return null;
+
+    for (final key in [
+      'owner',
+      'current_owner',
+      'active_owner',
+    ]) {
+      final value = unit[key];
+      if (value is Map) {
+        return Map<String, dynamic>.from(value);
+      }
+    }
+
+    final name = unit['owner_name'];
+    final mobile = unit['owner_mobile'];
+
+    if ((name == null || name.toString().trim().isEmpty) &&
+        (mobile == null || mobile.toString().trim().isEmpty)) {
       return null;
     }
 
-    // -------------------------------------------------------
-    // مالک کامل
-    // -------------------------------------------------------
-
-    final owner =
-        _unit!['owner'] ??
-            _unit!['current_owner'] ??
-            _unit!['active_owner'] ??
-            _unit!['inactive_owner'];
-
-    if (owner is Map) {
-      return Map<String, dynamic>.from(owner);
-    }
-
-    // -------------------------------------------------------
-    // مالک مستقیم روی Unit
-    // -------------------------------------------------------
-
-    final ownerName =
-    _unit!['owner_name'];
-
-    final ownerMobile =
-    _unit!['owner_mobile'];
-
-    if ((ownerName != null &&
-        ownerName.toString().trim().isNotEmpty) ||
-        (ownerMobile != null &&
-            ownerMobile.toString().trim().isNotEmpty)) {
-      return {
-        'id':
-        _unit!['owner_id'],
-
-        'name':
-        ownerName,
-
-        'owner_name':
-        ownerName,
-
-        'mobile':
-        ownerMobile,
-
-        'owner_mobile':
-        ownerMobile,
-
-        'national_code':
-        _unit!['owner_national_code'],
-
-        'people_count':
-        _unit!['owner_people_count'],
-
-        'details':
-        _unit!['owner_details'],
-
-        'purchase_date':
-        _unit!['purchase_date'],
-
-        'is_active':
-        _unit!['owner_is_active'] ??
-            _unit!['owner_active'] ??
-            _unit!['is_owner_active'] ??
-            _unit!['is_active'] ??
-            true,
-      };
-    }
-
-    return null;
+    return {
+      'name': name,
+      'owner_name': name,
+      'mobile': mobile,
+      'owner_mobile': mobile,
+      'national_code': unit['owner_national_code'],
+      'people_count': unit['owner_people_count'],
+      'details': unit['owner_details'],
+      'purchase_date': unit['purchase_date'],
+      'is_active': unit['owner_is_active'],
+    };
   }
 
-  bool _hasOwner() {
+  String _ownerValue(List<String> keys, {String fallback = '-'}) {
     final owner = _owner();
+    if (owner == null) return fallback;
 
-    if (owner == null) {
-      return false;
-    }
-
-    final name =
-        owner['name'] ??
-            owner['full_name'] ??
-            owner['owner_name'];
-
-    return name != null &&
-        name.toString().trim().isNotEmpty;
+    return _firstValue(owner, keys, fallback: fallback);
   }
 
   String _ownerName() {
-    final owner = _owner();
-
-    if (owner == null) {
-      return 'مالک ثبت نشده';
-    }
-
-    final name =
-        owner['name'] ??
-            owner['full_name'] ??
-            owner['owner_name'];
-
-    if (name == null ||
-        name.toString().trim().isEmpty) {
-      return 'مالک ثبت نشده';
-    }
-
-    return name.toString();
+    return _ownerValue(
+      ['name', 'full_name', 'owner_name'],
+      fallback: 'مالک ثبت نشده',
+    );
   }
 
   String _ownerMobile() {
-    final owner = _owner();
-
-    if (owner == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      owner['mobile'] ??
-          owner['phone'] ??
-          owner['owner_mobile'] ??
-          '-',
+      _ownerValue(['mobile', 'owner_mobile', 'phone']),
     );
   }
 
   String _ownerNationalCode() {
-    final owner = _owner();
-
-    if (owner == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      owner['national_code'] ??
-          owner['owner_national_code'] ??
-          '-',
+      _ownerValue(['national_code', 'owner_national_code']),
     );
   }
 
   String _ownerPeopleCount() {
-    final owner = _owner();
-
-    if (owner == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      owner['people_count'] ??
-          owner['owner_people_count'] ??
-          0,
+      _ownerValue(
+        ['people_count', 'owner_people_count'],
+        fallback: '۰',
+      ),
     );
   }
 
   String _ownerDetails() {
-    final owner = _owner();
-
-    if (owner == null) {
-      return '';
-    }
-
-    return (
-        owner['details'] ??
-            owner['owner_details'] ??
-            ''
-    ).toString();
+    return _ownerValue(
+      ['details', 'owner_details'],
+      fallback: '',
+    );
   }
 
-  // =========================================================
-  // Owner purchase date
-  // =========================================================
-
-  String _ownerPurchaseDate() {
+  bool _hasOwner() {
     final owner = _owner();
+    if (owner == null) return false;
 
-    if (owner == null) {
-      return '-';
-    }
+    final name = owner['name'] ??
+        owner['full_name'] ??
+        owner['owner_name'];
 
-    final value =
-        owner['purchase_date'] ??
-            owner['owner_purchase_date'];
-
-    if (value == null ||
-        value.toString().trim().isEmpty) {
-      return '-';
-    }
-
-    return _formatShamsiDate(value);
+    return name != null && name.toString().trim().isNotEmpty;
   }
-
-  // =========================================================
-  // Owner active status
-  // =========================================================
 
   bool _ownerIsActive() {
+    if (!_hasOwner()) return false;
+
     final owner = _owner();
+    final value = owner?['is_active'] ??
+        owner?['owner_is_active'] ??
+        owner?['owner_active'];
 
-    if (owner == null) {
-      return false;
-    }
+    // اگر API وضعیت مالک را نفرستاده باشد، وجود اطلاعات مالک
+    // به‌تنهایی برای تشخیص قطعی فعال بودن کافی نیست.
+    return _parseBool(value, fallback: true);
+  }
 
-    final value =
-        owner['is_active'] ??
-            owner['owner_is_active'] ??
-            owner['owner_active'];
-
-    return _parseBool(
-      value,
-      fallback: _unitIsActive(),
+  String _ownerPurchaseDate() {
+    return _formatShamsiDate(
+      _owner()?['purchase_date'] ??
+          _owner()?['owner_purchase_date'],
     );
   }
 
   // =========================================================
-  // Renter
+  // Renter: prioritize active_renter from API
   // =========================================================
 
   Map<String, dynamic>? _renter() {
-    if (_unit == null) {
-      return null;
-    }
+    final unit = _unit;
+    if (unit == null) return null;
 
-    // -------------------------------------------------------
-    // 1. مستاجر فعال
-    // -------------------------------------------------------
-
-    final activeRenter =
-    _unit!['active_renter'];
-
+    final activeRenter = unit['active_renter'];
     if (activeRenter is Map) {
-      return Map<String, dynamic>.from(
-        activeRenter,
-      );
+      return Map<String, dynamic>.from(activeRenter);
     }
 
-    // -------------------------------------------------------
-    // 2. مستاجر معمولی
-    // -------------------------------------------------------
-
-    final renter =
-    _unit!['renter'];
-
+    final renter = unit['renter'];
     if (renter is Map) {
-      return Map<String, dynamic>.from(
-        renter,
-      );
+      return Map<String, dynamic>.from(renter);
     }
 
-    // -------------------------------------------------------
-    // 3. مستاجر غیرفعال
-    // -------------------------------------------------------
-
-    final inactiveRenter =
-        _unit!['inactive_renter'] ??
-            _unit!['last_renter'] ??
-            _unit!['previous_renter'] ??
-            _unit!['current_renter'];
-
-    if (inactiveRenter is Map) {
-      return Map<String, dynamic>.from(
-        inactiveRenter,
-      );
-    }
-
-    // -------------------------------------------------------
-    // 4. لیست مستاجرها
-    // -------------------------------------------------------
-
-    final renters =
-    _unit!['renters'];
-
-    if (renters is List &&
-        renters.isNotEmpty) {
-      Map<String, dynamic>? latestRenter;
+    final renters = unit['renters'];
+    if (renters is List) {
+      Map<String, dynamic>? latest;
 
       for (final item in renters) {
-        if (item is! Map) {
-          continue;
-        }
+        if (item is! Map) continue;
 
-        final map =
-        Map<String, dynamic>.from(item);
-
-        final name =
+        final map = Map<String, dynamic>.from(item);
+        final name = map['renter_name'] ??
             map['name'] ??
-                map['renter_name'] ??
-                map['full_name'];
+            map['full_name'];
 
-        if (name == null ||
-            name.toString().trim().isEmpty) {
+        if (name == null || name.toString().trim().isEmpty) {
           continue;
         }
 
-        // آخرین رکورد معتبر
-        latestRenter = map;
+        latest ??= map;
 
-        final active =
-        _parseBool(
-          map['renter_is_active'] ??
-              map['is_active'] ??
-              map['active'],
+        if (_parseBool(
+          map['renter_is_active'] ?? map['is_active'],
           fallback: false,
-        );
-
-        // اگر فعال است همان را برگردان
-        if (active) {
+        )) {
           return map;
         }
       }
 
-      if (latestRenter != null) {
-        return latestRenter;
-      }
+      return latest;
     }
 
-    // -------------------------------------------------------
-    // 5. مستاجر مستقیم روی Unit
-    // -------------------------------------------------------
+    // اطلاعات مستأجر مستقیم، اگر ویو از این ساختار استفاده کند.
+    final name = unit['renter_name'];
+    final mobile = unit['renter_mobile'];
 
-    final renterName =
-    _unit!['renter_name'];
-
-    final renterMobile =
-    _unit!['renter_mobile'];
-
-    if ((renterName != null &&
-        renterName.toString().trim().isNotEmpty) ||
-        (renterMobile != null &&
-            renterMobile.toString().trim().isNotEmpty)) {
-      return {
-        'id':
-        _unit!['renter_id'],
-
-        'name':
-        renterName,
-
-        'renter_name':
-        renterName,
-
-        'mobile':
-        renterMobile,
-
-        'renter_mobile':
-        renterMobile,
-
-        'national_code':
-        _unit!['renter_national_code'],
-
-        'people_count':
-        _unit!['renter_people_count'],
-
-        'start_date':
-        _unit!['renter_start_date'] ??
-            _unit!['start_date'],
-
-        'end_date':
-        _unit!['renter_end_date'] ??
-            _unit!['end_date'],
-
-        'contract_number':
-        _unit!['contract_number'],
-
-        'estate_name':
-        _unit!['estate_name'] ??
-            _unit!['agency_name'],
-
-        'details':
-        _unit!['renter_details'] ??
-            _unit!['details'],
-
-        'renter_is_active':
-        _unit!['renter_is_active'] ??
-            _unit!['renter_active'] ??
-            false,
-      };
+    if ((name == null || name.toString().trim().isEmpty) &&
+        (mobile == null || mobile.toString().trim().isEmpty)) {
+      return null;
     }
 
-    // -------------------------------------------------------
-    // 6. سوابق سکونت
-    // -------------------------------------------------------
-
-    final histories =
-        _unit!['residence_history'] ??
-            _unit!['residence_histories'] ??
-            _unit!['histories'];
-
-    if (histories is List &&
-        histories.isNotEmpty) {
-      Map<String, dynamic>? latestRenter;
-
-      for (final item in histories) {
-        if (item is! Map) {
-          continue;
-        }
-
-        final map =
-        Map<String, dynamic>.from(item);
-
-        final residentType =
-        (
-            map['resident_type'] ??
-                map['type'] ??
-                map['person_type'] ??
-                ''
-        )
-            .toString()
-            .toLowerCase();
-
-        final renterName =
-            map['renter_name'] ??
-                map['name'] ??
-                map['full_name'];
-
-        final looksLikeRenter =
-            residentType.contains('renter') ||
-                residentType.contains('مستاجر') ||
-                residentType.contains('مستأجر') ||
-                map['renter_id'] != null ||
-                map['renter_name'] != null;
-
-        if (looksLikeRenter &&
-            renterName != null &&
-            renterName.toString().trim().isNotEmpty) {
-          latestRenter = map;
-        }
-      }
-
-      if (latestRenter != null) {
-        return latestRenter;
-      }
-    }
-
-    return null;
+    return {
+      'id': unit['renter_id'],
+      'name': name,
+      'renter_name': name,
+      'mobile': mobile,
+      'renter_mobile': mobile,
+      'national_code': unit['renter_national_code'],
+      'people_count': unit['renter_people_count'],
+      'start_date': unit['renter_start_date'] ?? unit['start_date'],
+      'end_date': unit['renter_end_date'] ?? unit['end_date'],
+      'contract_number': unit['contract_number'],
+      'estate_name': unit['estate_name'],
+      'details': unit['renter_details'],
+      'renter_is_active': unit['renter_is_active'],
+    };
   }
+
+  String _renterValue(
+      List<String> keys, {
+        String fallback = '-',
+      }) {
+    final renter = _renter();
+    if (renter == null) return fallback;
+
+    return _firstValue(renter, keys, fallback: fallback);
+  }
+
 
   bool _hasRenter() {
-    final renter = _renter();
+    final unit = _unit;
+    if (unit == null) return false;
 
-    if (renter == null) {
-      return false;
+    // وجود مستأجر فعال یا غیرفعال در پاسخ API
+    for (final key in ['active_renter', 'renter']) {
+      final value = unit[key];
+
+      if (value is Map) {
+        final name = value['name'] ??
+            value['renter_name'] ??
+            value['full_name'];
+
+        if (name != null && name.toString().trim().isNotEmpty) {
+          return true;
+        }
+      }
     }
 
-    final name =
-        renter['name'] ??
-            renter['renter_name'] ??
-            renter['full_name'];
+    // بررسی فهرست مستأجران، شامل مستأجران غیرفعال
+    final renters = unit['renters'];
 
-    return name != null &&
-        name.toString().trim().isNotEmpty;
+    if (renters is List && renters.isNotEmpty) {
+      for (final item in renters) {
+        if (item is! Map) continue;
+
+        final name = item['name'] ??
+            item['renter_name'] ??
+            item['full_name'];
+
+        if (name != null && name.toString().trim().isNotEmpty) {
+          return true;
+        }
+      }
+    }
+
+    // بررسی اطلاعات مستقیم مستأجر در پاسخ API
+    final name = unit['renter_name'] ?? unit['renter_full_name'];
+    final mobile = unit['renter_mobile'];
+
+    return (name != null && name.toString().trim().isNotEmpty) ||
+        (mobile != null && mobile.toString().trim().isNotEmpty);
   }
+
 
   bool _renterIsActive() {
     final renter = _renter();
+    if (renter == null) return false;
 
-    if (renter == null) {
-      return false;
-    }
-
-    final value =
-        renter['renter_is_active'] ??
-            renter['is_active'] ??
-            renter['active'];
-
-    if (value != null) {
-      return _parseBool(
-        value,
-        fallback: false,
-      );
-    }
-
-    // اگر رکورد از active_renter آمده باشد
-    if (_unit?['active_renter'] != null) {
-      return true;
-    }
-
-    return false;
+    return _parseBool(
+      renter['renter_is_active'] ??
+          renter['is_active'] ??
+          renter['active'],
+      fallback: false,
+    );
   }
 
   String _renterName() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return 'مستاجر ثبت نشده';
-    }
-
-    final name =
-        renter['name'] ??
-            renter['renter_name'] ??
-            renter['full_name'];
-
-    if (name == null ||
-        name.toString().trim().isEmpty) {
-      return 'مستاجر ثبت نشده';
-    }
-
-    return name.toString();
+    return _renterValue(
+      ['renter_name', 'name', 'full_name'],
+      fallback: 'مستأجر ثبت نشده',
+    );
   }
 
   String _renterMobile() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      renter['mobile'] ??
-          renter['renter_mobile'] ??
-          renter['phone'] ??
-          '-',
+      _renterValue(['renter_mobile', 'mobile', 'phone']),
     );
   }
 
   String _renterNationalCode() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      renter['national_code'] ??
-          renter['renter_national_code'] ??
-          '-',
+      _renterValue(['renter_national_code', 'national_code']),
     );
   }
 
   String _renterPeopleCount() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      renter['people_count'] ??
-          renter['renter_people_count'] ??
-          0,
+      _renterValue(
+        ['renter_people_count', 'people_count'],
+        fallback: '۰',
+      ),
     );
   }
 
   String _renterStartDate() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
-    final value =
-        renter['start_date'] ??
-            renter['renter_start_date'];
-
-    return _formatShamsiDate(value);
+    return _formatShamsiDate(
+      _renter()?['start_date'] ??
+          _renter()?['renter_start_date'],
+    );
   }
 
   String _renterEndDate() {
-    final renter = _renter();
+    final value = _renter()?['end_date'] ??
+        _renter()?['renter_end_date'];
 
-    if (renter == null) {
-      return '-';
-    }
-
-    final value =
-        renter['end_date'] ??
-            renter['renter_end_date'];
-
-    if (value == null ||
-        value.toString().trim().isEmpty) {
+    if (value == null || value.toString().trim().isEmpty) {
       return 'تا کنون';
     }
 
@@ -1218,242 +815,90 @@ class _ManagerUnitDetailScreenState
   }
 
   String _renterContractNumber() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
     return _toPersianDigits(
-      renter['contract_number'] ?? '-',
+      _renterValue(['contract_number']),
     );
   }
 
   String _renterEstateName() {
-    final renter = _renter();
-
-    if (renter == null) {
-      return '-';
-    }
-
-    return (
-        renter['estate_name'] ??
-            renter['agency_name'] ??
-            '-'
-    ).toString();
+    return _renterValue(['estate_name', 'agency_name']);
   }
 
   String _renterDetails() {
-    final renter = _renter();
+    return _renterValue(
+      ['details', 'renter_details'],
+      fallback: '',
+    );
+  }
 
-    if (renter == null) {
-      return '';
+  // =========================================================
+  // Residence status
+  // =========================================================
+
+  String _residenceStatus() {
+    if (!_unitIsActive()) return 'غیرفعال';
+
+    if (_hasRenter() && _renterIsActive()) {
+      return 'ساکن - مستأجر';
     }
 
-    return (
-        renter['details'] ??
-            renter['renter_details'] ??
-            ''
-    ).toString();
+    if (_hasOwner() && _ownerIsActive()) {
+      return 'ساکن - مالک';
+    }
+
+    if (_hasRenter() || _hasOwner()) {
+      return 'غیرفعال';
+    }
+
+    return 'خالی';
   }
 
   // =========================================================
-  // Owner status row
-  // =========================================================
-
-  Widget _ownerStatusRow(bool active) {
-    final color =
-    active ? Colors.green : Colors.red;
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        bottom: 10,
-      ),
-      child: Row(
-        crossAxisAlignment:
-        CrossAxisAlignment.center,
-        children: [
-          Icon(
-            active
-                ? Icons.check_circle_outline
-                : Icons.cancel_outlined,
-            size: 19,
-            color: color,
-          ),
-          const SizedBox(width: 9),
-          SizedBox(
-            width: 90,
-            child: Text(
-              'وضعیت مالک',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                  color.withOpacity(0.10),
-                  borderRadius:
-                  BorderRadius.circular(20),
-                  border: Border.all(
-                    color:
-                    color.withOpacity(0.30),
-                  ),
-                ),
-                child: Text(
-                  active ? 'فعال' : 'غیرفعال',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Renter status row
-  // =========================================================
-
-  Widget _renterStatusRow() {
-    final active = _renterIsActive();
-
-    final color =
-    active ? Colors.green : Colors.red;
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        bottom: 10,
-      ),
-      child: Row(
-        crossAxisAlignment:
-        CrossAxisAlignment.center,
-        children: [
-          Icon(
-            active
-                ? Icons.check_circle_outline
-                : Icons.cancel_outlined,
-            size: 19,
-            color: color,
-          ),
-          const SizedBox(width: 9),
-          SizedBox(
-            width: 90,
-            child: Text(
-              'وضعیت مستاجر',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                  color.withOpacity(0.10),
-                  borderRadius:
-                  BorderRadius.circular(20),
-                  border: Border.all(
-                    color:
-                    color.withOpacity(0.30),
-                  ),
-                ),
-                child: Text(
-                  active ? 'فعال' : 'غیرفعال',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  // =========================================================
-  // Gregorian -> Jalali
+  // Date formatting
   // =========================================================
 
   String _formatShamsiDate(dynamic value) {
-    if (value == null) {
-      return '-';
-    }
+    if (value == null) return '-';
 
-    String date =
-    value.toString().trim();
-
-    if (date.isEmpty) {
-      return '-';
-    }
-
-    date = _normalizeDigits(date);
-
-    if (date.contains('/')) {
-      final parts = date.split('/');
-
-      if (parts.length >= 3) {
-        return _toPersianDigits(
-          '${parts[0]}/${parts[1].padLeft(2, '0')}/${parts[2].padLeft(2, '0')}',
-        );
-      }
-    }
+    var date = _normalizeDigits(value.toString().trim());
+    if (date.isEmpty) return '-';
 
     if (date.contains('T')) {
       date = date.split('T').first;
     }
-
     if (date.contains(' ')) {
       date = date.split(' ').first;
     }
 
-    final parts = date.split('-');
+    if (date.contains('/')) {
+      final parts = date.split('/');
+      if (parts.length >= 3) {
+        final year = int.tryParse(parts[0]);
+        final month = int.tryParse(parts[1]);
+        final day = int.tryParse(parts[2]);
 
-    if (parts.length < 3) {
-      return _toPersianDigits(date);
+        if (year != null && month != null && day != null) {
+          if (year < 1500) {
+            return _toPersianDigits(
+              '$year/${month.toString().padLeft(2, '0')}/${day.toString().padLeft(2, '0')}',
+            );
+          }
+
+          return _toPersianDigits(
+            '${_gregorianToJalali(year, month, day).join('/')}',
+          );
+        }
+      }
     }
 
-    final year =
-    int.tryParse(parts[0]);
+    final parts = date.split('-');
+    if (parts.length < 3) return _toPersianDigits(date);
 
-    final month =
-    int.tryParse(parts[1]);
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final day = int.tryParse(parts[2]);
 
-    final day =
-    int.tryParse(parts[2]);
-
-    if (year == null ||
-        month == null ||
-        day == null) {
+    if (year == null || month == null || day == null) {
       return _toPersianDigits(date);
     }
 
@@ -1463,153 +908,333 @@ class _ManagerUnitDetailScreenState
       );
     }
 
-    final jalali =
-    _gregorianToJalali(
-      year,
-      month,
-      day,
-    );
+    final jalali = _gregorianToJalali(year, month, day);
 
     return _toPersianDigits(
       '${jalali[0]}/${jalali[1].toString().padLeft(2, '0')}/${jalali[2].toString().padLeft(2, '0')}',
     );
   }
 
-  List<int> _gregorianToJalali(
-      int gy,
-      int gm,
-      int gd,
-      ) {
-    final gDaysInMonth = <int>[
-      31,
-      28,
-      31,
-      30,
-      31,
-      30,
-      31,
-      31,
-      30,
-      31,
-      30,
-      31,
+  List<int> _gregorianToJalali(int gy, int gm, int gd) {
+    final gDaysInMonth = [
+      31, 28, 31, 30, 31, 30,
+      31, 31, 30, 31, 30, 31,
     ];
 
-    final jDaysInMonth = <int>[
-      31,
-      31,
-      31,
-      31,
-      31,
-      31,
-      30,
-      30,
-      30,
-      30,
-      30,
-      29,
+    final jDaysInMonth = [
+      31, 31, 31, 31, 31, 31,
+      30, 30, 30, 30, 30, 29,
     ];
 
-    int gy2 = gy - 1600;
-    int gm2 = gm - 1;
-    int gd2 = gd - 1;
+    final gy2 = gy - 1600;
+    final gm2 = gm - 1;
+    final gd2 = gd - 1;
 
-    int gDayNo =
-        365 * gy2 +
-            ((gy2 + 3) ~/ 4) -
-            ((gy2 + 99) ~/ 100) +
-            ((gy2 + 399) ~/ 400);
+    var gDayNo = 365 * gy2 +
+        ((gy2 + 3) ~/ 4) -
+        ((gy2 + 99) ~/ 100) +
+        ((gy2 + 399) ~/ 400);
 
-    for (int i = 0; i < gm2; i++) {
+    for (var i = 0; i < gm2; i++) {
       gDayNo += gDaysInMonth[i];
     }
 
     if (gm2 > 1 &&
-        ((gy % 4 == 0 &&
-            gy % 100 != 0) ||
-            gy % 400 == 0)) {
+        ((gy % 4 == 0 && gy % 100 != 0) || gy % 400 == 0)) {
       gDayNo++;
     }
 
     gDayNo += gd2;
 
-    int jDayNo =
-        gDayNo - 79;
-
-    int jNp =
-        jDayNo ~/ 12053;
-
-    int jy =
-        979 + (33 * jNp);
+    var jDayNo = gDayNo - 79;
+    final jNp = jDayNo ~/ 12053;
+    var jy = 979 + 33 * jNp;
 
     jDayNo %= 12053;
-
-    jy +=
-        4 * (jDayNo ~/ 1461);
-
+    jy += 4 * (jDayNo ~/ 1461);
     jDayNo %= 1461;
 
     if (jDayNo >= 366) {
-      jy +=
-          (jDayNo - 1) ~/ 365;
-
-      jDayNo =
-          (jDayNo - 1) % 365;
+      jy += (jDayNo - 1) ~/ 365;
+      jDayNo = (jDayNo - 1) % 365;
     }
 
-    int jm = 0;
+    var jm = 0;
 
-    for (int i = 0;
-    i < 11 &&
-        jDayNo >=
-            jDaysInMonth[i];
+    for (var i = 0;
+    i < 11 && jDayNo >= jDaysInMonth[i];
     i++) {
-      jDayNo -=
-      jDaysInMonth[i];
-
+      jDayNo -= jDaysInMonth[i];
       jm++;
     }
 
-    return [
-      jy,
-      jm + 1,
-      jDayNo + 1,
-    ];
+    return [jy, jm + 1, jDayNo + 1];
   }
 
   // =========================================================
-  // Residence status
+  // Widgets
   // =========================================================
 
-  String _residenceStatus() {
-    final unitActive =
-    _unitIsActive();
-
-    if (!unitActive) {
-      return 'غیرفعال';
-    }
-
-    if (_hasRenter() &&
-        _renterIsActive()) {
-      return 'ساکن - مستاجر';
-    }
-
-    if (_hasOwner() &&
-        _ownerIsActive()) {
-      return 'ساکن - مالک';
-    }
-
-    if (_hasRenter() ||
-        _hasOwner()) {
-      return 'غیرفعال';
-    }
-
-    return 'خالی';
+  Widget _sectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: primaryColor, size: 22),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
   }
 
-  // =========================================================
-  // Text field
-  // =========================================================
+  Widget _infoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: primaryColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  value.isEmpty ? '-' : value,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _personInfoRow(
+      IconData icon,
+      String title,
+      String value,
+      ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: unitColor, size: 19),
+          const SizedBox(width: 9),
+          SizedBox(
+            width: 92,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '-' : value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String title, bool active) {
+    final color = active ? Colors.green : Colors.red;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Text(
+        '$title: ${active ? 'فعال' : 'غیرفعال'}',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _personCard({
+    required String name,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required bool exists,
+    required List<Widget> details,
+    required Widget status,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(0.12),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: exists ? Colors.black87 : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: exists ? color : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (exists) ...[
+            const Divider(height: 25),
+            ...details,
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.centerRight,
+              child: status,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _managementCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      margin: const EdgeInsets.only(top: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: primaryColor, size: 25),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_left, color: Colors.grey),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _editField({
     required TextEditingController controller,
@@ -1617,12 +1242,10 @@ class _ManagerUnitDetailScreenState
     required IconData icon,
     TextInputType? keyboardType,
     int maxLines = 1,
-    String? hint,
     String? Function(String?)? validator,
   }) {
     return Padding(
-      padding:
-      const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
@@ -1632,33 +1255,19 @@ class _ManagerUnitDetailScreenState
         validator: validator,
         decoration: InputDecoration(
           labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(
-            icon,
-            color: primaryColor,
-          ),
+          prefixIcon: Icon(icon, color: primaryColor),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius:
-            BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12),
           ),
-          enabledBorder:
-          OutlineInputBorder(
-            borderRadius:
-            BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color:
-              Colors.grey.shade300,
-            ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
           ),
-          focusedBorder:
-          const OutlineInputBorder(
-            borderRadius:
-            BorderRadius.all(
-              Radius.circular(12),
-            ),
-            borderSide: BorderSide(
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
               color: primaryColor,
               width: 1.5,
             ),
@@ -1669,250 +1278,141 @@ class _ManagerUnitDetailScreenState
   }
 
   // =========================================================
-  // Unit edit form
+  // Edit form
   // =========================================================
 
-  Widget _buildUnitEditForm() {
+  Widget _buildEditForm() {
     return Form(
-      key: _editFormKey,
+      key: _formKey,
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding:
-            const EdgeInsets.all(14),
-            margin:
-            const EdgeInsets.only(
-              bottom: 15,
-            ),
+            padding: const EdgeInsets.all(13),
+            margin: const EdgeInsets.only(bottom: 15),
             decoration: BoxDecoration(
-              color:
-              unitColor.withOpacity(0.07),
-              borderRadius:
-              BorderRadius.circular(12),
-              border: Border.all(
-                color:
-                unitColor.withOpacity(0.20),
-              ),
+              color: unitColor.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.edit_outlined,
-                  color: unitColor,
-                ),
-                SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    'در این قسمت فقط مشخصات خود واحد ویرایش می‌شود. اطلاعات مالک، مستاجر و سوابق سکونت تغییری نخواهد کرد.',
-                    style: TextStyle(
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
+            child: const Text(
+              'در این فرم فقط مشخصات واحد تغییر می‌کند. '
+                  'برای تغییر مالک یا مستأجر از بخش مربوط به همان شخص استفاده کنید.',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 13),
             ),
           ),
-
           _editField(
-            controller:
-            _unitNumberController,
+            controller: _unitNumberController,
             label: 'شماره واحد',
             icon: Icons.numbers,
+            keyboardType: TextInputType.number,
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
-                return 'شماره واحد را وارد کنید';
+              final number = int.tryParse(
+                _normalizeDigits((value ?? '').trim()),
+              );
+
+              if (number == null || number <= 0) {
+                return 'شماره واحد معتبر وارد کنید';
               }
 
               return null;
             },
           ),
-
           _editField(
-            controller:
-            _floorController,
+            controller: _floorController,
             label: 'طبقه',
             icon: Icons.layers_outlined,
-            keyboardType:
-            TextInputType.number,
+            keyboardType: TextInputType.number,
           ),
-
           _editField(
-            controller:
-            _areaController,
+            controller: _areaController,
             label: 'متراژ',
             icon: Icons.square_foot,
-            keyboardType:
-            const TextInputType.numberWithOptions(
+            keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
             ),
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
-                return 'متراژ را وارد کنید';
-              }
-
-              final area =
-              double.tryParse(
-                _normalizeDigits(
-                  value.trim(),
-                ),
+              final area = double.tryParse(
+                _normalizeDigits((value ?? '').trim())
+                    .replaceAll(',', '.'),
               );
 
-              if (area == null ||
-                  area <= 0) {
-                return 'متراژ معتبر نیست';
+              if (area == null || area <= 0) {
+                return 'متراژ معتبر وارد کنید';
               }
 
               return null;
             },
           ),
-
           _editField(
-            controller:
-            _bedroomsController,
+            controller: _bedroomsController,
             label: 'تعداد خواب',
             icon: Icons.bed_outlined,
-            keyboardType:
-            TextInputType.number,
+            keyboardType: TextInputType.number,
           ),
-
           _editField(
-            controller:
-            _parkingNumberController,
+            controller: _parkingNumberController,
             label: 'شماره پارکینگ',
-            icon:
-            Icons.local_parking_outlined,
+            icon: Icons.local_parking_outlined,
           ),
-
           _editField(
-            controller:
-            _parkingPlaceController,
+            controller: _parkingPlaceController,
             label: 'محل پارکینگ',
-            icon:
-            Icons.directions_car_outlined,
+            icon: Icons.directions_car_outlined,
           ),
-
           _editField(
-            controller:
-            _extraParkingFirstController,
+            controller: _extraParkingFirstController,
             label: 'پارکینگ اضافه اول',
-            icon:
-            Icons.add_circle_outline,
+            icon: Icons.add_circle_outline,
           ),
-
           _editField(
-            controller:
-            _extraParkingSecondController,
+            controller: _extraParkingSecondController,
             label: 'پارکینگ اضافه دوم',
-            icon:
-            Icons.add_circle_outline,
+            icon: Icons.add_circle_outline,
           ),
-
           _editField(
-            controller:
-            _unitPhoneController,
+            controller: _unitPhoneController,
             label: 'تلفن واحد',
             icon: Icons.phone_outlined,
-            keyboardType:
-            TextInputType.phone,
+            keyboardType: TextInputType.phone,
           ),
-
           _editField(
-            controller:
-            _peopleCountController,
-            label: 'تعداد ساکنین',
-            icon:
-            Icons.people_outline,
-            keyboardType:
-            TextInputType.number,
-            validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
-                return 'تعداد ساکنین را وارد کنید';
-              }
-
-              final count =
-              int.tryParse(
-                _normalizeDigits(
-                  value.trim(),
-                ),
-              );
-
-              if (count == null ||
-                  count < 0) {
-                return 'تعداد ساکنین معتبر نیست';
-              }
-
-              return null;
-            },
-          ),
-
-          _editField(
-            controller:
-            _unitDetailsController,
+            controller: _detailsController,
             label: 'توضیحات واحد',
-            icon:
-            Icons.notes_outlined,
+            icon: Icons.notes_outlined,
             maxLines: 4,
           ),
-
           const SizedBox(height: 5),
-
           SizedBox(
-            height: 52,
+            height: 50,
             child: FilledButton.icon(
-              style:
-              FilledButton.styleFrom(
-                backgroundColor:
-                primaryColor,
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(12),
+              onPressed: _isSaving ? null : _saveUnit,
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed:
-              _isSaving
-                  ? null
-                  : _saveUnit,
               icon: _isSaving
                   ? const SizedBox(
                 width: 20,
                 height: 20,
-                child:
-                CircularProgressIndicator(
+                child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: Colors.white,
                 ),
               )
-                  : const Icon(
-                Icons.save_outlined,
-              ),
-              label: const Text(
-                'ذخیره تغییرات واحد',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight:
-                  FontWeight.bold,
-                ),
+                  : const Icon(Icons.save_outlined),
+              label: Text(
+                _isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات',
               ),
             ),
           ),
-
-          const SizedBox(height: 10),
-
+          const SizedBox(height: 8),
           OutlinedButton(
-            onPressed:
-            _isSaving
-                ? null
-                : _cancelEditUnit,
-            child:
-            const Text('انصراف'),
+            onPressed: _isSaving ? null : _cancelEditing,
+            child: const Text('انصراف'),
           ),
         ],
       ),
@@ -1920,1127 +1420,361 @@ class _ManagerUnitDetailScreenState
   }
 
   // =========================================================
-  // Info Card
-  // =========================================================
-
-  Widget _infoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
-      padding:
-      const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-        BorderRadius.circular(13),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color:
-              primaryColor.withOpacity(0.10),
-              borderRadius:
-              BorderRadius.circular(11),
-            ),
-            child: Icon(
-              icon,
-              color: primaryColor,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  textAlign:
-                  TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                    Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  textAlign:
-                  TextAlign.right,
-                  style:
-                  const TextStyle(
-                    fontSize: 14,
-                    fontWeight:
-                    FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Section title
-  // =========================================================
-
-  Widget _sectionTitle(
-      String title, {
-        IconData? icon,
-      }) {
-    return Row(
-      children: [
-        if (icon != null) ...[
-          Icon(
-            icon,
-            size: 21,
-            color: primaryColor,
-          ),
-          const SizedBox(width: 7),
-        ],
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight:
-            FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // =========================================================
-  // Management card
-  // =========================================================
-
-  Widget _managementCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 0,
-      margin:
-      const EdgeInsets.only(
-        bottom: 10,
-      ),
-      color: Colors.white,
-      shape:
-      RoundedRectangleBorder(
-        borderRadius:
-        BorderRadius.circular(14),
-        side: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: InkWell(
-        borderRadius:
-        BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding:
-          const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration:
-                BoxDecoration(
-                  color:
-                  primaryColor
-                      .withOpacity(
-                    0.10,
-                  ),
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  color: primaryColor,
-                  size: 25,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      textAlign:
-                      TextAlign.right,
-                      style:
-                      const TextStyle(
-                        fontSize: 15,
-                        fontWeight:
-                        FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                        Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_left,
-                color: Colors.grey,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // Unit status card
-  // =========================================================
-
-  Widget _unitStatusCard() {
-    final active =
-    _unitIsActive();
-
-    final color =
-    active ? Colors.green : Colors.red;
-
-    return Container(
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 11,
-      ),
-      decoration: BoxDecoration(
-        color:
-        color.withOpacity(0.08),
-        borderRadius:
-        BorderRadius.circular(12),
-        border: Border.all(
-          color:
-          color.withOpacity(0.25),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            active
-                ? Icons.check_circle_outline
-                : Icons.cancel_outlined,
-            color: color,
-            size: 21,
-          ),
-          const SizedBox(width: 9),
-          const Expanded(
-            child: Text(
-              'وضعیت واحد',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight:
-                FontWeight.w600,
-              ),
-            ),
-          ),
-          Container(
-            padding:
-            const EdgeInsets.symmetric(
-              horizontal: 11,
-              vertical: 5,
-            ),
-            decoration:
-            BoxDecoration(
-              color:
-              color.withOpacity(0.10),
-              borderRadius:
-              BorderRadius.circular(
-                20,
-              ),
-            ),
-            child: Text(
-              active
-                  ? 'فعال'
-                  : 'غیرفعال',
-              style: TextStyle(
-                color: color,
-                fontWeight:
-                FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Owner card
-  // =========================================================
-
-  Widget _ownerCard() {
-    final hasOwner =
-    _hasOwner();
-
-    final ownerActive =
-    _ownerIsActive();
-
-    return Container(
-      padding:
-      const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade100,
-        borderRadius:
-        BorderRadius.circular(14),
-        border: Border.all(
-          color: ownerActive
-              ? Colors.grey.shade200
-              : Colors.red.withOpacity(
-            0.35,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration:
-                BoxDecoration(
-                  color:
-                  ownerActive
-                      ? primaryColor
-                      .withOpacity(
-                    0.10,
-                  )
-                      : Colors.red
-                      .withOpacity(
-                    0.10,
-                  ),
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
-                ),
-                child: Icon(
-                  ownerActive
-                      ? Icons.person_outline
-                      : Icons.person_off_outlined,
-                  color: ownerActive
-                      ? primaryColor
-                      : Colors.red,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _ownerName(),
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight:
-                        FontWeight.bold,
-                        color: hasOwner
-                            ? Colors.black87
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hasOwner
-                          ? (ownerActive
-                          ? 'مالک فعلی واحد'
-                          : 'مالک غیرفعال')
-                          : 'برای این واحد مالکی ثبت نشده است',
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: hasOwner
-                            ? (ownerActive
-                            ? primaryColor
-                            : Colors.red)
-                            : Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          if (hasOwner) ...[
-            const Divider(height: 24),
-
-            _personInfoRow(
-              Icons.phone_outlined,
-              'شماره موبایل',
-              _ownerMobile(),
-            ),
-
-            _personInfoRow(
-              Icons.badge_outlined,
-              'کد ملی',
-              _ownerNationalCode(),
-            ),
-
-            _personInfoRow(
-              Icons.people_outline,
-              'تعداد نفرات',
-              _ownerPeopleCount(),
-            ),
-
-            _personInfoRow(
-              Icons.event_available_outlined,
-              'تاریخ خرید',
-              _ownerPurchaseDate(),
-            ),
-
-            _ownerStatusRow(
-              ownerActive,
-            ),
-
-            if (_ownerDetails()
-                .trim()
-                .isNotEmpty)
-              _personInfoRow(
-                Icons.notes_outlined,
-                'توضیحات',
-                _ownerDetails(),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Renter card
-  // =========================================================
-
-  Widget _renterCard() {
-    final hasRenter =
-    _hasRenter();
-
-    final renterActive =
-    _renterIsActive();
-
-    return Container(
-      padding:
-      const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.green.shade100,
-        borderRadius:
-        BorderRadius.circular(14),
-        border: Border.all(
-          color: renterActive
-              ? Colors.grey.shade200
-              : Colors.red.withOpacity(
-            0.35,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration:
-                BoxDecoration(
-                  color:
-                  renterActive
-                      ? unitColor
-                      .withOpacity(
-                    0.10,
-                  )
-                      : Colors.red
-                      .withOpacity(
-                    0.10,
-                  ),
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
-                ),
-                child: Icon(
-                  renterActive
-                      ? Icons.people_outline
-                      : Icons.person_off_outlined,
-                  color: renterActive
-                      ? primaryColor
-                      : Colors.red,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _renterName(),
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight:
-                        FontWeight.bold,
-                        color: hasRenter
-                            ? Colors.black87
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hasRenter
-                          ? (renterActive
-                          ? 'مستاجر فعلی واحد'
-                          : 'مستاجر غیرفعال')
-                          : 'برای این واحد مستاجری ثبت نشده است',
-                      textAlign:
-                      TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: hasRenter
-                            ? (renterActive
-                            ? unitColor
-                            : Colors.red)
-                            : Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          if (hasRenter) ...[
-            const Divider(height: 24),
-
-            _personInfoRow(
-              Icons.phone_outlined,
-              'شماره موبایل',
-              _renterMobile(),
-            ),
-
-            _personInfoRow(
-              Icons.badge_outlined,
-              'کد ملی',
-              _renterNationalCode(),
-            ),
-
-            _personInfoRow(
-              Icons.people_outline,
-              'تعداد نفرات',
-              _renterPeopleCount(),
-            ),
-
-            _renterStatusRow(),
-
-            _personInfoRow(
-              Icons.date_range_outlined,
-              'شروع سکونت',
-              _renterStartDate(),
-            ),
-
-            _personInfoRow(
-              Icons.event_outlined,
-              'پایان سکونت',
-              _renterEndDate(),
-            ),
-
-            _personInfoRow(
-              Icons.description_outlined,
-              'شماره قرارداد',
-              _renterContractNumber(),
-            ),
-
-            _personInfoRow(
-              Icons.business_outlined,
-              'بنگاه',
-              _renterEstateName(),
-            ),
-
-            if (_renterDetails()
-                .trim()
-                .isNotEmpty)
-              _personInfoRow(
-                Icons.notes_outlined,
-                'توضیحات',
-                _renterDetails(),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Person info row
-  // =========================================================
-
-  Widget _personInfoRow(
-      IconData icon,
-      String title,
-      String value,
-      ) {
-    return Padding(
-      padding:
-      const EdgeInsets.only(
-        bottom: 10,
-      ),
-      child: Row(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            size: 19,
-            color: unitColor,
-          ),
-          const SizedBox(width: 9),
-          SizedBox(
-            width: 90,
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                color:
-                Colors.grey.shade600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              textAlign:
-              TextAlign.right,
-              style:
-              const TextStyle(
-                fontSize: 13,
-                fontWeight:
-                FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // Body
+  // Normal body
   // =========================================================
 
   Widget _buildBody() {
     if (_unit == null) {
       return const Center(
-        child: Text(
-          'اطلاعات واحد پیدا نشد.',
-        ),
+        child: Text('اطلاعات واحد پیدا نشد.'),
       );
     }
 
-    // =======================================================
-    // EDIT MODE
-    // =======================================================
-
-    if (_isEditingUnit) {
-      return SingleChildScrollView(
-        physics:
-        const AlwaysScrollableScrollPhysics(),
-        padding:
-        const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Container(
-              padding:
-              const EdgeInsets.all(18),
-              decoration:
-              BoxDecoration(
-                color: unitColor,
-                borderRadius:
-                BorderRadius.circular(
-                  16,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration:
-                    BoxDecoration(
-                      color: Colors.white
-                          .withOpacity(
-                        0.18,
-                      ),
-                      borderRadius:
-                      BorderRadius.circular(
-                        14,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.edit_outlined,
-                      color: Colors.white,
-                      size: 31,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ویرایش اطلاعات واحد',
-                          style: TextStyle(
-                            color:
-                            Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'واحد ${_unitNumber()}',
-                          style:
-                          const TextStyle(
-                            color:
-                            Colors.white,
-                            fontSize: 22,
-                            fontWeight:
-                            FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            _buildUnitEditForm(),
-
-            const SizedBox(height: 30),
-          ],
-        ),
+    if (_isEditing) {
+      return ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          _header(
+            title: 'ویرایش اطلاعات واحد',
+            icon: Icons.edit_outlined,
+          ),
+          const SizedBox(height: 18),
+          _buildEditForm(),
+        ],
       );
     }
 
-    // =======================================================
-    // NORMAL MODE
-    // =======================================================
+    final ownerExists = _hasOwner();
+    final renterExists = _hasRenter();
 
     return RefreshIndicator(
       color: primaryColor,
       onRefresh: _loadUnit,
       child: ListView(
-        padding:
-        const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         children: [
-          // =================================================
-          // Unit Header
-          // =================================================
-
-          Container(
-            padding:
-            const EdgeInsets.all(18),
-            decoration:
-            BoxDecoration(
-              color: unitColor,
-              borderRadius:
-              BorderRadius.circular(
-                16,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration:
-                  BoxDecoration(
-                    color: Colors.white
-                        .withOpacity(
-                      0.18,
-                    ),
-                    borderRadius:
-                    BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.apartment_rounded,
-                    color: Colors.white,
-                    size: 31,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'واحد ${_unitNumber()}',
-                        textAlign:
-                        TextAlign.right,
-                        style:
-                        const TextStyle(
-                          color:
-                          Colors.white,
-                          fontSize: 22,
-                          fontWeight:
-                          FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            _unitIsActive()
-                                ? Icons
-                                .check_circle_outline
-                                : Icons
-                                .cancel_outlined,
-                            color: _unitIsActive()
-                                ? Colors.greenAccent
-                                : Colors.redAccent,
-                            size: 18,
-                          ),
-                          const SizedBox(
-                            width: 6,
-                          ),
-                          Text(
-                            _unitIsActive()
-                                ? 'واحد فعال'
-                                : 'واحد غیرفعال',
-                            style:
-                            TextStyle(
-                              color: _unitIsActive()
-                                  ? Colors
-                                  .greenAccent
-                                  : Colors
-                                  .redAccent,
-                              fontSize: 12,
-                              fontWeight:
-                              FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          _header(
+            title: 'واحد ${_unitNumber()}',
+            icon: Icons.apartment_rounded,
           ),
-
           const SizedBox(height: 12),
-
-          _unitStatusCard(),
-
-          const SizedBox(height: 20),
-
-          // =================================================
-          // Unit information
-          // =================================================
-
-          _sectionTitle(
-            'اطلاعات واحد',
-            icon:
-            Icons.home_work_outlined,
+          _infoCard(
+            icon: Icons.verified_outlined,
+            title: 'وضعیت واحد',
+            value: _unitIsActive() ? 'فعال' : 'غیرفعال',
+            valueColor: _unitIsActive() ? Colors.green : Colors.red,
           ),
-
-          const SizedBox(height: 10),
-
           _infoCard(
             icon: Icons.numbers,
             title: 'شماره واحد',
             value: _unitNumber(),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
             icon: Icons.layers_outlined,
             title: 'طبقه',
-            value: _floor(),
+            value: _toPersianDigits(
+              _unitField(['floor_number'], fallback: '-'),
+            ),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
             icon: Icons.square_foot,
             title: 'متراژ',
-            value: _area(),
+            value: '${_toPersianDigits(_unitField(['area']))} مترمربع',
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
             icon: Icons.bed_outlined,
             title: 'تعداد خواب',
-            value: _bedrooms(),
+            value: _toPersianDigits(
+              _unitField(['bedrooms_count']),
+            ),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
-            icon:
-            Icons.local_parking_outlined,
+            icon: Icons.local_parking_outlined,
             title: 'شماره پارکینگ',
-            value: _parkingNumber(),
+            value: _toPersianDigits(
+              _unitField(['parking_number']),
+            ),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
-            icon:
-            Icons.directions_car_outlined,
+            icon: Icons.directions_car_outlined,
             title: 'محل پارکینگ',
-            value: _parkingPlace(),
+            value: _unitField(['parking_place']),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
-            icon:
-            Icons.add_circle_outline,
+            icon: Icons.add_circle_outline,
             title: 'پارکینگ اضافه اول',
-            value:
-            _extraParkingFirst(),
+            value: _unitField(['extra_parking_first']),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
-            icon:
-            Icons.add_circle_outline,
+            icon: Icons.add_circle_outline,
             title: 'پارکینگ اضافه دوم',
-            value:
-            _extraParkingSecond(),
+            value: _unitField(['extra_parking_second']),
           ),
-
-          const SizedBox(height: 8),
-
           _infoCard(
             icon: Icons.phone_outlined,
             title: 'تلفن واحد',
-            value: _unitPhone(),
-          ),
-
-          const SizedBox(height: 8),
-
-          _infoCard(
-            icon:
-            Icons.people_outline,
-            title: 'تعداد ساکنین',
-            value: _peopleCount(),
-          ),
-
-          const SizedBox(height: 8),
-
-          _infoCard(
-            icon:
-            Icons.home_outlined,
-            title: 'وضعیت سکونت',
-            value:
-            _residenceStatus(),
-          ),
-
-          if (_unitDetails()
-              .trim()
-              .isNotEmpty &&
-              _unitDetails() != '-') ...[
-            const SizedBox(height: 8),
-            _infoCard(
-              icon:
-              Icons.notes_outlined,
-              title: 'توضیحات واحد',
-              value:
-              _unitDetails(),
+            value: _toPersianDigits(
+              _unitField(['unit_phone']),
             ),
-          ],
+          ),
+          _infoCard(
+            icon: Icons.people_outline,
+            title: 'تعداد ساکنین',
+            value: _toPersianDigits(
+              _unitField(['people_count'], fallback: '۰'),
+            ),
+          ),
+          _infoCard(
+            icon: Icons.home_outlined,
+            title: 'وضعیت سکونت',
+            value: _residenceStatus(),
+          ),
+          if (_unitField(
+            ['unit_details', 'details'],
+            fallback: '',
+          ).trim().isNotEmpty)
+            _infoCard(
+              icon: Icons.notes_outlined,
+              title: 'توضیحات واحد',
+              value: _unitField(
+                ['unit_details', 'details'],
+                fallback: '',
+              ),
+            ),
+          const SizedBox(height: 10),
 
-          // =================================================
-          // EDIT UNIT BUTTON
-          // =================================================
+// دکمه ویرایش مشخصات واحد
+            SizedBox(
+            height: 50,
+            child: FilledButton.icon(
+            onPressed: _startEditing,
+            style: FilledButton.styleFrom(
+            backgroundColor: unitColor,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            ),
+            ),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('ویرایش اطلاعات واحد'),
+            ),
+            ),
 
-          const SizedBox(height: 18),
+            const SizedBox(height: 10),
 
-          SizedBox(
-            height: 52,
-            child:
-            FilledButton.icon(
-              style:
-              FilledButton.styleFrom(
-                backgroundColor:
-                unitColor,
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
+          // دکمه فعال‌سازی / غیرفعال‌سازی واحد
+              SizedBox(
+              height: 50,
+              child: FilledButton.icon(
+              onPressed:
+              _isChangingStatus ? null : _changeUnitStatus,
+              style: FilledButton.styleFrom(
+              backgroundColor:
+              _unitIsActive() ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              ),
+              ),
+              icon: _isChangingStatus
+              ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+              ),
+              )
+                  : Icon(
+              _unitIsActive()
+              ? Icons.toggle_off_outlined
+                  : Icons.toggle_on_outlined,
+              ),
+              label: Text(
+              _isChangingStatus
+              ? 'در حال تغییر وضعیت...'
+                  : _unitIsActive()
+              ? 'غیرفعال کردن واحد'
+                  : 'فعال‌سازی واحد',
+              ),
+              ),
+              ),
+
+              const SizedBox(height: 24),
+
+          _sectionTitle('مالک واحد', Icons.person_outline),
+          const SizedBox(height: 10),
+          _personCard(
+            name: _ownerName(),
+            subtitle: !ownerExists
+                ? 'برای این واحد مالکی ثبت نشده است'
+                : (_ownerIsActive()
+                ? 'مالک فعلی واحد'
+                : 'مالک غیرفعال'),
+            icon: Icons.person_outline,
+            color: primaryColor,
+            exists: ownerExists,
+            details: [
+              _personInfoRow(
+                Icons.phone_outlined,
+                'شماره موبایل',
+                _ownerMobile(),
+              ),
+              _personInfoRow(
+                Icons.badge_outlined,
+                'کد ملی',
+                _ownerNationalCode(),
+              ),
+              _personInfoRow(
+                Icons.people_outline,
+                'تعداد نفرات',
+                _ownerPeopleCount(),
+              ),
+              _personInfoRow(
+                Icons.event_available_outlined,
+                'تاریخ خرید',
+                _ownerPurchaseDate(),
+              ),
+              if (_ownerDetails().trim().isNotEmpty)
+                _personInfoRow(
+                  Icons.notes_outlined,
+                  'توضیحات',
+                  _ownerDetails(),
+                ),
+            ],
+            status: _statusChip('وضعیت مالک', _ownerIsActive()),
+          ),
+          _managementCard(
+            icon: Icons.manage_accounts_outlined,
+            title: ownerExists ? 'مدیریت مالک' : 'افزودن مالک',
+            subtitle: 'ویرایش یا مدیریت اطلاعات مالک واحد',
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ManagerUnitOwnerScreen(
+                    unitId: widget.unitId,
                   ),
                 ),
+              );
+
+              if (mounted) await _loadUnit();
+            },
+          ),
+          const SizedBox(height: 24),
+
+          _sectionTitle('مستأجر واحد', Icons.people_outline),
+          const SizedBox(height: 10),
+          _personCard(
+            name: _renterName(),
+            subtitle: !renterExists
+                ? 'برای این واحد مستأجری ثبت نشده است'
+                : (_renterIsActive()
+                ? 'مستأجر فعلی واحد'
+                : 'آخرین مستأجر ثبت‌شده غیرفعال است'),
+            icon: Icons.people_alt_outlined,
+            color: unitColor,
+            exists: renterExists,
+            details: [
+              _personInfoRow(
+                Icons.phone_outlined,
+                'شماره موبایل',
+                _renterMobile(),
               ),
-              onPressed:
-              _startEditUnit,
-              icon: const Icon(
-                Icons.edit_outlined,
+              _personInfoRow(
+                Icons.badge_outlined,
+                'کد ملی',
+                _renterNationalCode(),
               ),
-              label: const Text(
-                'ویرایش اطلاعات واحد',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight:
-                  FontWeight.bold,
+              _personInfoRow(
+                Icons.people_outline,
+                'تعداد نفرات',
+                _renterPeopleCount(),
+              ),
+              _personInfoRow(
+                Icons.date_range_outlined,
+                'شروع سکونت',
+                _renterStartDate(),
+              ),
+              _personInfoRow(
+                Icons.event_outlined,
+                'پایان سکونت',
+                _renterEndDate(),
+              ),
+              _personInfoRow(
+                Icons.description_outlined,
+                'شماره قرارداد',
+                _renterContractNumber(),
+              ),
+              _personInfoRow(
+                Icons.business_outlined,
+                'بنگاه',
+                _renterEstateName(),
+              ),
+              if (_renterDetails().trim().isNotEmpty)
+                _personInfoRow(
+                  Icons.notes_outlined,
+                  'توضیحات',
+                  _renterDetails(),
                 ),
+            ],
+            status: _statusChip('وضعیت مستأجر', _renterIsActive()),
+          ),
+          _managementCard(
+            icon: Icons.people_alt_outlined,
+            title: renterExists ? 'مدیریت مستأجر' : 'افزودن مستأجر',
+            subtitle: 'افزودن مستأجر یا ویرایش مستأجر فعال',
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ManagerUnitRenterScreen(
+                    unitId: widget.unitId,
+                  ),
+                ),
+              );
+
+              if (mounted) await _loadUnit();
+            },
+          ),
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _header({
+    required String title,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: unitColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 55,
+            height: 55,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white, size: 30),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-
-          const SizedBox(height: 25),
-
-          // =================================================
-          // Owner
-          // =================================================
-
-          _sectionTitle(
-            'مالک واحد',
-            icon:
-            Icons.person_outline,
-          ),
-
-          const SizedBox(height: 10),
-
-          _ownerCard(),
-
-          const SizedBox(height: 10),
-
-          _managementCard(
-            icon:
-            Icons.manage_accounts_outlined,
-            title: _hasOwner()
-                ? (_ownerIsActive()
-                ? 'ویرایش / مدیریت مالک'
-                : 'مدیریت مالک غیرفعال')
-                : 'افزودن مالک',
-            subtitle: _hasOwner()
-                ? (_ownerIsActive()
-                ? 'ویرایش، افزودن مالک جدید یا غیرفعال کردن مالک فعلی'
-                : 'مشاهده اطلاعات مالک قبلی یا فعال‌سازی مجدد مالک')
-                : 'برای این واحد مالک ثبت کنید',
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ManagerUnitOwnerScreen(
-                        unitId:
-                        widget.unitId,
-                      ),
-                ),
-              );
-
-              if (mounted) {
-                await _loadUnit();
-              }
-            },
-          ),
-
-          const SizedBox(height: 22),
-
-          // =================================================
-          // Renter
-          // =================================================
-
-          _sectionTitle(
-            'مستاجر واحد',
-            icon:
-            Icons.people_outline,
-          ),
-
-          const SizedBox(height: 10),
-
-          _renterCard(),
-
-          const SizedBox(height: 10),
-
-          _managementCard(
-            icon:
-            Icons.people_alt_outlined,
-            title: _hasRenter()
-                ? (_renterIsActive()
-                ? 'ویرایش / مدیریت مستاجر'
-                : 'مدیریت مستاجر غیرفعال')
-                : 'افزودن مستاجر',
-            subtitle: _hasRenter()
-                ? (_renterIsActive()
-                ? 'ویرایش، افزودن مستاجر جدید یا غیرفعال کردن مستاجر فعلی'
-                : 'مشاهده اطلاعات مستاجر قبلی یا افزودن مستاجر جدید')
-                : 'برای این واحد مستاجر ثبت کنید',
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ManagerUnitRenterScreen(
-                        unitId:
-                        widget.unitId,
-                      ),
-                ),
-              );
-
-              if (mounted) {
-                await _loadUnit();
-              }
-            },
-          ),
-
-          const SizedBox(height: 30),
         ],
       ),
     );
@@ -3053,98 +1787,54 @@ class _ManagerUnitDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection:
-      TextDirection.rtl,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-        const Color(0xffF7F9FA),
-
+        backgroundColor: backgroundColor,
         appBar: AppBar(
-          backgroundColor:
-          primaryColor,
-          foregroundColor:
-          Colors.white,
-          elevation: 0,
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
           centerTitle: true,
+          elevation: 0,
           title: Text(
-            _isEditingUnit
-                ? 'ویرایش واحد'
-                : 'جزئیات واحد',
-            style:
-            const TextStyle(
-              fontWeight:
-              FontWeight.bold,
-            ),
+            _isEditing ? 'ویرایش واحد' : 'جزئیات واحد',
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
-            if (!_isEditingUnit)
-              IconButton(
-                onPressed:
-                _isLoading
-                    ? null
-                    : _loadUnit,
-                icon:
-                const Icon(
-                  Icons.refresh,
-                ),
-                tooltip:
-                'بروزرسانی',
-              ),
+            IconButton(
+              tooltip: 'بروزرسانی',
+              onPressed: _isLoading ? null : _loadUnit,
+              icon: const Icon(Icons.refresh),
+            ),
           ],
         ),
-
         body: _isLoading
             ? const Center(
-          child:
-          CircularProgressIndicator(
-            color:
-            primaryColor,
+          child: CircularProgressIndicator(
+            color: primaryColor,
           ),
         )
             : _errorMessage != null
             ? Center(
           child: Padding(
-            padding:
-            const EdgeInsets.all(
-              24,
-            ),
+            padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisAlignment:
-              MainAxisAlignment
-                  .center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
                   Icons.error_outline,
-                  size: 60,
                   color: Colors.red,
+                  size: 54,
                 ),
-                const SizedBox(
-                    height: 15),
+                const SizedBox(height: 15),
                 Text(
                   _errorMessage!,
-                  textAlign:
-                  TextAlign.center,
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(
-                    height: 15),
+                const SizedBox(height: 15),
                 FilledButton.icon(
-                  style:
-                  FilledButton.styleFrom(
-                    backgroundColor:
-                    primaryColor,
-                    foregroundColor:
-                    Colors.white,
-                  ),
-                  onPressed:
-                  _loadUnit,
-                  icon:
-                  const Icon(
-                    Icons.refresh,
-                  ),
-                  label:
-                  const Text(
-                    'تلاش مجدد',
-                  ),
+                  onPressed: _loadUnit,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('تلاش مجدد'),
                 ),
               ],
             ),

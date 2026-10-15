@@ -44,113 +44,152 @@ class ApiService {
         .replaceAll('٩', '9');
   }
 
-  // =====================================================
-  // Login
-  // =====================================================
+
+// =====================================================
+// Login با شماره موبایل و رمز عبور
+// =====================================================
 
   Future<Map<String, dynamic>> login({
-    required String username,
+    required String mobile,
     required String password,
   }) async {
     try {
-      final normalizedUsername = normalizeDigits(username);
+      final normalizedMobile = normalizeDigits(mobile).trim();
       final normalizedPassword = normalizeDigits(password);
 
-      debugPrint(
-        'LOGIN USERNAME: $normalizedUsername',
-      );
+      if (normalizedMobile.isEmpty) {
+        throw Exception('لطفاً شماره موبایل را وارد کنید.');
+      }
 
-      debugPrint(
-        'LOGIN PASSWORD EXISTS: ${normalizedPassword.isNotEmpty}',
-      );
+      if (normalizedPassword.isEmpty) {
+        throw Exception('لطفاً رمز عبور را وارد کنید.');
+      }
 
-      final response = await http
-          .post(
-        Uri.parse(ApiConfig.login),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'username': normalizedUsername,
+      Future<http.Response> sendLogin(
+          Map<String, dynamic> body,
+          ) {
+        return http
+            .post(
+          Uri.parse(ApiConfig.login),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+            .timeout(const Duration(seconds: 20));
+      }
+
+      debugPrint('LOGIN MOBILE: $normalizedMobile');
+
+      // درخواست اول: ورود با شماره موبایل
+      var response = await sendLogin({
+        'mobile': normalizedMobile,
+        'password': normalizedPassword,
+      });
+
+      debugPrint('LOGIN STATUS: ${response.statusCode}');
+      debugPrint('LOGIN RESPONSE: ${response.body}');
+
+      Map<String, dynamic> data = {};
+
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          data = decoded;
+        }
+      } catch (_) {
+        throw Exception('پاسخ دریافتی از سرور نامعتبر است.');
+      }
+
+      // سازگاری موقت با API قدیمی که username اجباری دارد
+      final errors = data['errors'];
+      final usernameErrors =
+      errors is Map ? errors['username'] : null;
+
+      final usernameRequired = usernameErrors is List &&
+          usernameErrors.any(
+                (item) => item.toString().contains('لازم است'),
+          );
+
+      if (usernameRequired) {
+        response = await sendLogin({
+          'username': normalizedMobile,
           'password': normalizedPassword,
-        }),
-      )
-          .timeout(
-        const Duration(seconds: 20),
-      );
+        });
 
-      debugPrint(
-        'LOGIN STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'LOGIN RESPONSE: ${response.body}',
-      );
-
-      if (response.statusCode != 200) {
-        Map<String, dynamic> data = {};
+        debugPrint(
+          'LOGIN LEGACY STATUS: ${response.statusCode}',
+        );
+        debugPrint(
+          'LOGIN LEGACY RESPONSE: ${response.body}',
+        );
 
         try {
           final decoded = jsonDecode(response.body);
-
           if (decoded is Map<String, dynamic>) {
             data = decoded;
+          } else {
+            data = {};
           }
-        } catch (_) {}
+        } catch (_) {
+          throw Exception('پاسخ دریافتی از سرور نامعتبر است.');
+        }
+      }
+
+      if (response.statusCode != 200 &&
+          response.statusCode != 201) {
+        final errors = data['errors'];
+
+        if (errors is Map) {
+          final messages = <String>[];
+
+          errors.forEach((key, value) {
+            if (value is List) {
+              messages.addAll(value.map((item) => item.toString()));
+            } else {
+              messages.add(value.toString());
+            }
+          });
+
+          if (messages.isNotEmpty) {
+            throw Exception(messages.join('\n'));
+          }
+        }
 
         throw Exception(
-          data['message'] ??
-              data['detail'] ??
-              'خطا در ورود به سامانه',
+          data['message']?.toString() ??
+              data['detail']?.toString() ??
+              'شماره موبایل یا رمز عبور صحیح نیست.',
         );
       }
 
-      final decoded = jsonDecode(response.body);
-
-      if (decoded is! Map<String, dynamic>) {
+      if (data['success'] == false) {
         throw Exception(
-          'پاسخ نامعتبر از سرور دریافت شد.',
+          data['message']?.toString() ??
+              'ورود به حساب کاربری ناموفق بود.',
         );
       }
 
-      return decoded;
+      return data;
     } on SocketException catch (e) {
-      debugPrint(
-        'LOGIN SOCKET ERROR: $e',
-      );
-
+      debugPrint('LOGIN SOCKET ERROR: $e');
       throw Exception('NO_INTERNET');
     } on http.ClientException catch (e) {
-      debugPrint(
-        'LOGIN CLIENT ERROR: $e',
-      );
-
+      debugPrint('LOGIN CLIENT ERROR: $e');
       throw Exception('NO_INTERNET');
-    } on FormatException catch (e) {
-      debugPrint(
-        'LOGIN FORMAT ERROR: $e',
-      );
-
-      throw Exception(
-        'پاسخ دریافتی از سرور نامعتبر است.',
-      );
+    } on TimeoutException catch (e) {
+      debugPrint('LOGIN TIMEOUT: $e');
+      throw Exception('REQUEST_TIMEOUT');
     } on Exception catch (e) {
-      debugPrint(
-        'LOGIN ERROR: $e',
-      );
-
+      debugPrint('LOGIN ERROR: $e');
       rethrow;
     } catch (e) {
-      debugPrint(
-        'LOGIN UNKNOWN ERROR: $e',
-      );
-
-      throw Exception(
-        'خطا در برقراری ارتباط با سرور.',
-      );
+      debugPrint('LOGIN UNKNOWN ERROR: $e');
+      throw Exception('خطا در برقراری ارتباط با سرور.');
     }
   }
+
 
   // =====================================================
   // Refresh Token

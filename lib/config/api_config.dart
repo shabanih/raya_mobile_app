@@ -277,32 +277,47 @@ class ApiConfig {
   static const String managerUnits =
       '$baseUrl/manager/units/';
 
+// دریافت جزئیات واحد
   static String managerUnitDetail(int unitId) =>
       '$baseUrl/manager/units/$unitId/';
 
+// مسیر مدیریت مالک
   static String managerUnitOwner(int unitId) =>
       '$baseUrl/manager/units/$unitId/owner/';
 
-// -----------------------------------------------------
-// Renter - مستأجر
-// -----------------------------------------------------
-
-// لیست / مستأجر فعال یک واحد
+// دریافت و ثبت مستأجران واحد
   static String managerUnitRenters(int unitId) =>
       '$baseUrl/manager/units/$unitId/renters/';
 
-// جزئیات / ویرایش / حذف یک مستأجر مشخص
-  static String managerUnitRenterDetail(
-      int unitId,
-      int renterId,
-      ) =>
-      '$baseUrl/manager/units/$unitId/renters/$renterId/';
+// ویرایش مستأجر
+  static String managerRenterUpdate(int renterId) =>
+      '$baseUrl/manager/renters/$renterId/update/';
+
+  static String managerRenterDeactivate(int renterId) =>
+      '$baseUrl/manager/renters/$renterId/deactivate/';
+
+  static String managerRenterDelete(int renterId) =>
+      '$baseUrl/manager/renters/$renterId/delete/';
+
+  static String managerUnitStatus(int unitId) {
+    return '$baseUrl/manager/units/$unitId/status/';
+  }
+
+
+// -----------------------------------------------------
+// Charges - شارژها
+// -----------------------------------------------------
 
   static const String managerCharges =
       '${baseUrl}/manager/charges/';
 
   static const String managerFixedCharges =
       '$baseUrl/manager/charges/fixed/';
+
+  static const String managerAreaCharges =
+      '$baseUrl/manager/area-charges/';
+
+
 
   
 }

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import 'manager_fixed_charges_screen.dart';
+import 'manager_area_charges_screen.dart';
 
 class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
   const ManagerMonthlyChargeMethodsScreen({super.key});
@@ -72,6 +73,15 @@ class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (_) => const ManagerFixedChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerAreaChargesScreen(),
         ),
       );
       return;

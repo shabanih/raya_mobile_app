@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -24,6 +25,24 @@ class ManagerUnitService {
     return null;
   }
 
+  /// ساخت مسیرهای API با استفاده از base مسیر واحدها.
+  ///
+  /// ApiConfig.managerUnits باید به manager/units/ ختم شود.
+  String _managerPath(String path) {
+    final base = ApiConfig.managerUnits.trim();
+    final marker = RegExp(r'manager/units/?$');
+
+    if (!marker.hasMatch(base)) {
+      throw StateError(
+        'آدرس ApiConfig.managerUnits باید به '
+            'manager/units/ ختم شود. مقدار فعلی: $base',
+      );
+    }
+
+    return base.replaceFirst(marker, path);
+  }
+
+  /// استخراج شیء اصلی از پاسخ API.
   Map<String, dynamic> _unwrapObject(
       dynamic value, {
         int depth = 0,
@@ -41,36 +60,25 @@ class ManagerUnitService {
     final unit = _asMap(map['unit']);
 
     if (unit != null) {
-      return _unwrapObject(
-        unit,
-        depth: depth + 1,
-      );
+      return _unwrapObject(unit, depth: depth + 1);
     }
 
     final data = _asMap(map['data']);
 
     if (data != null) {
-      return _unwrapObject(
-        data,
-        depth: depth + 1,
-      );
+      return _unwrapObject(data, depth: depth + 1);
     }
 
     final result = _asMap(map['result']);
 
     if (result != null) {
-      return _unwrapObject(
-        result,
-        depth: depth + 1,
-      );
+      return _unwrapObject(result, depth: depth + 1);
     }
 
     return map;
   }
 
-  List<Map<String, dynamic>> _convertUnitList(
-      dynamic value,
-      ) {
+  List<Map<String, dynamic>> _convertUnitList(dynamic value) {
     if (value is! List) {
       return [];
     }
@@ -80,14 +88,14 @@ class ManagerUnitService {
     for (final item in value) {
       final map = _asMap(item);
 
-      if (map == null) {
-        continue;
-      }
+      if (map != null) {
+        debugPrint(
+          'UNIT ID: ${map['id']} | '
+              'KEYS: ${map.keys.toList()} | '
+              'is_active: ${map['is_active']}',
+        );
 
-      final unwrapped = _unwrapObject(map);
-
-      if (unwrapped.isNotEmpty) {
-        result.add(unwrapped);
+        result.add(map);
       }
     }
 
@@ -103,34 +111,58 @@ class ManagerUnitService {
         return defaultMessage;
       }
 
-      final data = jsonDecode(body);
+      final decoded = jsonDecode(body);
 
-      if (data is String &&
-          data.trim().isNotEmpty) {
-        return data;
+      if (decoded is String && decoded.trim().isNotEmpty) {
+        return decoded;
       }
 
-      if (data is Map<String, dynamic>) {
-        if (data['detail'] != null) {
-          return data['detail'].toString();
+      final data = _asMap(decoded);
+
+      if (data != null) {
+        for (final key in ['message', 'detail', 'error']) {
+          final value = data[key];
+
+          if (value != null && value.toString().trim().isNotEmpty) {
+            return value.toString();
+          }
         }
 
-        if (data['message'] != null) {
-          return data['message'].toString();
+        final nestedData = _asMap(data['data']);
+
+        if (nestedData != null &&
+            nestedData['message'] != null) {
+          return nestedData['message'].toString();
         }
 
-        if (data['error'] != null) {
-          return data['error'].toString();
+        final errors = _asMap(data['errors']);
+
+        if (errors != null) {
+          final messages = <String>[];
+
+          errors.forEach((key, value) {
+            if (value is List) {
+              messages.addAll(
+                value.map((item) => item.toString()),
+              );
+            } else if (value != null) {
+              messages.add(value.toString());
+            }
+          });
+
+          if (messages.isNotEmpty) {
+            return messages.join('\n');
+          }
         }
 
         final messages = <String>[];
 
         data.forEach((key, value) {
           if (value is List) {
-            for (final item in value) {
-              messages.add(item.toString());
-            }
-          } else if (value != null) {
+            messages.addAll(
+              value.map((item) => item.toString()),
+            );
+          } else if (value != null && value is! Map) {
             messages.add(value.toString());
           }
         });
@@ -139,13 +171,58 @@ class ManagerUnitService {
           return messages.join('\n');
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // در صورت پاسخ غیر JSON، پیام پیش‌فرض نمایش داده می‌شود.
+    }
 
     return defaultMessage;
   }
 
+  Map<String, dynamic> _decodeObject(
+      String body, {
+        String defaultMessage = 'پاسخ سرور نامعتبر است.',
+      }) {
+    if (body.trim().isEmpty) {
+      return {'success': true};
+    }
+
+    final decoded = jsonDecode(body);
+    final map = _asMap(decoded);
+
+    if (map == null) {
+      throw Exception(defaultMessage);
+    }
+
+    return map;
+  }
+
+  Map<String, dynamic> _ensureSuccess(
+      String body, {
+        String defaultMessage = 'عملیات ناموفق بود.',
+      }) {
+    final result = _decodeObject(
+      body,
+      defaultMessage: defaultMessage,
+    );
+
+    if (result['success'] == false) {
+      throw Exception(
+        result['message']?.toString() ?? defaultMessage,
+      );
+    }
+
+    return result;
+  }
+
+  Never _unsupportedDeleteUnit() {
+    throw UnsupportedError(
+      'حذف واحد از اپ مدیران غیرفعال است. '
+          'برای واحد از قابلیت ویرایش استفاده کنید.',
+    );
+  }
+
   // ============================================================
-  // Units
+  // Units: List
   // ============================================================
 
   Future<List<Map<String, dynamic>>> getUnits({
@@ -153,44 +230,35 @@ class ManagerUnitService {
     String? residentType,
   }) async {
     try {
-      String url = ApiConfig.managerUnits;
-
       final params = <String, String>{};
 
-      if (search != null &&
-          search.trim().isNotEmpty) {
+      if (search != null && search.trim().isNotEmpty) {
         params['search'] = search.trim();
       }
 
       if (residentType != null &&
           residentType.trim().isNotEmpty &&
-          residentType.trim() != 'all') {
-        params['resident_type'] =
-            residentType.trim();
+          residentType.trim().toLowerCase() != 'all') {
+        params['resident_type'] = residentType.trim().toLowerCase();
       }
+
+      var url = ApiConfig.managerUnits;
 
       if (params.isNotEmpty) {
-        url += '?${Uri(
-          queryParameters: params,
-        ).query}';
+        url += '?${Uri(queryParameters: params).query}';
       }
 
-      debugPrint(
-        'ManagerUnitService GET: $url',
-      );
+      debugPrint('ManagerUnitService GET: $url');
 
-      final response =
-      await _apiService.get(url);
+      final response = await _apiService.get(url);
 
-      debugPrint(
-        'getUnits status: ${response.statusCode}',
-      );
+      debugPrint('getUnits status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
         throw Exception(
           _extractError(
             response.body,
-            'خطا در دریافت لیست واحدها',
+            'خطا در دریافت فهرست واحدها',
           ),
         );
       }
@@ -199,80 +267,75 @@ class ManagerUnitService {
         return [];
       }
 
-      final decoded =
-      jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
 
       if (decoded is List) {
         return _convertUnitList(decoded);
       }
 
-      final map = _asMap(decoded);
+      final responseMap = _asMap(decoded);
 
-      if (map == null) {
+      if (responseMap == null) {
         return [];
       }
 
-      if (map['results'] is List) {
-        return _convertUnitList(
-          map['results'],
+      if (responseMap['success'] == false) {
+        throw Exception(
+          responseMap['message']?.toString() ??
+              'دریافت فهرست واحدها ناموفق بود.',
         );
       }
 
-      if (map['units'] is List) {
-        return _convertUnitList(
-          map['units'],
-        );
+      final data = _asMap(responseMap['data']);
+
+      if (data != null) {
+        if (data['results'] is List) {
+          return _convertUnitList(data['results']);
+        }
+
+        if (data['units'] is List) {
+          return _convertUnitList(data['units']);
+        }
+
+        if (data['data'] is List) {
+          return _convertUnitList(data['data']);
+        }
       }
 
-      if (map['data'] is List) {
-        return _convertUnitList(
-          map['data'],
-        );
+      if (responseMap['results'] is List) {
+        return _convertUnitList(responseMap['results']);
       }
 
-      if (map['result'] is List) {
-        return _convertUnitList(
-          map['result'],
-        );
+      if (responseMap['units'] is List) {
+        return _convertUnitList(responseMap['units']);
       }
 
-      final dataObject =
-      _asMap(map['data']);
+      if (responseMap['data'] is List) {
+        return _convertUnitList(responseMap['data']);
+      }
 
-      if (dataObject != null) {
-        return [
-          _unwrapObject(dataObject),
-        ];
+      if (responseMap['result'] is List) {
+        return _convertUnitList(responseMap['result']);
       }
 
       return [];
     } catch (e) {
-      debugPrint(
-        'getUnits exception: $e',
-      );
+      debugPrint('getUnits exception: $e');
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> getUnit(
-      int unitId,
-      ) async {
+  // ============================================================
+  // Units: Detail
+  // ============================================================
+
+  Future<Map<String, dynamic>> getUnit(int unitId) async {
     try {
-      final url =
-      ApiConfig.managerUnitDetail(
-        unitId,
+      final response = await _apiService.get(
+        ApiConfig.managerUnitDetail(unitId),
       );
 
-      final response =
-      await _apiService.get(url);
-
-      debugPrint(
-        'getUnit status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'getUnit body: ${response.body}',
-      );
+      debugPrint('getUnit status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
         throw Exception(
@@ -284,176 +347,126 @@ class ManagerUnitService {
       }
 
       if (response.body.trim().isEmpty) {
-        throw Exception(
-          'اطلاعات واحد خالی است.',
-        );
+        throw Exception('اطلاعات واحد خالی است.');
       }
 
-      final decoded =
-      jsonDecode(response.body);
-
-      final result =
-      _unwrapObject(decoded);
+      final result = _unwrapObject(
+        jsonDecode(response.body),
+      );
 
       if (result.isEmpty) {
-        throw Exception(
-          'اطلاعات واحد نامعتبر است.',
-        );
+        throw Exception('اطلاعات واحد پیدا نشد.');
       }
 
       return result;
     } catch (e) {
-      debugPrint(
-        'getUnit exception: $e',
-      );
+      debugPrint('getUnit exception: $e');
       rethrow;
     }
   }
+
+  // ============================================================
+  // Units: Create
+  // POST /api/manager/units/create/
+  // ============================================================
 
   Future<Map<String, dynamic>> createUnit(
       Map<String, dynamic> data,
       ) async {
     try {
-      final response =
-      await _apiService.post(
-        ApiConfig.managerUnits,
+      final url = _managerPath('manager/units/create/');
+
+      debugPrint('createUnit URL: $url');
+
+      final response = await _apiService.post(
+        url,
         body: data,
       );
 
+      debugPrint('createUnit status: ${response.statusCode}');
+      debugPrint('createUnit body: ${response.body}');
+
       if (response.statusCode == 200 ||
           response.statusCode == 201) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ثبت واحد و مالک ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در ایجاد واحد',
+          'خطا در ثبت واحد و مالک',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'createUnit exception: $e',
-      );
+      debugPrint('createUnit exception: $e');
       rethrow;
     }
   }
+
+  // ============================================================
+  // Units: Update
+  // PATCH /api/manager/units/<unit_id>/update/
+  // ============================================================
 
   Future<Map<String, dynamic>> updateUnit(
       int unitId,
       Map<String, dynamic> data,
       ) async {
     try {
-      final response =
-      await _apiService.patch(
-        ApiConfig.managerUnitDetail(
-          unitId,
-        ),
+      final url = _managerPath(
+        'manager/units/$unitId/update/',
+      );
+
+      debugPrint('updateUnit URL: $url');
+
+      final response = await _apiService.patch(
+        url,
         body: data,
       );
 
+      debugPrint('updateUnit status: ${response.statusCode}');
+      debugPrint('updateUnit body: ${response.body}');
+
       if (response.statusCode == 200) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ویرایش واحد ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در ویرایش واحد',
+          'خطا در ویرایش واحد و مالک',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'updateUnit exception: $e',
-      );
+      debugPrint('updateUnit exception: $e');
       rethrow;
     }
   }
 
-  Future<bool> deleteUnit(
-      int unitId,
-      ) async {
-    try {
-      final response =
-      await _apiService.delete(
-        ApiConfig.managerUnitDetail(
-          unitId,
-        ),
-      );
-
-      if (response.statusCode == 200 ||
-          response.statusCode == 204) {
-        return true;
-      }
-
-      throw Exception(
-        _extractError(
-          response.body,
-          'خطا در حذف واحد',
-        ),
-      );
-    } catch (e) {
-      debugPrint(
-        'deleteUnit exception: $e',
-      );
-      rethrow;
-    }
+  // حذف واحد عمداً غیرفعال است.
+  // این متد فقط برای جلوگیری از خطای کامپایل صفحات قدیمی نگه داشته شده.
+  // پس از حذف دکمه و فراخوانی حذف از صفحه، می‌توان این متد را هم حذف کرد.
+  Future<Map<String, dynamic>> deleteUnit(int unitId) async {
+    _unsupportedDeleteUnit();
   }
 
   // ============================================================
-  // Owner
+  // Owner: Get
   // ============================================================
 
-  Future<Map<String, dynamic>?> getOwner(
-      int unitId,
-      ) async {
+  Future<Map<String, dynamic>?> getOwner(int unitId) async {
     try {
-      final response =
-      await _apiService.get(
-        ApiConfig.managerUnitOwner(
-          unitId,
-        ),
+      final response = await _apiService.get(
+        ApiConfig.managerUnitOwner(unitId),
       );
 
-      debugPrint(
-        'getOwner status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'getOwner body: ${response.body}',
-      );
+      debugPrint('getOwner status: ${response.statusCode}');
 
       if (response.statusCode == 404) {
         return null;
@@ -472,27 +485,19 @@ class ManagerUnitService {
         return null;
       }
 
-      final decoded =
-      jsonDecode(response.body);
-
-      final result =
-      _unwrapObject(decoded);
-
-      if (result.isEmpty) {
-        return null;
-      }
-
-      return result;
-    } catch (e) {
-      debugPrint(
-        'getOwner exception: $e',
+      final result = _unwrapObject(
+        jsonDecode(response.body),
       );
+
+      return result.isEmpty ? null : result;
+    } catch (e) {
+      debugPrint('getOwner exception: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // ایجاد مالک جدید
+  // Owner: Create
   // ============================================================
 
   Future<Map<String, dynamic>> createOwner(
@@ -500,59 +505,35 @@ class ManagerUnitService {
       Map<String, dynamic> data,
       ) async {
     try {
-      final response =
-      await _apiService.post(
-        ApiConfig.managerUnitOwner(
-          unitId,
-        ),
+      final response = await _apiService.post(
+        ApiConfig.managerUnitOwner(unitId),
         body: data,
       );
 
-      debugPrint(
-        'createOwner status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'createOwner body: ${response.body}',
-      );
+      debugPrint('createOwner status: ${response.statusCode}');
 
       if (response.statusCode == 200 ||
           response.statusCode == 201) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ثبت مالک ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در ثبت مالک جدید',
+          'خطا در ثبت مالک',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'createOwner exception: $e',
-      );
+      debugPrint('createOwner exception: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // ویرایش مالک فعلی
+  // Owner: Update
   // ============================================================
 
   Future<Map<String, dynamic>> updateOwner(
@@ -560,40 +541,18 @@ class ManagerUnitService {
       Map<String, dynamic> data,
       ) async {
     try {
-      final response =
-      await _apiService.patch(
-        ApiConfig.managerUnitOwner(
-          unitId,
-        ),
+      final response = await _apiService.patch(
+        ApiConfig.managerUnitOwner(unitId),
         body: data,
       );
 
-      debugPrint(
-        'updateOwner status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'updateOwner body: ${response.body}',
-      );
+      debugPrint('updateOwner status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ویرایش مالک ناموفق بود.',
+        );
       }
 
       throw Exception(
@@ -603,79 +562,73 @@ class ManagerUnitService {
         ),
       );
     } catch (e) {
-      debugPrint(
-        'updateOwner exception: $e',
-      );
+      debugPrint('updateOwner exception: $e');
       rethrow;
     }
   }
 
-  Future<bool> deleteOwner(
+// ============================================================
+// Unit: Activate / Deactivate
+// POST /api/manager/units/<unit_id>/status/
+//
+// فعال یا غیرفعال کردن خود واحد
+// بدون حذف مالک، مستأجر یا سوابق مالی
+// ============================================================
+
+  Future<Map<String, dynamic>> updateUnitStatus(
       int unitId,
+      bool isActive,
       ) async {
     try {
-      final response =
-      await _apiService.delete(
-        ApiConfig.managerUnitOwner(
-          unitId,
-        ),
+      final response = await _apiService.post(
+        ApiConfig.managerUnitStatus(unitId),
+        body: <String, dynamic>{
+          'is_active': isActive,
+        },
       );
 
       debugPrint(
-        'deleteOwner status: ${response.statusCode}',
+        'updateUnitStatus status: ${response.statusCode}',
+      );
+      debugPrint(
+        'updateUnitStatus body: ${response.body}',
       );
 
       if (response.statusCode == 200 ||
-          response.statusCode == 204) {
-        return true;
+          response.statusCode == 202) {
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: isActive
+              ? 'واحد با موفقیت فعال شد.'
+              : 'واحد با موفقیت غیرفعال شد.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در حذف مالک',
+          'خطا در تغییر وضعیت واحد',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'deleteOwner exception: $e',
-      );
+      debugPrint('updateUnitStatus exception: $e');
       rethrow;
     }
   }
 
+
+
   // ============================================================
-  // Renter
+  // Renter: Get active renter / renter list
+  // GET /api/manager/units/<unit_id>/renters/
   // ============================================================
 
-  /// دریافت مستاجر فعال واحد
-  ///
-  /// توجه:
-  /// API جدید Django برای مستاجر:
-  ///
-  /// GET
-  /// /manager/units/<unit_id>/renters/
-  ///
-  /// بنابراین دیگر از /renter/ استفاده نمی‌کنیم.
-  Future<Map<String, dynamic>?> getRenter(
-      int unitId,
-      ) async {
+  Future<Map<String, dynamic>?> getRenter(int unitId) async {
     try {
-      final url =
-      ApiConfig.managerUnitRenters(
-        unitId,
-      );
+      final url = ApiConfig.managerUnitRenters(unitId);
+      final response = await _apiService.get(url);
 
-      final response =
-      await _apiService.get(url);
-
-      debugPrint(
-        'getRenter status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'getRenter body: ${response.body}',
-      );
+      debugPrint('getRenter status: ${response.statusCode}');
 
       if (response.statusCode == 404) {
         return null;
@@ -685,7 +638,7 @@ class ManagerUnitService {
         throw Exception(
           _extractError(
             response.body,
-            'خطا در دریافت اطلاعات مستاجر',
+            'خطا در دریافت اطلاعات مستأجر',
           ),
         );
       }
@@ -694,392 +647,323 @@ class ManagerUnitService {
         return null;
       }
 
-      final decoded =
-      jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      final responseMap = _asMap(decoded);
 
-      // ----------------------------------------------------------
-      // اگر API مستقیماً یک مستاجر برگرداند
-      // ----------------------------------------------------------
+      if (responseMap == null) {
+        if (decoded is List) {
+          for (final item in decoded) {
+            final renter = _asMap(item);
 
-      final directMap =
-      _asMap(decoded);
-
-      if (directMap != null) {
-        final directRenter =
-        _asMap(directMap['renter']);
-
-        if (directRenter != null &&
-            directRenter.isNotEmpty) {
-          return directRenter;
-        }
-
-        final activeRenter =
-        _asMap(directMap['active_renter']);
-
-        if (activeRenter != null &&
-            activeRenter.isNotEmpty) {
-          return activeRenter;
-        }
-
-        final results =
-        directMap['results'];
-
-        if (results is List) {
-          for (final item in results) {
-            final renter =
-            _asMap(item);
-
-            if (renter == null) {
-              continue;
-            }
-
-            final isActive =
-            renter['renter_is_active'];
-
-            if (isActive == true) {
+            if (renter != null &&
+                renter['renter_is_active'] == true &&
+                renter['is_deleted'] != true) {
               return renter;
             }
           }
-
-          if (results.isNotEmpty) {
-            final first =
-            _asMap(results.first);
-
-            if (first != null) {
-              return first;
-            }
-          }
         }
 
-        final renters =
-        directMap['renters'];
-
-        if (renters is List) {
-          for (final item in renters) {
-            final renter =
-            _asMap(item);
-
-            if (renter == null) {
-              continue;
-            }
-
-            final isActive =
-            renter['renter_is_active'];
-
-            if (isActive == true) {
-              return renter;
-            }
-          }
-
-          if (renters.isNotEmpty) {
-            final first =
-            _asMap(renters.first);
-
-            if (first != null) {
-              return first;
-            }
-          }
-        }
-
-        final data =
-        directMap['data'];
-
-        if (data is List) {
-          for (final item in data) {
-            final renter =
-            _asMap(item);
-
-            if (renter == null) {
-              continue;
-            }
-
-            if (renter['renter_is_active'] == true) {
-              return renter;
-            }
-          }
-
-          if (data.isNotEmpty) {
-            final first =
-            _asMap(data.first);
-
-            if (first != null) {
-              return first;
-            }
-          }
-        }
-
-        final result =
-        directMap['result'];
-
-        if (result is List) {
-          for (final item in result) {
-            final renter =
-            _asMap(item);
-
-            if (renter == null) {
-              continue;
-            }
-
-            if (renter['renter_is_active'] == true) {
-              return renter;
-            }
-          }
-
-          if (result.isNotEmpty) {
-            final first =
-            _asMap(result.first);
-
-            if (first != null) {
-              return first;
-            }
-          }
-        }
-
-        // اگر خود map اطلاعات مستاجر باشد
-        if (directMap.containsKey('renter_name') ||
-            directMap.containsKey('renter_mobile') ||
-            directMap.containsKey('renter_is_active')) {
-          return directMap;
-        }
+        return null;
       }
 
-      // ----------------------------------------------------------
-      // اگر پاسخ List باشد
-      // ----------------------------------------------------------
+      if (responseMap['success'] == false) {
+        throw Exception(
+          responseMap['message']?.toString() ??
+              'دریافت اطلاعات مستأجر ناموفق بود.',
+        );
+      }
 
-      if (decoded is List) {
-        Map<String, dynamic>? firstRenter;
+      final data = _asMap(responseMap['data']) ?? responseMap;
+      final activeRenter = _asMap(data['active_renter']);
 
-        for (final item in decoded) {
-          final renter =
-          _asMap(item);
+      if (activeRenter != null &&
+          activeRenter['is_deleted'] != true) {
+        return activeRenter;
+      }
 
-          if (renter == null) {
-            continue;
-          }
+      final renter = _asMap(data['renter']);
 
-          firstRenter ??= renter;
+      if (renter != null &&
+          renter['is_deleted'] != true) {
+        return renter;
+      }
 
-          if (renter['renter_is_active'] == true) {
-            return renter;
+      final renters = data['renters'];
+
+      if (renters is List) {
+        for (final item in renters) {
+          final current = _asMap(item);
+
+          if (current != null &&
+              current['renter_is_active'] == true &&
+              current['is_deleted'] != true) {
+            return current;
           }
         }
-
-        return firstRenter;
       }
 
       return null;
     } catch (e) {
-      debugPrint(
-        'getRenter exception: $e',
-      );
+      debugPrint('getRenter exception: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // ایجاد مستاجر جدید
+  // Renter: Get all renters of a unit
+  // GET /api/manager/units/<unit_id>/renters/
+  // شامل مستأجر فعال و سوابق مستأجران غیرفعال
   // ============================================================
 
-  /// ثبت مستاجر جدید
-  ///
-  /// POST:
-  /// /manager/units/<unit_id>/renters/
-  ///
-  /// Backend باید قبل از ایجاد مستاجر جدید،
-  /// مستاجر فعال قبلی را غیرفعال کند.
+  Future<List<Map<String, dynamic>>> getRenters(int unitId) async {
+    try {
+      final url = ApiConfig.managerUnitRenters(unitId);
+      final response = await _apiService.get(url);
+
+      debugPrint('getRenters status: ${response.statusCode}');
+      debugPrint('getRenters body: ${response.body}');
+
+      if (response.statusCode == 404) {
+        return [];
+      }
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          _extractError(
+            response.body,
+            'خطا در دریافت فهرست مستأجران',
+          ),
+        );
+      }
+
+      if (response.body.trim().isEmpty) {
+        return [];
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is List) {
+        return decoded
+            .map(_asMap)
+            .whereType<Map<String, dynamic>>()
+            .where((renter) => renter['is_deleted'] != true)
+            .toList();
+      }
+
+      final responseMap = _asMap(decoded);
+
+      if (responseMap == null) {
+        return [];
+      }
+
+      if (responseMap['success'] == false) {
+        throw Exception(
+          responseMap['message']?.toString() ??
+              'دریافت فهرست مستأجران ناموفق بود.',
+        );
+      }
+
+      final data = _asMap(responseMap['data']) ?? responseMap;
+
+      final renters = data['renters'];
+
+      if (renters is List) {
+        return renters
+            .map(_asMap)
+            .whereType<Map<String, dynamic>>()
+            .where((renter) => renter['is_deleted'] != true)
+            .toList();
+      }
+
+      final activeRenter = _asMap(data['active_renter']);
+
+      if (activeRenter != null &&
+          activeRenter['is_deleted'] != true) {
+        return [activeRenter];
+      }
+
+      final renter = _asMap(data['renter']);
+
+      if (renter != null && renter['is_deleted'] != true) {
+        return [renter];
+      }
+
+      return [];
+    } catch (e) {
+      debugPrint('getRenters exception: $e');
+      rethrow;
+    }
+  }
+
+
+  // ============================================================
+  // Renter: Create
+  // POST /api/manager/units/<unit_id>/renters/
+  // ============================================================
+
   Future<Map<String, dynamic>> createRenter(
       int unitId,
       Map<String, dynamic> data,
       ) async {
     try {
-      final url =
-      ApiConfig.managerUnitRenters(
-        unitId,
-      );
+      final url = ApiConfig.managerUnitRenters(unitId);
 
-      debugPrint(
-        'createRenter URL: $url',
-      );
+      debugPrint('createRenter URL: $url');
+      debugPrint('createRenter data: $data');
 
-      debugPrint(
-        'createRenter data: $data',
-      );
-
-      final response =
-      await _apiService.post(
+      final response = await _apiService.post(
         url,
         body: data,
       );
 
-      debugPrint(
-        'createRenter status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'createRenter body: ${response.body}',
-      );
+      debugPrint('createRenter status: ${response.statusCode}');
+      debugPrint('createRenter body: ${response.body}');
 
       if (response.statusCode == 200 ||
           response.statusCode == 201) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ثبت مستأجر ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در ثبت مستاجر جدید',
+          'خطا در ثبت مستأجر',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'createRenter exception: $e',
-      );
+      debugPrint('createRenter exception: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // ویرایش مستاجر فعلی
+  // Renter: Update active renter
+  // PATCH /api/manager/renters/<renter_id>/update/
   // ============================================================
 
-  /// ویرایش مستاجر مشخص
-  ///
-  /// PATCH:
-  /// /manager/units/<unit_id>/renters/<renter_id>/
   Future<Map<String, dynamic>> updateRenter(
       int unitId,
       int renterId,
       Map<String, dynamic> data,
       ) async {
     try {
-      final url =
-      ApiConfig.managerUnitRenterDetail(
-        unitId,
-        renterId,
+      // unitId برای حفظ سازگاری صفحات قبلی نگه داشته شده است.
+      final url = _managerPath(
+        'manager/renters/$renterId/update/',
       );
 
-      debugPrint(
-        'updateRenter URL: $url',
-      );
+      debugPrint('updateRenter URL: $url');
+      debugPrint('updateRenter data: $data');
 
-      debugPrint(
-        'updateRenter data: $data',
-      );
-
-      final response =
-      await _apiService.patch(
+      final response = await _apiService.patch(
         url,
         body: data,
       );
 
-      debugPrint(
-        'updateRenter status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'updateRenter body: ${response.body}',
-      );
+      debugPrint('updateRenter status: ${response.statusCode}');
+      debugPrint('updateRenter body: ${response.body}');
 
       if (response.statusCode == 200) {
-        if (response.body.trim().isEmpty) {
-          return {
-            'success': true,
-          };
-        }
-
-        final result =
-        jsonDecode(response.body);
-
-        if (result is Map<String, dynamic>) {
-          return _unwrapObject(result);
-        }
-
-        return {
-          'success': true,
-          'data': result,
-        };
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'ویرایش مستأجر ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در ویرایش مستاجر',
+          'خطا در ویرایش مستأجر',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'updateRenter exception: $e',
-      );
+      debugPrint('updateRenter exception: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // غیرفعال کردن / حذف مستاجر
+  // Renter: Deactivate
+  // PATCH /api/manager/renters/<renter_id>/deactivate/
   // ============================================================
 
-  /// حذف یا غیرفعال کردن مستاجر مشخص
-  ///
-  /// DELETE:
-  /// /manager/units/<unit_id>/renters/<renter_id>/
-  Future<bool> deleteRenter(
-      int unitId,
+  Future<Map<String, dynamic>> deactivateRenter(
       int renterId,
       ) async {
     try {
-      final url =
-      ApiConfig.managerUnitRenterDetail(
-        unitId,
-        renterId,
+      final url = _managerPath(
+        'manager/renters/$renterId/deactivate/',
       );
 
-      debugPrint(
-        'deleteRenter URL: $url',
+      final response = await _apiService.patch(
+        url,
+        body: <String, dynamic>{},
       );
 
-      final response =
-      await _apiService.delete(url);
-
-      debugPrint(
-        'deleteRenter status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'deleteRenter body: ${response.body}',
-      );
+      debugPrint('deactivateRenter status: ${response.statusCode}');
+      debugPrint('deactivateRenter body: ${response.body}');
 
       if (response.statusCode == 200 ||
+          response.statusCode == 202 ||
           response.statusCode == 204) {
-        return true;
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'غیرفعال‌سازی مستأجر ناموفق بود.',
+        );
       }
 
       throw Exception(
         _extractError(
           response.body,
-          'خطا در غیرفعال کردن مستاجر',
+          'خطا در غیرفعال‌سازی مستأجر',
         ),
       );
     } catch (e) {
-      debugPrint(
-        'deleteRenter exception: $e',
+      debugPrint('deactivateRenter exception: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // Renter: Soft Delete
+  // DELETE /api/manager/renters/<renter_id>/delete/
+  // ============================================================
+
+  Future<Map<String, dynamic>> deleteRenter(
+      int unitId,
+      int renterId,
+      ) async {
+    try {
+      // unitId برای سازگاری با صفحه حفظ شده است.
+      final url = _managerPath(
+        'manager/renters/$renterId/delete/',
       );
+
+      final response = await _apiService.delete(url);
+
+      debugPrint('deleteRenter status: ${response.statusCode}');
+      debugPrint('deleteRenter body: ${response.body}');
+
+      if (response.statusCode == 200 ||
+          response.statusCode == 202 ||
+          response.statusCode == 204) {
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'حذف مستأجر ناموفق بود.',
+        );
+      }
+
+      throw Exception(
+        _extractError(
+          response.body,
+          'خطا در حذف مستأجر',
+        ),
+      );
+    } catch (e) {
+      debugPrint('deleteRenter exception: $e');
       rethrow;
     }
   }

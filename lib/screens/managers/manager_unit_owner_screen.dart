@@ -51,7 +51,7 @@ class _ManagerUnitOwnerScreenState
 
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isDeleting = false;
+
 
   bool _hasOwner = false;
   bool _isAddingNew = false;
@@ -659,39 +659,25 @@ class _ManagerUnitOwnerScreenState
   // Owner Data
   // =========================================================
 
+
   Map<String, dynamic> _ownerData() {
-    final peopleCount =
-        int.tryParse(
-          _normalizeDigits(
-            _peopleCountController.text.trim(),
-          ),
-        ) ??
-            1;
-
-    final data =
-    <String, dynamic>{
-      'owner_name':
-      _nameController.text.trim(),
-
-      'owner_mobile':
+    final peopleCount = int.tryParse(
       _normalizeDigits(
+        _peopleCountController.text.trim(),
+      ),
+    ) ??
+        1;
+
+    final data = <String, dynamic>{
+      'owner_name': _nameController.text.trim(),
+      'owner_mobile': _normalizeDigits(
         _mobileController.text.trim(),
       ),
-
-      'owner_national_code':
-      _normalizeDigits(
+      'owner_national_code': _normalizeDigits(
         _nationalCodeController.text.trim(),
       ),
-
-      'owner_people_count':
-      peopleCount,
-
-      'owner_details':
-      _detailsController.text.trim(),
-
-      // وضعیت مالک و واحد
-      'is_active':
-      _ownerIsActive,
+      'owner_people_count': peopleCount,
+      'owner_details': _detailsController.text.trim(),
     };
 
     final purchaseDate =
@@ -702,30 +688,27 @@ class _ManagerUnitOwnerScreenState
           _normalizeDigits(purchaseDate);
     }
 
-    final password =
-        _passwordController.text;
-
+    final password = _passwordController.text;
     final passwordConfirm =
         _passwordConfirmController.text;
 
     if (password.isNotEmpty) {
-      data['password'] =
-          password;
-
-      data['password_confirm'] =
+      data['owner_password'] = password;
+      data['owner_password_confirm'] =
           passwordConfirm;
     }
 
     return data;
   }
 
-  // =========================================================
-  // Save
-  // =========================================================
+
+
+// =========================================================
+// Save Owner
+// =========================================================
 
   Future<void> _saveOwner() async {
-    if (!_isAddingNew &&
-        !_isEditing) {
+    if (!_isAddingNew && !_isEditing) {
       return;
     }
 
@@ -733,7 +716,7 @@ class _ManagerUnitOwnerScreenState
       return;
     }
 
-    if (_isSaving || _isDeleting) {
+    if (_isSaving) {
       return;
     }
 
@@ -752,8 +735,7 @@ class _ManagerUnitOwnerScreenState
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
               'اطلاعات مالک با موفقیت ویرایش شد.',
@@ -769,8 +751,7 @@ class _ManagerUnitOwnerScreenState
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
               'مالک جدید با موفقیت ثبت شد.',
@@ -780,220 +761,9 @@ class _ManagerUnitOwnerScreenState
         );
       }
 
-      // -------------------------------------------------------
-      // قبلاً Navigator.pop داشتیم.
-      // الان صفحه را نمی‌بندیم و اطلاعات جدید را می‌گیریم.
-      // -------------------------------------------------------
-
       await _loadUnit();
     } catch (e) {
       if (!mounted) return;
-
-      _showError(e);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // Deactivate Owner / Unit
-  // =========================================================
-
-  Future<void> _deleteOwner() async {
-    if (!_hasOwner ||
-        _isAddingNew ||
-        _isEditing) {
-      return;
-    }
-
-    if (_isSaving || _isDeleting) {
-      return;
-    }
-
-    final confirmed =
-    await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            title: const Text(
-              'غیرفعال کردن مالک و واحد',
-            ),
-            content: const Text(
-              'با غیرفعال کردن مالک، واحد نیز غیرفعال می‌شود.\n\n'
-                  'اطلاعات مالک حذف نمی‌شود و همچنان '
-                  'در جزئیات قابل مشاهده خواهد بود.\n\n'
-                  'آیا ادامه می‌دهید؟',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                    false,
-                  );
-                },
-                child: const Text(
-                  'انصراف',
-                ),
-              ),
-              FilledButton(
-                style:
-                FilledButton.styleFrom(
-                  backgroundColor:
-                  Colors.red,
-                ),
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                    true,
-                  );
-                },
-                child: const Text(
-                  'غیرفعال کردن',
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    // اطلاعات مالک را قبل از درخواست نگه می‌داریم.
-    final ownerSnapshot =
-    _currentOwnerSnapshot();
-
-    setState(() {
-      _isDeleting = true;
-    });
-
-    try {
-      await _unitService.deleteOwner(
-        widget.unitId,
-      );
-
-      if (!mounted) return;
-
-      // -------------------------------------------------------
-      // مهم:
-      // صفحه بسته نمی‌شود.
-      // مالک همچنان نمایش داده می‌شود.
-      // -------------------------------------------------------
-
-      setState(() {
-        _hasOwner = true;
-        _ownerIsActive = false;
-
-        if (ownerSnapshot != null) {
-          _fillOwner({
-            ...ownerSnapshot,
-            'is_active': false,
-          });
-        }
-
-        // وضعیت واحد نیز غیرفعال شده است.
-        if (_unit != null) {
-          _unit = {
-            ..._unit!,
-            'is_active': false,
-            'owner': {
-              ...(ownerSnapshot ?? {}),
-              'is_active': false,
-            },
-          };
-        }
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'مالک و واحد با موفقیت غیرفعال شدند. اطلاعات مالک حذف نشده است.',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      _showError(e);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // Activate Owner / Unit
-  // =========================================================
-
-  Future<void> _activateOwner() async {
-    if (!_hasOwner ||
-        _isSaving ||
-        _isDeleting) {
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      final data =
-      _ownerData();
-
-      data['is_active'] = true;
-
-      await _unitService.updateOwner(
-        widget.unitId,
-        data,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _ownerIsActive = true;
-
-        if (_unit != null) {
-          _unit = {
-            ..._unit!,
-            'is_active': true,
-            'owner': {
-              ...(_unit!['owner'] is Map
-                  ? Map<String, dynamic>.from(
-                _unit!['owner'],
-              )
-                  : <String, dynamic>{}),
-              'is_active': true,
-            },
-          };
-        }
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'مالک و واحد با موفقیت فعال شدند.',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
       _showError(e);
     } finally {
       if (mounted) {
@@ -1635,339 +1405,145 @@ class _ManagerUnitOwnerScreenState
   // Form
   // =========================================================
 
+
   Widget _buildForm() {
-    if (_hasOwner &&
-        !_isAddingNew &&
-        !_isEditing) {
+    // =========================================================
+    // نمایش اطلاعات مالک فعلی
+    // =========================================================
+
+    if (_hasOwner && !_isAddingNew && !_isEditing) {
       return ListView(
-        padding:
-        const EdgeInsets.all(
-          14,
-        ),
+        padding: const EdgeInsets.all(14),
         children: [
           _buildHeader(),
 
-          const SizedBox(
-            height: 18,
-          ),
+          const SizedBox(height: 18),
 
           _buildCurrentOwnerInfo(),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
-          // ---------------------------------------------------
-          // Edit
-          // ---------------------------------------------------
-
+          // ویرایش اطلاعات مالک
           SizedBox(
             height: 52,
             child: FilledButton.icon(
-              style:
-              FilledButton.styleFrom(
-                backgroundColor:
-                primaryColor,
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed:
-              _startEditOwner,
-              icon: const Icon(
-                Icons.edit_outlined,
-              ),
+              onPressed: _startEditOwner,
+              icon: const Icon(Icons.edit_outlined),
               label: const Text(
                 'ویرایش اطلاعات مالک',
-                style:
-                TextStyle(
+                style: TextStyle(
                   fontSize: 15,
-                  fontWeight:
-                  FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(
-            height: 10,
-          ),
+          const SizedBox(height: 10),
 
-          // ---------------------------------------------------
-          // Add New Owner
-          // ---------------------------------------------------
-
+          // افزودن مالک جدید
           SizedBox(
             height: 52,
-            child:
-            OutlinedButton.icon(
-              style:
-              OutlinedButton.styleFrom(
-                foregroundColor:
-                primaryColor,
-                side:
-                const BorderSide(
-                  color:
-                  primaryColor,
-                ),
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: primaryColor,
+                side: const BorderSide(color: primaryColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed:
-              _startAddNewOwner,
-              icon: const Icon(
-                Icons
-                    .person_add_alt_1,
-              ),
+              onPressed: _startAddNewOwner,
+              icon: const Icon(Icons.person_add_alt_1),
               label: const Text(
                 'افزودن مالک جدید',
-                style:
-                TextStyle(
-                  fontWeight:
-                  FontWeight.bold,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(
-            height: 10,
-          ),
-
-          // ---------------------------------------------------
-          // Activate / Deactivate
-          // ---------------------------------------------------
-
-          if (_ownerIsActive)
-            SizedBox(
-              height: 50,
-              child:
-              OutlinedButton.icon(
-                style:
-                OutlinedButton.styleFrom(
-                  foregroundColor:
-                  Colors.red,
-                  side:
-                  const BorderSide(
-                    color:
-                    Colors.red,
-                  ),
-                  shape:
-                  RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                ),
-                onPressed:
-                _isDeleting
-                    ? null
-                    : _deleteOwner,
-                icon: _isDeleting
-                    ? const SizedBox(
-                  width: 19,
-                  height: 19,
-                  child:
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color:
-                    Colors.red,
-                  ),
-                )
-                    : const Icon(
-                  Icons
-                      .block_outlined,
-                ),
-                label: const Text(
-                  'غیرفعال کردن مالک و واحد',
-                  style:
-                  TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: 52,
-              child: FilledButton.icon(
-                style:
-                FilledButton.styleFrom(
-                  backgroundColor:
-                  Colors.green,
-                  foregroundColor:
-                  Colors.white,
-                  shape:
-                  RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                ),
-                onPressed:
-                _isSaving
-                    ? null
-                    : _activateOwner,
-                icon: _isSaving
-                    ? const SizedBox(
-                  width: 19,
-                  height: 19,
-                  child:
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color:
-                    Colors.white,
-                  ),
-                )
-                    : const Icon(
-                  Icons
-                      .check_circle_outline,
-                ),
-                label: const Text(
-                  'فعال کردن مالک و واحد',
-                  style:
-                  TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-          const SizedBox(
-            height: 30,
-          ),
+          const SizedBox(height: 30),
         ],
       );
     }
 
-    final isEdit = _isEditing;
+    // =========================================================
+    // فرم ثبت یا ویرایش مالک
+    // =========================================================
+
+    final bool isEdit = _isEditing;
 
     return Form(
       key: _formKey,
       child: ListView(
-        padding:
-        const EdgeInsets.all(
-          14,
-        ),
+        padding: const EdgeInsets.all(14),
         children: [
           _buildHeader(),
 
-          const SizedBox(
-            height: 20,
-          ),
+          const SizedBox(height: 20),
 
+          // پیام ویرایش مالک
           if (isEdit)
             Container(
-              padding:
-              const EdgeInsets.all(
-                12,
-              ),
-              margin:
-              const EdgeInsets.only(
-                bottom: 15,
-              ),
-              decoration:
-              BoxDecoration(
-                color: primaryColor
-                    .withOpacity(
-                  0.08,
-                ),
-                borderRadius:
-                BorderRadius.circular(
-                  12,
-                ),
-                border:
-                Border.all(
-                  color: primaryColor
-                      .withOpacity(
-                    0.25,
-                  ),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 15),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: primaryColor.withOpacity(0.25),
                 ),
               ),
               child: const Row(
                 children: [
                   Icon(
                     Icons.edit_outlined,
-                    color:
-                    primaryColor,
+                    color: primaryColor,
                   ),
-                  SizedBox(
-                    width: 8,
-                  ),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'اطلاعات مالک فعلی را ویرایش می‌کنید. اگر رمز عبور را خالی بگذارید، رمز قبلی تغییر نمی‌کند.',
-                      style:
-                      TextStyle(
-                        fontSize: 13,
-                      ),
+                      'اطلاعات مالک فعلی را ویرایش می‌کنید. '
+                          'اگر رمز عبور را خالی بگذارید، رمز قبلی تغییر نمی‌کند.',
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
 
-          if (_hasOwner &&
-              _isAddingNew)
+          // پیام افزودن مالک جدید
+          if (_hasOwner && _isAddingNew)
             Container(
-              padding:
-              const EdgeInsets.all(
-                12,
-              ),
-              margin:
-              const EdgeInsets.only(
-                bottom: 15,
-              ),
-              decoration:
-              BoxDecoration(
-                color: Colors.orange
-                    .withOpacity(
-                  0.10,
-                ),
-                borderRadius:
-                BorderRadius.circular(
-                  12,
-                ),
-                border:
-                Border.all(
-                  color: Colors.orange
-                      .withOpacity(
-                    0.35,
-                  ),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 15),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.35),
                 ),
               ),
               child: const Row(
                 children: [
                   Icon(
                     Icons.info_outline,
-                    color:
-                    Colors.orange,
+                    color: Colors.orange,
                   ),
-                  SizedBox(
-                    width: 8,
-                  ),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'با ثبت مالک جدید، مالک فعلی غیرفعال شده و سابقه او حفظ می‌شود.',
-                      style:
-                      TextStyle(
-                        fontSize: 13,
-                      ),
+                      'با ثبت مالک جدید، مالک قبلی طبق قوانین '
+                          'سیستم مدیریت می‌شود و سابقه او باید حفظ شود.',
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
                 ],
@@ -1975,66 +1551,44 @@ class _ManagerUnitOwnerScreenState
             ),
 
           Text(
-            isEdit
-                ? 'ویرایش اطلاعات مالک'
-                : 'اطلاعات مالک جدید',
-            style:
-            const TextStyle(
+            isEdit ? 'ویرایش اطلاعات مالک' : 'اطلاعات مالک جدید',
+            style: const TextStyle(
               fontSize: 16,
-              fontWeight:
-              FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(
-            height: 12,
-          ),
+          const SizedBox(height: 12),
 
+          // نام مالک
           _textField(
-            controller:
-            _nameController,
-            label:
-            'نام و نام خانوادگی',
-            icon:
-            Icons.person_outline,
-            hint:
-            'نام مالک را وارد کنید',
+            controller: _nameController,
+            label: 'نام و نام خانوادگی',
+            icon: Icons.person_outline,
+            hint: 'نام مالک را وارد کنید',
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'نام مالک را وارد کنید';
               }
-
               return null;
             },
           ),
 
+          // موبایل
           _textField(
-            controller:
-            _mobileController,
-            label:
-            'شماره موبایل',
-            icon:
-            Icons.phone_outlined,
-            hint:
-            'مثلاً ۰۹۱۲۱۲۳۴۵۶۷',
-            keyboardType:
-            TextInputType.phone,
+            controller: _mobileController,
+            label: 'شماره موبایل',
+            icon: Icons.phone_outlined,
+            hint: 'مثلاً ۰۹۱۲۱۲۳۴۵۶۷',
+            keyboardType: TextInputType.phone,
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'شماره موبایل را وارد کنید';
               }
 
-              final mobile =
-              _normalizeDigits(
-                value.trim(),
-              );
+              final mobile = _normalizeDigits(value.trim());
 
-              if (mobile.length != 11 ||
-                  !mobile.startsWith(
-                    '09',
-                  )) {
+              if (mobile.length != 11 || !mobile.startsWith('09')) {
                 return 'شماره موبایل معتبر نیست';
               }
 
@@ -2042,27 +1596,19 @@ class _ManagerUnitOwnerScreenState
             },
           ),
 
+          // کد ملی
           _textField(
-            controller:
-            _nationalCodeController,
-            label:
-            'کد ملی',
-            icon:
-            Icons.badge_outlined,
-            hint:
-            'مثلاً ۰۰۱۲۳۴۵۶۷۸',
-            keyboardType:
-            TextInputType.number,
+            controller: _nationalCodeController,
+            label: 'کد ملی',
+            icon: Icons.badge_outlined,
+            hint: 'مثلاً ۰۰۱۲۳۴۵۶۷۸',
+            keyboardType: TextInputType.number,
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return null;
               }
 
-              final code =
-              _normalizeDigits(
-                value.trim(),
-              );
+              final code = _normalizeDigits(value.trim());
 
               if (code.length != 10) {
                 return 'کد ملی باید ۱۰ رقم باشد';
@@ -2072,101 +1618,56 @@ class _ManagerUnitOwnerScreenState
             },
           ),
 
-          // ===================================================
-          // Purchase Date
-          // ===================================================
-
+          // تاریخ خرید شمسی
           Padding(
-            padding:
-            const EdgeInsets.only(
-              bottom: 13,
-            ),
+            padding: const EdgeInsets.only(bottom: 13),
             child: InkWell(
-              onTap:
-              _selectPurchaseDate,
-              borderRadius:
-              BorderRadius.circular(
-                13,
-              ),
+              onTap: _selectPurchaseDate,
+              borderRadius: BorderRadius.circular(13),
               child: Container(
-                width:
-                double.infinity,
-                padding:
-                const EdgeInsets
-                    .symmetric(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 16,
                 ),
-                decoration:
-                BoxDecoration(
-                  color:
-                  Colors.white,
-                  borderRadius:
-                  BorderRadius.circular(
-                    13,
-                  ),
-                  border:
-                  Border.all(
-                    color:
-                    Colors.grey.shade300,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: Colors.grey.shade300,
                   ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons
-                          .calendar_today_outlined,
-                      color:
-                      primaryColor,
+                      Icons.calendar_today_outlined,
+                      color: primaryColor,
                     ),
-                    const SizedBox(
-                      width: 12,
-                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child:
-                      Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'تاریخ خرید',
-                            style:
-                            TextStyle(
-                              fontSize:
-                              12,
-                              color: Colors
-                                  .grey
-                                  .shade600,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
                             ),
                           ),
-                          const SizedBox(
-                            height: 5,
-                          ),
+                          const SizedBox(height: 5),
                           Text(
-                            _purchaseDateController
-                                .text
-                                .trim()
-                                .isNotEmpty
-                                ? _purchaseDateController
-                                .text
+                            _purchaseDateController.text.trim().isNotEmpty
+                                ? _purchaseDateController.text
                                 : 'انتخاب تاریخ شمسی',
-                            style:
-                            TextStyle(
-                              fontSize:
-                              15,
-                              fontWeight:
-                              FontWeight
-                                  .w600,
-                              color: _purchaseDateController
-                                  .text
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: _purchaseDateController.text
                                   .trim()
                                   .isNotEmpty
-                                  ? const Color(
-                                0xff263238,
-                              )
-                                  : Colors
-                                  .grey,
+                                  ? const Color(0xff263238)
+                                  : Colors.grey,
                             ),
                           ),
                         ],
@@ -2174,8 +1675,7 @@ class _ManagerUnitOwnerScreenState
                     ),
                     const Icon(
                       Icons.chevron_left,
-                      color:
-                      Colors.grey,
+                      color: Colors.grey,
                     ),
                   ],
                 ),
@@ -2183,30 +1683,22 @@ class _ManagerUnitOwnerScreenState
             ),
           ),
 
+          // تعداد نفرات
           _textField(
-            controller:
-            _peopleCountController,
-            label:
-            'تعداد نفرات',
-            icon:
-            Icons.people_outline,
-            keyboardType:
-            TextInputType.number,
+            controller: _peopleCountController,
+            label: 'تعداد نفرات',
+            icon: Icons.people_outline,
+            keyboardType: TextInputType.number,
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'تعداد نفرات را وارد کنید';
               }
 
-              final count =
-              int.tryParse(
-                _normalizeDigits(
-                  value.trim(),
-                ),
+              final count = int.tryParse(
+                _normalizeDigits(value.trim()),
               );
 
-              if (count == null ||
-                  count < 0) {
+              if (count == null || count < 0) {
                 return 'تعداد نفرات معتبر نیست';
               }
 
@@ -2214,66 +1706,46 @@ class _ManagerUnitOwnerScreenState
             },
           ),
 
-          _buildOwnerStatus(),
-
+          // توضیحات مالک
           _textField(
-            controller:
-            _detailsController,
-            label:
-            'توضیحات',
-            icon:
-            Icons.notes_outlined,
-            hint:
-            'توضیحات مربوط به مالک',
+            controller: _detailsController,
+            label: 'توضیحات',
+            icon: Icons.notes_outlined,
+            hint: 'توضیحات مربوط به مالک',
             maxLines: 4,
           ),
 
-          const SizedBox(
-            height: 4,
-          ),
+          const SizedBox(height: 4),
 
+          // رمز عبور
           _textField(
-            controller:
-            _passwordController,
-            label:
-            isEdit
-                ? 'رمز عبور جدید'
-                : 'رمز عبور',
-            icon:
-            Icons.lock_outline,
-            hint:
-            isEdit
+            controller: _passwordController,
+            label: isEdit ? 'رمز عبور جدید' : 'رمز عبور',
+            icon: Icons.lock_outline,
+            hint: isEdit
                 ? 'در صورت عدم تغییر خالی بگذارید'
                 : 'رمز عبور مالک',
-            obscureText:
-            !_showPassword,
-            suffixIcon:
-            IconButton(
+            obscureText: !_showPassword,
+            suffixIcon: IconButton(
               onPressed: () {
                 setState(() {
-                  _showPassword =
-                  !_showPassword;
+                  _showPassword = !_showPassword;
                 });
               },
               icon: Icon(
                 _showPassword
-                    ? Icons
-                    .visibility_off_outlined
-                    : Icons
-                    .visibility_outlined,
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
               ),
             ),
             validator: (value) {
-              final password =
-                  value ?? '';
+              final password = value ?? '';
 
-              if (isEdit &&
-                  password.isEmpty) {
+              if (isEdit && password.isEmpty) {
                 return null;
               }
 
-              if (password.length <
-                  6) {
+              if (password.length < 6) {
                 return 'رمز عبور باید حداقل ۶ کاراکتر باشد';
               }
 
@@ -2281,49 +1753,34 @@ class _ManagerUnitOwnerScreenState
             },
           ),
 
+          // تکرار رمز عبور
           _textField(
-            controller:
-            _passwordConfirmController,
-            label:
-            'تکرار رمز عبور',
-            icon:
-            Icons
-                .lock_reset_outlined,
-            hint:
-            'رمز عبور را مجدداً وارد کنید',
-            obscureText:
-            !_showPasswordConfirm,
-            suffixIcon:
-            IconButton(
+            controller: _passwordConfirmController,
+            label: 'تکرار رمز عبور',
+            icon: Icons.lock_reset_outlined,
+            hint: 'رمز عبور را مجدداً وارد کنید',
+            obscureText: !_showPasswordConfirm,
+            suffixIcon: IconButton(
               onPressed: () {
                 setState(() {
-                  _showPasswordConfirm =
-                  !_showPasswordConfirm;
+                  _showPasswordConfirm = !_showPasswordConfirm;
                 });
               },
               icon: Icon(
                 _showPasswordConfirm
-                    ? Icons
-                    .visibility_off_outlined
-                    : Icons
-                    .visibility_outlined,
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
               ),
             ),
             validator: (value) {
-              final password =
-                  _passwordController
-                      .text;
+              final password = _passwordController.text;
+              final confirm = value ?? '';
 
-              final confirm =
-                  value ?? '';
-
-              if (password.isEmpty &&
-                  confirm.isEmpty) {
+              if (password.isEmpty && confirm.isEmpty) {
                 return null;
               }
 
-              if (password !=
-                  confirm) {
+              if (password != confirm) {
                 return 'رمز عبور و تکرار آن یکسان نیستند';
               }
 
@@ -2331,89 +1788,62 @@ class _ManagerUnitOwnerScreenState
             },
           ),
 
-          const SizedBox(
-            height: 8,
-          ),
+          const SizedBox(height: 8),
 
+          // ذخیره مالک
           SizedBox(
             height: 52,
-            child:
-            FilledButton.icon(
-              style:
-              FilledButton.styleFrom(
-                backgroundColor:
-                primaryColor,
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    12,
-                  ),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed:
-              _isSaving ||
-                  _isDeleting
-                  ? null
-                  : _saveOwner,
+              onPressed: _isSaving ? null : _saveOwner,
               icon: _isSaving
                   ? const SizedBox(
                 width: 20,
                 height: 20,
-                child:
-                CircularProgressIndicator(
-                  strokeWidth:
-                  2,
-                  color:
-                  Colors.white,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
                 ),
               )
                   : Icon(
                 isEdit
-                    ? Icons
-                    .save_outlined
-                    : Icons
-                    .person_add_outlined,
+                    ? Icons.save_outlined
+                    : Icons.person_add_outlined,
               ),
               label: Text(
-                isEdit
-                    ? 'ذخیره تغییرات'
-                    : 'ثبت مالک جدید',
-                style:
-                const TextStyle(
+                isEdit ? 'ذخیره تغییرات' : 'ثبت مالک جدید',
+                style: const TextStyle(
                   fontSize: 15,
-                  fontWeight:
-                  FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(
-            height: 10,
-          ),
+          const SizedBox(height: 10),
 
+          // انصراف
           OutlinedButton(
             onPressed: _isSaving
                 ? null
                 : isEdit
                 ? _cancelEdit
                 : _cancelAdd,
-            child:
-            const Text(
-              'انصراف',
-            ),
+            child: const Text('انصراف'),
           ),
 
-          const SizedBox(
-            height: 30,
-          ),
+          const SizedBox(height: 30),
         ],
       ),
     );
   }
+
 }
 
 // ============================================================================

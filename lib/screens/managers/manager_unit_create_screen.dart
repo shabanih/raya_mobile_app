@@ -518,9 +518,13 @@ Jalali(year, month, day),
 
 // این دو کلید تنها در صورتی اثر دارند که بک‌اند آن‌ها را
 // برای ساخت حساب مالک پردازش کند.
-data['password'] = _ownerPasswordController.text;
-data['password_confirm'] =
-_ownerConfirmPasswordController.text;
+
+  data['owner_password'] =
+      _ownerPasswordController.text;
+
+  data['owner_password_confirm'] =
+      _ownerConfirmPasswordController.text;
+
 
 await _unitService.createUnit(data);
 

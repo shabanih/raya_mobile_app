@@ -15,8 +15,7 @@ State<ManagerUnitsScreen> createState() =>
 _ManagerUnitsScreenState();
 }
 
-class _ManagerUnitsScreenState
-extends State<ManagerUnitsScreen> {
+class _ManagerUnitsScreenState extends State<ManagerUnitsScreen> {
 static const Color primaryColor = Color(0xff00ACC1);
 static const Color unitBorderColor = Color(0xff610db5);
 static const Color renterBorderColor = Color(0xfff87803);
@@ -147,8 +146,8 @@ builder: (_) => const ManagerUnitCreateScreen(),
 ),
 );
 
-if (result == true) {
-_loadUnits();
+if (result == true && mounted) {
+await _loadUnits();
 }
 }
 
@@ -163,7 +162,7 @@ final id = _toInt(unit['id']);
 
 if (id == null) return;
 
-final result = await Navigator.push(
+await Navigator.push(
 context,
 MaterialPageRoute(
 builder: (_) => ManagerUnitDetailScreen(
@@ -172,8 +171,9 @@ unitId: id,
 ),
 );
 
-if (result == true) {
-_loadUnits();
+// پس از بازگشت، وضعیت واحد را دوباره از سرور می‌خوانیم.
+if (mounted) {
+await _loadUnits();
 }
 }
 
@@ -192,7 +192,7 @@ final unitNumber = _unitName(unit);
 
 final confirmed = await showDialog<bool>(
 context: context,
-builder: (context) {
+builder: (dialogContext) {
 return Directionality(
 textDirection: TextDirection.rtl,
 child: AlertDialog(
@@ -207,7 +207,7 @@ textAlign: TextAlign.right,
 actions: [
 TextButton(
 onPressed: () {
-Navigator.pop(context, false);
+Navigator.pop(dialogContext, false);
 },
 child: const Text('انصراف'),
 ),
@@ -217,7 +217,7 @@ backgroundColor: Colors.red,
 foregroundColor: Colors.white,
 ),
 onPressed: () {
-Navigator.pop(context, true);
+Navigator.pop(dialogContext, true);
 },
 child: const Text('حذف'),
 ),
@@ -310,6 +310,42 @@ return '-';
 }
 
 return _toPersianDigits(area);
+}
+
+// وضعیت واحد
+bool _isUnitActive(Map<String, dynamic> unit) {
+dynamic value = unit['is_active'];
+
+// پشتیبانی از پاسخ‌های تو در تو، در صورت وجود
+if (value == null && unit['unit'] is Map) {
+value = (unit['unit'] as Map)['is_active'];
+}
+
+if (value == null && unit['data'] is Map) {
+value = (unit['data'] as Map)['is_active'];
+}
+
+if (value is bool) return value;
+if (value is num) return value != 0;
+
+if (value is String) {
+final normalized = value.trim().toLowerCase();
+
+if (normalized == 'true' ||
+normalized == '1' ||
+normalized == 'yes') {
+return true;
+}
+
+if (normalized == 'false' ||
+normalized == '0' ||
+normalized == 'no') {
+return false;
+}
+}
+
+// اگر API وضعیت را نفرستاده باشد، فعال فرض نمی‌کنیم.
+return false;
 }
 
 bool _hasOwner(Map<String, dynamic> unit) {
@@ -511,19 +547,70 @@ fontWeight: FontWeight.bold,
 }
 
 // =========================================================
+// Unit status badge
+// =========================================================
+
+Widget _buildUnitStatusBadge(bool isActive) {
+final statusColor = isActive ? Colors.green : Colors.red;
+
+return Container(
+padding: const EdgeInsets.symmetric(
+horizontal: 9,
+vertical: 5,
+),
+decoration: BoxDecoration(
+color: isActive
+? const Color(0xffE8F5E9)
+    : const Color(0xffFFEBEE),
+borderRadius: BorderRadius.circular(8),
+border: Border.all(
+color: statusColor,
+width: 0.8,
+),
+),
+child: Row(
+mainAxisSize: MainAxisSize.min,
+children: [
+Icon(
+isActive ? Icons.check_circle : Icons.block,
+size: 13,
+color: statusColor,
+),
+const SizedBox(width: 4),
+Text(
+isActive ? 'فعال' : 'غیرفعال',
+style: TextStyle(
+fontSize: 11,
+fontWeight: FontWeight.bold,
+color: isActive
+? Colors.green.shade800
+    : Colors.red.shade700,
+),
+),
+],
+),
+);
+}
+
+// =========================================================
 // Unit card
 // =========================================================
 
 Widget _buildUnitCard(Map<String, dynamic> unit) {
 final hasOwner = _hasOwner(unit);
 final hasRenter = _hasRenter(unit);
+final isActive = _isUnitActive(unit);
 
-// واحد دارای مستأجر فعال: قرمز
-// سایر واحدها: بنفش
-final cardBorderColor =
-hasRenter ? renterBorderColor : unitBorderColor;
+// واحد غیرفعال همیشه اولویت رنگ دارد.
+final cardBorderColor = !isActive
+? Colors.red
+    : hasRenter
+? renterBorderColor
+    : unitBorderColor;
 
-final cardBackgroundColor = hasRenter
+final cardBackgroundColor = !isActive
+? const Color(0xffF5F5F5)
+    : hasRenter
 ? const Color(0xffFFF5F5)
     : const Color(0xffFAF7FF);
 
@@ -533,14 +620,14 @@ parkingNumber.toString().trim().isNotEmpty;
 
 return Card(
 color: cardBackgroundColor,
-elevation: 2,
+elevation: isActive ? 2 : 1,
 shadowColor: cardBorderColor.withOpacity(0.15),
 margin: const EdgeInsets.only(bottom: 12),
 shape: RoundedRectangleBorder(
 borderRadius: BorderRadius.circular(14),
 side: BorderSide(
 color: cardBorderColor,
-width: 1.5,
+width: isActive ? 1.5 : 1.8,
 ),
 ),
 clipBehavior: Clip.antiAlias,
@@ -573,13 +660,24 @@ Expanded(
 child: Column(
 crossAxisAlignment: CrossAxisAlignment.start,
 children: [
-Text(
+Row(
+children: [
+Flexible(
+child: Text(
 'واحد ${_unitName(unit)}',
-style: const TextStyle(
+overflow: TextOverflow.ellipsis,
+style: TextStyle(
 fontSize: 17,
 fontWeight: FontWeight.bold,
-color: Colors.black87,
+color: isActive
+? Colors.black87
+    : Colors.grey.shade700,
 ),
+),
+),
+const SizedBox(width: 7),
+_buildUnitStatusBadge(isActive),
+],
 ),
 const SizedBox(height: 5),
 Text(
