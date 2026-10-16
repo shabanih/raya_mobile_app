@@ -399,14 +399,16 @@ class _ManagerAreaChargeUnitsScreenState
   double _unitChargeAmount(Map<String, dynamic> unit) {
     final nested = _chargeData(unit);
 
-    // اگر API مبلغ محاسبه‌شده را برگردانده باشد،
-    // همان مبلغ را نمایش می‌دهیم.
-    final suppliedAmount = unit['unit_charge_amount'] ??
+    // اولویت با مبلغ نهایی محاسبه‌شده در API است.
+    final suppliedAmount = unit['current_charge'] ??
+        unit['unit_charge_amount'] ??
         unit['total_charge_month'] ??
         unit['total_charge'] ??
         unit['total_amount'] ??
         unit['charge_amount'] ??
         unit['amount_due'] ??
+        nested?['current_charge'] ??
+        nested?['unit_charge_amount'] ??
         nested?['total_charge_month'] ??
         nested?['total_charge'] ??
         nested?['total_amount'] ??
@@ -422,8 +424,22 @@ class _ManagerAreaChargeUnitsScreenState
       if (parsed != null) return parsed;
     }
 
-    // محاسبه جایگزین: متراژ × مبلغ هر متر.
-    return _unitArea(unit) * _areaAmount;
+    // مبلغ پایه شارژ متراژی
+    final baseAmount = _unitArea(unit) * _areaAmount;
+
+    // کل هزینه متفرقه؛ برای هر واحد کامل اضافه می‌شود.
+    final otherCostValue = widget.charge['other_cost_amount'] ??
+        widget.charge['otherCostAmount'] ??
+        0;
+
+    final otherCostRaw = _latinDigits('$otherCostValue')
+        .replaceAll(',', '')
+        .replaceAll('٬', '')
+        .trim();
+
+    final otherCost = double.tryParse(otherCostRaw) ?? 0.0;
+
+    return baseAmount + otherCost;
   }
 
   String _jalaliDate(dynamic value) {
@@ -1268,7 +1284,7 @@ class _ManagerAreaChargeUnitsScreenState
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           title: const Text(
-            'مدیریت شارژ متراژی',
+            ' ارسال اطلاعیه شارژ متراژی',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,

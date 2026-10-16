@@ -414,7 +414,7 @@ class _ManagerFixedChargesScreenState
                 _infoRow(
                   Icons.money_off_csred_outlined,
                   'جریمه دیرکرد',
-                  '$penalty تومان',
+                  '$penalty %',
                 ),
                 const SizedBox(height: 12),
                 _infoRow(
@@ -589,7 +589,7 @@ class _ManagerFixedChargesScreenState
                             color: _primaryColor,
                           ),
                           SizedBox(width: 10),
-                          Text('مدیریت و ارسال به واحدها'),
+                          Text(' ارسال اطلاعیه شارژ '),
                         ],
                       ),
                     ),
@@ -1131,7 +1131,7 @@ class _FixedChargeFormSheetState
                       ),
                       const SizedBox(height: 16),
                       _field(
-                        label: 'جریمه دیرکرد',
+                        label: 'جریمه دیرکرد به درصد',
                         controller: _penaltyController,
                         keyboardType: TextInputType.number,
                         validator: (v) {

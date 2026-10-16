@@ -172,7 +172,8 @@ return items
 // ==================================================
 Future<List<Map<String, dynamic>>> getCharges() async {
 final response = await _api.get(_baseUrl);
-
+debugPrint('AREA API STATUS: ${response.statusCode}');
+debugPrint('AREA API BODY: ${response.body}');
 if (!_isSuccess(response)) {
 _throwResponseError(
 response,
@@ -190,7 +191,15 @@ keys: const [
 ],
 );
 
-debugPrint('AREA CHARGES COUNT: ${result.length}');
+
+for (final item in result) {
+  debugPrint(
+    'AREA ITEM: id=${item['id']} | '
+        'name=${item['name']} | '
+        'payment_deadline=${item['payment_deadline']} | '
+        'payment_deadline_date=${item['payment_deadline_date']}',
+  );
+}
 
 return result;
 }

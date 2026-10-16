@@ -886,6 +886,53 @@ class ManagerUnitService {
   }
 
   // ============================================================
+  // Renter: Activate
+  // PATCH /api/manager/renters/<renter_id>/activate/
+  // ============================================================
+
+  Future<Map<String, dynamic>> activateRenter(
+      int renterId,
+      ) async {
+    try {
+      final url = _managerPath(
+        'manager/renters/$renterId/activate/',
+      );
+
+      debugPrint('activateRenter URL: $url');
+
+      final response = await _apiService.patch(
+        url,
+        body: <String, dynamic>{},
+      );
+
+      debugPrint(
+        'activateRenter status: ${response.statusCode}',
+      );
+      debugPrint(
+        'activateRenter body: ${response.body}',
+      );
+
+      if (response.statusCode == 200 ||
+          response.statusCode == 202) {
+        return _ensureSuccess(
+          response.body,
+          defaultMessage: 'فعال‌سازی مستأجر ناموفق بود.',
+        );
+      }
+
+      throw Exception(
+        _extractError(
+          response.body,
+          'خطا در فعال‌سازی مستأجر',
+        ),
+      );
+    } catch (e) {
+      debugPrint('activateRenter exception: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
   // Renter: Deactivate
   // PATCH /api/manager/renters/<renter_id>/deactivate/
   // ============================================================

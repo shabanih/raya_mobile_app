@@ -340,6 +340,20 @@ label: const Text('پاک کردن تاریخ'),
 );
 }
 
+
+  String? _shamsiToGregorianApiDate(String value) {
+    final jalali = _parseShamsiDate(value);
+
+    if (jalali == null) return null;
+
+    final gregorian = jalali.toDateTime();
+
+    final year = gregorian.year.toString().padLeft(4, '0');
+    final month = gregorian.month.toString().padLeft(2, '0');
+    final day = gregorian.day.toString().padLeft(2, '0');
+
+    return '$year-$month-$day';
+  }
 // ---------------------------------------------------------
 // Load
 // ---------------------------------------------------------
@@ -594,28 +608,34 @@ _restoreCurrentRenter();
 }
 
 Map<String, dynamic> _renterData() {
-final peopleCount = int.tryParse(
-_normalizeDigits(_peopleCountController.text.trim()),
-) ??
-1;
+    final peopleCount = int.tryParse(
+      _normalizeDigits(_peopleCountController.text.trim()),
+    ) ??
+        1;
 
-return {
-'renter_name': _nameController.text.trim(),
-'renter_mobile': _normalizeDigits(_mobileController.text.trim()),
-'renter_national_code':
-_normalizeDigits(_nationalCodeController.text.trim()),
-'renter_people_count': peopleCount,
-'start_date': _normalizeDigits(_startDateController.text.trim()),
-'end_date': _normalizeDigits(_endDateController.text.trim()),
-'contract_number': _contractNumberController.text.trim(),
-'estate_name': _estateNameController.text.trim(),
-'renter_details': _detailsController.text.trim(),
+    final startDate = _shamsiToGregorianApiDate(
+      _startDateController.text.trim(),
+    );
 
-// هنگام ویرایش وضعیت فعلی حفظ شود.
-// برای ثبت مستأجر جدید، وضعیت فعال ارسال می‌شود.
-'renter_is_active': _isEditing ? _renterIsActive : true,
-};
-}
+    final endText = _endDateController.text.trim();
+    final endDate = endText.isEmpty
+        ? null
+        : _shamsiToGregorianApiDate(endText);
+
+    return {
+      'renter_name': _nameController.text.trim(),
+      'renter_mobile': _normalizeDigits(_mobileController.text.trim()),
+      'renter_national_code':
+      _normalizeDigits(_nationalCodeController.text.trim()),
+      'renter_people_count': peopleCount,
+      'start_date': startDate,
+      'end_date': endDate,
+      'contract_number': _contractNumberController.text.trim(),
+      'estate_name': _estateNameController.text.trim(),
+      'renter_details': _detailsController.text.trim(),
+      'renter_is_active': _isEditing ? _renterIsActive : true,
+    };
+  }
 
 // ---------------------------------------------------------
 // Save
@@ -791,75 +811,170 @@ if (mounted) setState(() => _isDeleting = false);
 // بنابراین فعال‌سازی مجدد نیازمند endpoint جداگانه است.
 // ---------------------------------------------------------
 
-Future<void> _activateRenter() async {
-_showError(
-'برای فعال‌سازی مجدد، ابتدا باید endpoint مستقل فعال‌سازی '
-'در Django تعریف شود. متد ویرایش فعلی این کار را انجام نمی‌دهد.',
-);
-}
+
+  Future<void> _activateRenter() async {
+    if (!_hasRenter ||
+        _renterId == null ||
+        _renterIsActive ||
+        _isAddingNew ||
+        _isEditing ||
+        _isSaving ||
+        _isDeleting) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('فعال‌سازی مجدد مستأجر'),
+          content: const Text(
+            'آیا می‌خواهید این مستأجر دوباره فعال شود؟\n\n'
+                'سابقه سکونت قبلی حفظ می‌شود و وضعیت سکونت '
+                'مستأجر در سامانه به‌روزرسانی خواهد شد.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, true),
+              child: const Text('فعال‌سازی'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final renterId = _renterId!;
+
+    setState(() => _isDeleting = true);
+
+    try {
+      // فراخوانی API مستقل فعال‌سازی مستأجر
+      final result = await _unitService.activateRenter(renterId);
+
+      if (!mounted) return;
+
+      // حفظ اطلاعات مستأجر تا زمان دریافت مجدد اطلاعات از سرور
+      final snapshot = _currentRenterSnapshot();
+
+      if (snapshot != null) {
+        _lastKnownRenter = {
+          ...snapshot,
+          'id': renterId,
+          'renter_is_active': true,
+          'is_active': true,
+          'active': true,
+        };
+      }
+
+      setState(() {
+        _renterIsActive = true;
+        _hasRenter = true;
+        _isEditing = false;
+        _isAddingNew = false;
+      });
+
+      // دریافت مجدد وضعیت واقعی واحد و مستأجر از سرور
+      await _loadUnit();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['message']?.toString() ??
+                'مستأجر با موفقیت دوباره فعال شد.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        _showError(
+          'خطا در فعال‌سازی مجدد مستأجر: ${_cleanError(e)}',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+      }
+    }
+  }
+
 
 // ---------------------------------------------------------
 // Delete: only calls deleteRenter
 // ---------------------------------------------------------
 
-Future<void> _removeRenter() async {
-if (_renterId == null || _isSaving || _isDeleting) return;
-
-final confirmed = await showDialog<bool>(
-context: context,
-builder: (dialogContext) => Directionality(
-textDirection: TextDirection.rtl,
-child: AlertDialog(
-title: const Text('حذف مستأجر'),
-content: const Text(
-'این عملیات مستأجر را از فهرست جاری حذف می‌کند. '
-'آیا مطمئن هستید؟',
-),
-actions: [
-TextButton(
-onPressed: () => Navigator.pop(dialogContext, false),
-child: const Text('انصراف'),
-),
-FilledButton(
-style: FilledButton.styleFrom(
-backgroundColor: Colors.red,
-),
-onPressed: () => Navigator.pop(dialogContext, true),
-child: const Text('حذف مستأجر'),
-),
-],
-),
-),
-);
-
-if (confirmed != true || !mounted) return;
-
-setState(() => _isDeleting = true);
-
-try {
-final result = await _unitService.deleteRenter(
-widget.unitId,
-_renterId!,
-);
-
-if (!mounted) return;
-
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(
-content: Text(
-result['message']?.toString() ??
-'مستأجر با موفقیت حذف نرم شد.',
-),
-),
-);
-
-Navigator.of(context).pop(true);
-} catch (e) {
-if (mounted) _showError('خطا در حذف مستأجر: ${_cleanError(e)}');
-} finally {
-if (mounted) setState(() => _isDeleting = false);
-}
-}
+// Future<void> _removeRenter() async {
+// if (_renterId == null || _isSaving || _isDeleting) return;
+//
+// final confirmed = await showDialog<bool>(
+// context: context,
+// builder: (dialogContext) => Directionality(
+// textDirection: TextDirection.rtl,
+// child: AlertDialog(
+// title: const Text('حذف مستأجر'),
+// content: const Text(
+// 'این عملیات مستأجر را از فهرست جاری حذف می‌کند. '
+// 'آیا مطمئن هستید؟',
+// ),
+// actions: [
+// TextButton(
+// onPressed: () => Navigator.pop(dialogContext, false),
+// child: const Text('انصراف'),
+// ),
+// FilledButton(
+// style: FilledButton.styleFrom(
+// backgroundColor: Colors.red,
+// ),
+// onPressed: () => Navigator.pop(dialogContext, true),
+// child: const Text('حذف مستأجر'),
+// ),
+// ],
+// ),
+// ),
+// );
+//
+// if (confirmed != true || !mounted) return;
+//
+// setState(() => _isDeleting = true);
+//
+// try {
+// final result = await _unitService.deleteRenter(
+// widget.unitId,
+// _renterId!,
+// );
+//
+// if (!mounted) return;
+//
+// ScaffoldMessenger.of(context).showSnackBar(
+// SnackBar(
+// content: Text(
+// result['message']?.toString() ??
+// 'مستأجر با موفقیت حذف نرم شد.',
+// ),
+// ),
+// );
+//
+// Navigator.of(context).pop(true);
+// } catch (e) {
+// if (mounted) _showError('خطا در حذف مستأجر: ${_cleanError(e)}');
+// } finally {
+// if (mounted) setState(() => _isDeleting = false);
+// }
+// }
 
 // ---------------------------------------------------------
 // Errors
@@ -1250,21 +1365,21 @@ onPressed: _isSaving || _isDeleting ? null : _activateRenter,
 icon: const Icon(Icons.check_circle_outline),
 label: const Text('فعال کردن مستأجر'),
 ),
-const SizedBox(height: 24),
-OutlinedButton.icon(
-onPressed: _renterId == null || _isDeleting || _isSaving
-? null
-    : _removeRenter,
-icon: const Icon(Icons.delete_outline, color: Colors.red),
-label: const Text(
-'حذف مستأجر',
-style: TextStyle(color: Colors.red),
-),
-style: OutlinedButton.styleFrom(
-side: const BorderSide(color: Colors.red),
-minimumSize: const Size.fromHeight(48),
-),
-),
+// const SizedBox(height: 24),
+// OutlinedButton.icon(
+// onPressed: _renterId == null || _isDeleting || _isSaving
+// ? null
+//     : _removeRenter,
+// icon: const Icon(Icons.delete_outline, color: Colors.red),
+// label: const Text(
+// 'حذف مستأجر',
+// style: TextStyle(color: Colors.red),
+// ),
+// style: OutlinedButton.styleFrom(
+// side: const BorderSide(color: Colors.red),
+// minimumSize: const Size.fromHeight(48),
+// ),
+// ),
 ],
 );
 }
@@ -1525,93 +1640,102 @@ fontSize: 17,
 fontWeight: FontWeight.bold,
 ),
 ),
-content: SizedBox(
-width: 420,
-child: Row(
-children: [
-Expanded(
-flex: 2,
-child: DropdownButtonFormField<int>(
-value: _day,
-isExpanded: true,
-decoration: const InputDecoration(
-labelText: 'روز',
-border: OutlineInputBorder(),
-contentPadding:
-EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-),
-items: days.map((day) {
-return DropdownMenuItem(
-value: day,
-child: Text(_persianDigits(day)),
-);
-}).toList(),
-onChanged: (value) {
-if (value != null) setState(() => _day = value);
-},
-),
-),
-const SizedBox(width: 8),
-Expanded(
-flex: 3,
-child: DropdownButtonFormField<int>(
-value: _month,
-isExpanded: true,
-decoration: const InputDecoration(
-labelText: 'ماه',
-border: OutlineInputBorder(),
-contentPadding:
-EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-),
-items: List.generate(12, (index) {
-final month = index + 1;
-return DropdownMenuItem(
-value: month,
-child: Text(
-_monthNames[index],
-overflow: TextOverflow.ellipsis,
-),
-);
-}),
-onChanged: (value) {
-if (value == null) return;
-setState(() {
-_month = value;
-_fixDay();
-});
-},
-),
-),
-const SizedBox(width: 8),
-Expanded(
-flex: 3,
-child: DropdownButtonFormField<int>(
-value: _year,
-isExpanded: true,
-decoration: const InputDecoration(
-labelText: 'سال',
-border: OutlineInputBorder(),
-contentPadding:
-EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-),
-items: years.map((year) {
-return DropdownMenuItem(
-value: year,
-child: Text(_persianDigits(year)),
-);
-}).toList(),
-onChanged: (value) {
-if (value == null) return;
-setState(() {
-_year = value;
-_fixDay();
-});
-},
-),
-),
-],
-),
-),
+
+  content: SizedBox(
+    width: 320,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // روز
+        DropdownButtonFormField<int>(
+          value: _day,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'روز',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+          ),
+          items: days.map((day) {
+            return DropdownMenuItem<int>(
+              value: day,
+              child: Text(_persianDigits(day)),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _day = value);
+            }
+          },
+        ),
+
+        const SizedBox(height: 14),
+
+        // ماه
+        DropdownButtonFormField<int>(
+          value: _month,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'ماه',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+          ),
+          items: List.generate(12, (index) {
+            final month = index + 1;
+
+            return DropdownMenuItem<int>(
+              value: month,
+              child: Text(_monthNames[index]),
+            );
+          }),
+          onChanged: (value) {
+            if (value == null) return;
+
+            setState(() {
+              _month = value;
+              _fixDay();
+            });
+          },
+        ),
+
+        const SizedBox(height: 14),
+
+        // سال
+        DropdownButtonFormField<int>(
+          value: _year,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'سال',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+          ),
+          items: years.map((year) {
+            return DropdownMenuItem<int>(
+              value: year,
+              child: Text(_persianDigits(year)),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value == null) return;
+
+            setState(() {
+              _year = value;
+              _fixDay();
+            });
+          },
+        ),
+      ],
+    ),
+  ),
+
 actions: [
 TextButton(
 onPressed: () => Navigator.pop(context),

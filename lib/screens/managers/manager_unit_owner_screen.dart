@@ -2045,195 +2045,107 @@ class _CompactShamsiDatePickerState
             FontWeight.bold,
           ),
         ),
-        content:
-        SizedBox(
-          width: 420,
-          child: Row(
-            crossAxisAlignment:
-            CrossAxisAlignment
-                .start,
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                flex: 2,
-                child:
-                DropdownButtonFormField<
-                    int>(
-                  value:
-                  _day,
-                  isExpanded:
-                  true,
-                  decoration:
-                  const InputDecoration(
-                    labelText:
-                    'روز',
-                    border:
-                    OutlineInputBorder(),
-                    contentPadding:
-                    EdgeInsets
-                        .symmetric(
-                      horizontal:
-                      10,
-                      vertical:
-                      8,
-                    ),
+              // روز
+              DropdownButtonFormField<int>(
+                value: _day,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'روز',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
                   ),
-                  items: days
-                      .map(
-                        (day) =>
-                        DropdownMenuItem<
-                            int>(
-                          value:
-                          day,
-                          child:
-                          Text(
-                            _toPersianDigits(
-                                day),
-                            textAlign:
-                            TextAlign.center,
-                          ),
-                        ),
-                  )
-                      .toList(),
-                  onChanged:
-                      (value) {
-                    if (value ==
-                        null) {
-                      return;
-                    }
-
-                    setState(() {
-                      _day =
-                          value;
-                    });
-                  },
                 ),
-              ),
-
-              const SizedBox(
-                width: 8,
-              ),
-
-              Expanded(
-                flex: 3,
-                child:
-                DropdownButtonFormField<
-                    int>(
-                  value:
-                  _month,
-                  isExpanded:
-                  true,
-                  decoration:
-                  const InputDecoration(
-                    labelText:
-                    'ماه',
-                    border:
-                    OutlineInputBorder(),
-                    contentPadding:
-                    EdgeInsets
-                        .symmetric(
-                      horizontal:
-                      10,
-                      vertical:
-                      8,
+                items: days.map((day) {
+                  return DropdownMenuItem<int>(
+                    value: day,
+                    child: Text(
+                      _toPersianDigits(day),
+                      textAlign: TextAlign.right,
                     ),
-                  ),
-                  items:
-                  List.generate(
-                    12,
-                        (index) {
-                      final month =
-                          index + 1;
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
 
-                      return DropdownMenuItem<
-                          int>(
-                        value:
-                        month,
-                        child:
-                        Text(
-                          _monthNames[
-                          index],
-                          overflow:
-                          TextOverflow
-                              .ellipsis,
-                        ),
-                      );
-                    },
-                  ),
-                  onChanged:
-                      (value) {
-                    if (value ==
-                        null) {
-                      return;
-                    }
+                  setState(() {
+                    _day = value;
+                  });
+                },
+              ),
 
-                    setState(() {
-                      _month =
-                          value;
-                      _fixDay();
-                    });
-                  },
+              const SizedBox(height: 14),
+
+              // ماه
+              DropdownButtonFormField<int>(
+                value: _month,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'ماه',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                 ),
-              ),
+                items: List.generate(12, (index) {
+                  final month = index + 1;
 
-              const SizedBox(
-                width: 8,
-              ),
-
-              Expanded(
-                flex: 3,
-                child:
-                DropdownButtonFormField<
-                    int>(
-                  value:
-                  _year,
-                  isExpanded:
-                  true,
-                  decoration:
-                  const InputDecoration(
-                    labelText:
-                    'سال',
-                    border:
-                    OutlineInputBorder(),
-                    contentPadding:
-                    EdgeInsets
-                        .symmetric(
-                      horizontal:
-                      10,
-                      vertical:
-                      8,
+                  return DropdownMenuItem<int>(
+                    value: month,
+                    child: Text(
+                      _monthNames[index],
+                      textAlign: TextAlign.right,
                     ),
-                  ),
-                  items:
-                  years.map(
-                        (year) =>
-                        DropdownMenuItem<
-                            int>(
-                          value:
-                          year,
-                          child:
-                          Text(
-                            _toPersianDigits(
-                                year),
-                            textAlign:
-                            TextAlign
-                                .center,
-                          ),
-                        ),
-                  ).toList(),
-                  onChanged:
-                      (value) {
-                    if (value ==
-                        null) {
-                      return;
-                    }
+                  );
+                }),
+                onChanged: (value) {
+                  if (value == null) return;
 
-                    setState(() {
-                      _year =
-                          value;
-                      _fixDay();
-                    });
-                  },
+                  setState(() {
+                    _month = value;
+                    _fixDay();
+                  });
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              // سال
+              DropdownButtonFormField<int>(
+                value: _year,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'سال',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                 ),
+                items: years.map((year) {
+                  return DropdownMenuItem<int>(
+                    value: year,
+                    child: Text(
+                      _toPersianDigits(year),
+                      textAlign: TextAlign.right,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  setState(() {
+                    _year = value;
+                    _fixDay();
+                  });
+                },
               ),
             ],
           ),

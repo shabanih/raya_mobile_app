@@ -34,6 +34,12 @@ final _purchaseDateController = TextEditingController();
 
 final _parkingCountController = TextEditingController();
 final _parkingNumberController = TextEditingController();
+
+// فیلدهای موقعیت پارکینگ
+final _parkingPlaceController = TextEditingController();
+final _extraParkingFirstController = TextEditingController();
+final _extraParkingSecondController = TextEditingController();
+
 final _unitPhoneController = TextEditingController();
 final _unitDetailsController = TextEditingController();
 
@@ -63,6 +69,10 @@ _purchaseDateController.dispose();
 
 _parkingCountController.dispose();
 _parkingNumberController.dispose();
+_parkingPlaceController.dispose();
+_extraParkingFirstController.dispose();
+_extraParkingSecondController.dispose();
+
 _unitPhoneController.dispose();
 _unitDetailsController.dispose();
 
@@ -72,7 +82,7 @@ _ownerConfirmPasswordController.dispose();
 super.dispose();
 }
 
-// تبدیل اعداد فارسی و عربی به انگلیسی برای پردازش و ارسال به API
+// تبدیل اعداد فارسی و عربی به انگلیسی
 String _digitsToEnglish(String value) {
 const persian = '۰۱۲۳۴۵۶۷۸۹';
 const arabic = '٠١٢٣٤٥٦٧٨٩';
@@ -85,7 +95,7 @@ value = value.replaceAll(arabic[i], '$i');
 return value.trim();
 }
 
-// تبدیل اعداد انگلیسی و عربی به فارسی برای نمایش
+// تبدیل اعداد انگلیسی و عربی به فارسی
 String _digitsToPersian(String value) {
 const english = '0123456789';
 const persian = '۰۱۲۳۴۵۶۷۸۹';
@@ -106,7 +116,7 @@ return char;
 }).join();
 }
 
-// تبدیل تاریخ شمسی به تاریخ میلادی برای Django
+// تبدیل تاریخ شمسی به میلادی برای Django
 String _dateToApi(Jalali date) {
 final gregorian = date.toGregorian();
 
@@ -125,7 +135,7 @@ final day = date.day.toString().padLeft(2, '0');
 return _digitsToPersian('$year/$month/$day');
 }
 
-// تبدیل خودکار اعداد ورودی به فارسی و حفظ مکان نشانگر تایپ
+// تبدیل خودکار اعداد ورودی به فارسی
 void _handleDigitsChanged(
 TextEditingController controller,
 String value,
@@ -150,9 +160,7 @@ Future<void> _selectPurchaseDate() async {
 final now = Jalali.now();
 Jalali initialDate = now;
 
-final text = _digitsToEnglish(
-_purchaseDateController.text,
-);
+final text = _digitsToEnglish(_purchaseDateController.text);
 
 if (text.isNotEmpty) {
 final parts = text.split('/');
@@ -164,16 +172,11 @@ final day = int.tryParse(parts[2]);
 
 if (year != null && month != null && day != null) {
 try {
-final candidate = Jalali(year, month, day);
-
-if (candidate.month >= 1 &&
-candidate.month <= 12 &&
-candidate.day >= 1 &&
-candidate.day <= _daysInMonth(
-candidate.year,
-candidate.month,
-)) {
-initialDate = candidate;
+if (month >= 1 &&
+month <= 12 &&
+day >= 1 &&
+day <= _daysInMonth(year, month)) {
+initialDate = Jalali(year, month, day);
 }
 } catch (_) {
 initialDate = now;
@@ -191,8 +194,7 @@ return _ShamsiDateDialog(initialDate: initialDate);
 
 if (selectedDate != null && mounted) {
 setState(() {
-_purchaseDateController.text =
-_dateToDisplay(selectedDate);
+_purchaseDateController.text = _dateToDisplay(selectedDate);
 });
 }
 }
@@ -200,9 +202,11 @@ _dateToDisplay(selectedDate);
 int _daysInMonth(int year, int month) {
 if (month >= 1 && month <= 6) return 31;
 if (month >= 7 && month <= 11) return 30;
+
 if (month == 12) {
 return Jalali(year, 12, 1).isLeapYear() ? 30 : 29;
 }
+
 return 0;
 }
 
@@ -210,6 +214,7 @@ String? _requiredValidator(String? value, String label) {
 if (value == null || value.trim().isEmpty) {
 return '$label را وارد کنید.';
 }
+
 return null;
 }
 
@@ -309,7 +314,6 @@ required bool obscureText,
 required VoidCallback toggleObscure,
 String? Function(String?)? validator,
 }) {
-// رمز عبور عمداً تغییر داده نمی‌شود.
 return TextFormField(
 controller: controller,
 textDirection: TextDirection.ltr,
@@ -415,11 +419,13 @@ _digitsToEnglish(_areaController.text),
 
 final bedroomsCount = int.tryParse(
 _digitsToEnglish(_bedroomsController.text),
-) ?? 0;
+) ??
+0;
 
 final peopleCount = int.tryParse(
 _digitsToEnglish(_ownerPeopleCountController.text),
-) ?? 1;
+) ??
+1;
 
 if (unitNumber == null || unitNumber < 1) {
 _showMessage('شماره واحد باید عددی معتبر باشد.');
@@ -455,7 +461,6 @@ setState(() => _isSaving = true);
 
 try {
 final data = <String, dynamic>{
-// کلیدهای مورد انتظار API جنگو
 'unit': unitNumber,
 'floor_number': floorNumber,
 'area': area,
@@ -471,14 +476,23 @@ _ownerNationalCodeController.text,
 'owner_details': _ownerDetailsController.text.trim(),
 'status_residence': _hasResident ? 'occupied' : 'vacant',
 'is_renter': false,
-'unit_phone': _digitsToEnglish(
-_unitPhoneController.text,
-),
+'unit_phone': _digitsToEnglish(_unitPhoneController.text),
 'unit_details': _unitDetailsController.text.trim(),
 'has_parking': _hasParking,
 'parking_count': parkingCount,
 'parking_number': _hasParking
 ? _digitsToEnglish(_parkingNumberController.text)
+    : '',
+
+// سه فیلد جدید موقعیت پارکینگ
+'parking_place': _hasParking
+? _parkingPlaceController.text.trim()
+    : '',
+'extra_parking_first': _hasParking
+? _extraParkingFirstController.text.trim()
+    : '',
+'extra_parking_second': _hasParking
+? _extraParkingSecondController.text.trim()
     : '',
 };
 
@@ -516,15 +530,10 @@ Jalali(year, month, day),
 );
 }
 
-// این دو کلید تنها در صورتی اثر دارند که بک‌اند آن‌ها را
-// برای ساخت حساب مالک پردازش کند.
-
-  data['owner_password'] =
-      _ownerPasswordController.text;
-
-  data['owner_password_confirm'] =
-      _ownerConfirmPasswordController.text;
-
+// این کلیدها باید در بک‌اند برای ساخت حساب مالک پشتیبانی شوند.
+data['owner_password'] = _ownerPasswordController.text;
+data['owner_password_confirm'] =
+_ownerConfirmPasswordController.text;
 
 await _unitService.createUnit(data);
 
@@ -623,6 +632,7 @@ maxLines: 3,
 ),
 ],
 ),
+
 _buildSection(
 title: 'اطلاعات مالک',
 icon: Icons.person,
@@ -694,6 +704,7 @@ validator: _confirmPasswordValidator,
 ),
 ],
 ),
+
 _buildSection(
 title: 'وضعیت سکونت و پارکینگ',
 icon: Icons.home_work,
@@ -729,10 +740,27 @@ label: 'شماره پارکینگ',
 controller: _parkingNumberController,
 keyboardType: TextInputType.number,
 ),
+_buildTextField(
+label: 'موقعیت پارکینگ',
+controller: _parkingPlaceController,
+hintText: 'مثلاً زیرزمین اول، کنار رمپ',
+),
+_buildTextField(
+label: ' پارکینگ اضافه اول',
+controller: _extraParkingFirstController,
+hintText: ' پارکینگ اضافه اول',
+),
+_buildTextField(
+label: ' پارکینگ اضافه دوم',
+controller: _extraParkingSecondController,
+hintText: ' پارکینگ اضافه دوم',
+),
 ],
 ],
 ),
+
 const SizedBox(height: 8),
+
 SizedBox(
 height: 52,
 child: FilledButton.icon(
@@ -759,6 +787,7 @@ borderRadius: BorderRadius.circular(12),
 ),
 ),
 ),
+
 const SizedBox(height: 24),
 ],
 ),
@@ -798,14 +827,15 @@ _day = widget.initialDate.day;
 int _daysInMonth(int year, int month) {
 if (month >= 1 && month <= 6) return 31;
 if (month >= 7 && month <= 11) return 30;
+
 return Jalali(year, 12, 1).isLeapYear() ? 30 : 29;
 }
 
 void _updateMonth(int month) {
 setState(() {
 _month = month;
-final maxDay = _daysInMonth(_year, _month);
 
+final maxDay = _daysInMonth(_year, _month);
 if (_day > maxDay) {
 _day = maxDay;
 }
@@ -815,8 +845,8 @@ _day = maxDay;
 void _updateYear(int year) {
 setState(() {
 _year = year;
-final maxDay = _daysInMonth(_year, _month);
 
+final maxDay = _daysInMonth(_year, _month);
 if (_day > maxDay) {
 _day = maxDay;
 }
@@ -825,7 +855,6 @@ _day = maxDay;
 
 String _digitsToPersian(String value) {
 const english = '0123456789';
-
 const persian = '۰۱۲۳۴۵۶۷۸۹';
 
 return value.split('').map((char) {
@@ -855,7 +884,9 @@ title: const Text(
 'انتخاب تاریخ شمسی',
 textAlign: TextAlign.center,
 ),
-content: Column(
+content: SizedBox(
+width: 320,
+child: Column(
 mainAxisSize: MainAxisSize.min,
 children: [
 DropdownButtonFormField<int>(
@@ -875,7 +906,9 @@ onChanged: (value) {
 if (value != null) _updateYear(value);
 },
 ),
+
 const SizedBox(height: 12),
+
 DropdownButtonFormField<int>(
 value: _month,
 isExpanded: true,
@@ -899,7 +932,9 @@ onChanged: (value) {
 if (value != null) _updateMonth(value);
 },
 ),
+
 const SizedBox(height: 12),
+
 DropdownButtonFormField<int>(
 value: _day,
 isExpanded: true,
@@ -924,6 +959,7 @@ setState(() => _day = value);
 },
 ),
 ],
+),
 ),
 actions: [
 TextButton(
