@@ -320,6 +320,22 @@ class ApiConfig {
   static const String managerPersonCharges =
       '${baseUrl}/manager/charges/person/';
 
+  static const String managerFixAreaCharges =
+      '$baseUrl/manager/charges/fix-area/';
+
+  static const String managerFixPersonCharges =
+      '$baseUrl/manager/charges/fix-person/';
+
+  static const String managerPersonAreaCharges =
+      '$baseUrl/manager/person-area-charges/';
+
+  static const String managerFixPersonAreaCharges =
+      '$baseUrl/manager/fix-person-area-charges/';
+
+  static const String managerFixVariableCharges =
+      '$baseUrl/manager/fix-variable-charges/';
+
+
 
 
   

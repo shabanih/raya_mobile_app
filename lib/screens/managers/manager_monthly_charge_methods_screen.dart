@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'manager_fixed_charges_screen.dart';
 import 'manager_area_charges_screen.dart';
 import 'manager_person_charges_screen.dart';
+import 'manager_fix_area_charges_screen.dart';
+import 'manager_fix_person_charges_screen.dart';
+import 'manager_person_area_charges_screen.dart';
+import 'manager_fix_person_area_charges_screen.dart';
+import 'manager_fix_variable_charges_screen.dart';
 
 class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
   const ManagerMonthlyChargeMethodsScreen({super.key});
@@ -97,6 +102,53 @@ class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
       );
       return;
     }
+
+    if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerFixAreaChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerFixPersonChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 5) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerPersonAreaChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 6) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerFixPersonAreaChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 7) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerFixVariableChargesScreen(),
+        ),
+      );
+      return;
+    }
+
 
 
     ScaffoldMessenger.of(context).showSnackBar(

@@ -52,6 +52,32 @@ class _ManagerAreaChargeUnitsScreenState
     );
   }
 
+  double get _otherCost {
+    return _number(
+      widget.charge['other_cost_amount'] ??
+          widget.charge['otherCostAmount'] ??
+          0,
+    );
+  }
+
+  double _number(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value == null) {
+      return 0;
+    }
+
+    final raw = _latinDigits(value.toString())
+        .replaceAll(',', '')
+        .replaceAll('٬', '')
+        .replaceAll('٫', '.')
+        .trim();
+
+    return double.tryParse(raw) ?? 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1152,6 +1178,21 @@ class _ManagerAreaChargeUnitsScreenState
                         ),
                       ],
                     ),
+                    const SizedBox(height: 7),
+                    if (_otherCost > 0)
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 5,
+                        children: [
+                          Text(
+                            'هزینه متفرقه: ${_money(_otherCost)} تومان',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 7),
                     Row(
                       children: [
