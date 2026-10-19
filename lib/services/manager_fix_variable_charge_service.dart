@@ -25,6 +25,7 @@ class ManagerFixVariableChargeService {
         if (body.trim().isEmpty) {
           return <String, dynamic>{};
         }
+
         return jsonDecode(body);
       }
 
@@ -35,6 +36,7 @@ class ManagerFixVariableChargeService {
       if (response.trim().isEmpty) {
         return <String, dynamic>{};
       }
+
       return jsonDecode(response);
     }
 
@@ -44,7 +46,10 @@ class ManagerFixVariableChargeService {
   Map<String, dynamic> _decodeMap(dynamic response) {
     final data = _decodeBody(response);
 
-    if (data is Map<String, dynamic>) return data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
     if (data is Map) {
       return Map<String, dynamic>.from(data);
     }
@@ -96,17 +101,10 @@ class ManagerFixVariableChargeService {
     try {
       final data = _decodeMap(response);
 
-      final detail =
-          data['detail'] ?? data['message'] ?? data['error'];
-
-      if (detail != null &&
-          detail.toString().trim().isNotEmpty) {
-        return detail.toString();
-      }
-
+      // خطاهای اختصاصی فیلدها
       final errors = data['errors'];
 
-      if (errors is Map) {
+      if (errors is Map && errors.isNotEmpty) {
         final messages = <String>[];
 
         errors.forEach((key, value) {
@@ -114,7 +112,7 @@ class ManagerFixVariableChargeService {
             messages.addAll(
               value.map((item) => item.toString()),
             );
-          } else {
+          } else if (value != null) {
             messages.add(value.toString());
           }
         });
@@ -124,6 +122,16 @@ class ManagerFixVariableChargeService {
         }
       }
 
+      // پیام عمومی سرور
+      final detail =
+          data['detail'] ?? data['message'] ?? data['error'];
+
+      if (detail != null &&
+          detail.toString().trim().isNotEmpty) {
+        return detail.toString();
+      }
+
+      // پشتیبانی از پاسخ‌های غیر استاندارد
       final messages = <String>[];
 
       data.forEach((key, value) {
@@ -139,7 +147,9 @@ class ManagerFixVariableChargeService {
       if (messages.isNotEmpty) {
         return messages.join('\n');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('ERROR PARSING API RESPONSE: $e');
+    }
 
     return fallback;
   }
@@ -329,16 +339,24 @@ class ManagerFixVariableChargeService {
   }
 
   // --------------------------------------------------
-  // واحدهای شارژ
+  // دریافت اطلاعات کامل واحدهای شارژ
   // GET manager/fix-variable-charges/{id}/units/
+  //
+  // خروجی شامل اطلاعات کلی شارژ مانند:
+  // payment_deadline
+  // charge_name
+  // total_area
+  // total_people
+  // و فهرست results است.
   // --------------------------------------------------
 
-  Future<List<Map<String, dynamic>>> getChargeUnits(
+  Future<Map<String, dynamic>> getChargeUnitsData(
       int chargeId, {
         String? search,
         String? residentType,
       }) async {
     var url = '$_baseUrl$chargeId/units/';
+
     final queryParameters = <String, String>{};
 
     if (search != null && search.trim().isNotEmpty) {
@@ -352,21 +370,58 @@ class ManagerFixVariableChargeService {
     }
 
     if (queryParameters.isNotEmpty) {
-      url = '$url?'
-          '${Uri(queryParameters: queryParameters).query}';
+      url = '$url?${Uri(queryParameters: queryParameters).query}';
     }
 
     final response = await _api.get(url);
 
+    debugPrint(
+      'FIX VARIABLE UNITS STATUS: ${response.statusCode}',
+    );
+
     if (!_isSuccess(response)) {
+      debugPrint(
+        'FIX VARIABLE UNITS ERROR: ${response.body}',
+      );
+
       _throwResponseError(
         response,
         fallback: 'دریافت وضعیت واحدها ناموفق بود',
       );
     }
 
+    final data = _decodeMap(response);
+
+    if (data.isEmpty) {
+      throw Exception('پاسخ سرور خالی یا نامعتبر است.');
+    }
+
+    debugPrint(
+      'FIX VARIABLE PAYMENT DEADLINE: '
+          '${data['payment_deadline']}',
+    );
+
+    return data;
+  }
+
+  // --------------------------------------------------
+  // فهرست واحدهای شارژ
+  // سازگار با کدهای قبلی
+  // --------------------------------------------------
+
+  Future<List<Map<String, dynamic>>> getChargeUnits(
+      int chargeId, {
+        String? search,
+        String? residentType,
+      }) async {
+    final data = await getChargeUnitsData(
+      chargeId,
+      search: search,
+      residentType: residentType,
+    );
+
     return _decodeList(
-      response,
+      data,
       keys: const [
         'results',
         'units',

@@ -335,6 +335,9 @@ class ApiConfig {
   static const String managerFixVariableCharges =
       '$baseUrl/manager/fix-variable-charges/';
 
+  static const String managerChargeCalculations =
+      '$baseUrl/manager/charge-calculations/';
+
 
 
 

@@ -343,6 +343,7 @@ class _ManagerFixVariableChargesScreenState
     );
   }
 
+
   Future<void> _openUnits(Map<String, dynamic> charge) async {
     final id = _intValue(charge, ['id', 'pk']);
 
@@ -1059,6 +1060,7 @@ class _FixVariableChargeFormSheetState
   final _detailsController = TextEditingController();
 
   bool _saving = false;
+  String? _paymentDeadlineError;
 
   bool get _isEditing => widget.charge != null;
 
@@ -1184,12 +1186,17 @@ class _FixVariableChargeFormSheetState
     if (selected != null && mounted) {
       setState(() {
         _deadlineController.text = _jalaliString(selected);
+        _paymentDeadlineError = null;
       });
     }
   }
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
+
+    setState(() {
+      _paymentDeadlineError = null;
+    });
 
     if (!_formKey.currentState!.validate()) return;
 
@@ -1279,10 +1286,23 @@ class _FixVariableChargeFormSheetState
 
       Navigator.of(context).pop(true);
     } catch (e) {
-      _showMessage(
-        'ذخیره شارژ انجام نشد: '
-            '${e.toString().replaceFirst('Exception: ', '')}',
-      );
+      if (!mounted) return;
+
+      final message = e
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .trim();
+
+      // اگر خطا مربوط به مهلت پرداخت است، زیر همان فیلد نمایش بده.
+      if (message.contains('مهلت پرداخت') ||
+          message.contains('payment_deadline')) {
+        setState(() {
+          _paymentDeadlineError = message;
+        });
+      }
+
+      // نمایش پیام خطا در پایین صفحه نیز حفظ می‌شود.
+      _showMessage('ذخیره شارژ انجام نشد: $message');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1440,6 +1460,21 @@ class _FixVariableChargeFormSheetState
                           color: _primaryColor,
                         ),
                       ),
+
+                      if (_paymentDeadlineError != null) ...[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            _paymentDeadlineError!,
+                            textDirection: TextDirection.rtl,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       _field(
                         label: 'جریمه دیرکرد (تومان)',

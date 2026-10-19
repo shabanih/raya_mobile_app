@@ -9,6 +9,7 @@ import 'manager_fix_person_charges_screen.dart';
 import 'manager_person_area_charges_screen.dart';
 import 'manager_fix_person_area_charges_screen.dart';
 import 'manager_fix_variable_charges_screen.dart';
+import 'manager_charge_calculation_screen.dart';
 
 class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
   const ManagerMonthlyChargeMethodsScreen({super.key});
@@ -144,6 +145,15 @@ class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (_) => const ManagerFixVariableChargesScreen(),
+        ),
+      );
+      return;
+    }
+    if (index == 8) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ManagerChargeCalculationScreen(),
         ),
       );
       return;
