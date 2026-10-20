@@ -440,6 +440,42 @@ throw Exception('پاسخ سرور خالی یا نامعتبر است.');
 return data;
 }
 
+  // --------------------------------------------------
+  // محاسبه و ذخیره سهم واحدها
+  // POST manager/charge-calculations/{id}/units/
+  //
+  // ایجاد یا به‌روزرسانی:
+  // - UnifiedCharge
+  // - ChargeAllocation
+  //
+  // بدون ارسال اعلان یا پیامک
+  // --------------------------------------------------
+
+  Future<Map<String, dynamic>> calculateAndSaveCalculation(
+      int calculationId,
+      ) async {
+    final response = await _api.post(
+      '${_idUrl(calculationId)}units/',
+      body: <String, dynamic>{},
+    );
+
+    debugPrint(
+      'CHARGE CALCULATION SAVE STATUS: ${response.statusCode}',
+    );
+    debugPrint(
+      'CHARGE CALCULATION SAVE RESPONSE: ${response.body}',
+    );
+
+    if (!_isSuccess(response)) {
+      _throwResponseError(
+        response,
+        fallback: 'محاسبه و ذخیره سهم واحدها ناموفق بود',
+      );
+    }
+
+    return _decodeMap(response);
+  }
+
 // --------------------------------------------------
 // فهرست سهم واحدها
 // --------------------------------------------------
