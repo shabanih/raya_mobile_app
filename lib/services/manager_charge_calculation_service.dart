@@ -566,4 +566,33 @@ fallback: 'لغو اعلان شارژ ناموفق بود',
 
 return _decodeMap(response);
 }
+// --------------------------------------------------
+// ارسال سیستمی و پیامکی شارژ تسهیم هزینه
+// --------------------------------------------------
+
+  Future<Map<String, dynamic>> sendCalculationChargeToUnits(
+      int calculationId,
+      List<int> unitIds, {
+        bool sendSms = false,
+      }) async {
+    return sendCalculationToUnits(
+      calculationId,
+      unitIds,
+      sendSms: sendSms,
+    );
+  }
+
+// --------------------------------------------------
+// لغو اعلان شارژ برای واحدهای انتخاب‌شده
+// --------------------------------------------------
+
+  Future<Map<String, dynamic>> cancelCalculationChargeForUnits(
+      int calculationId,
+      List<int> unitIds,
+      ) async {
+    return cancelCalculationForUnits(
+      calculationId,
+      unitIds,
+    );
+  }
 }

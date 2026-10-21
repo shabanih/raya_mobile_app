@@ -1,21 +1,19 @@
-
 import 'package:flutter/material.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_charge_calculation_service.dart';
 
 const Color _primaryColor = Color(0xFF00ACC1);
 const Color _purpleColor = Color(0xFF610DB5);
-const Color _greenColor = Color(0xFF2E7D32);
-const Color _orangeColor = Color(0xFFEF6C00);
 
 class ManagerChargeCalculationUnitsScreen extends StatefulWidget {
   final int calculationId;
-  final String? calculationName;
+  final String calculationName;
 
   const ManagerChargeCalculationUnitsScreen({
     super.key,
     required this.calculationId,
-    this.calculationName,
+    required this.calculationName,
   });
 
   @override
@@ -28,425 +26,419 @@ class _ManagerChargeCalculationUnitsScreenState
   final ManagerChargeCalculationService _service =
   ManagerChargeCalculationService();
 
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController =
+  TextEditingController();
 
   bool _loading = true;
-  bool _processing = false;
-  bool _sendSms = false;
-
-  String _filter = 'all';
-  String _chargeName = '';
-  String _details = '';
+  bool _sending = false;
 
   List<Map<String, dynamic>> _units = [];
+  Map<String, dynamic> _calculation = {};
 
-  // واحدهای انتخاب‌شده برای ارسال اعلان
-  final Set<int> _selectedSendIds = {};
+  final Set<int> _selectedIds = {};
 
-  // واحدهای انتخاب‌شده برای لغو اعلان
-  final Set<int> _selectedCancelIds = {};
+  String _residentFilter = 'all';
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_refresh);
     _loadUnits();
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_refresh);
     _searchController.dispose();
     super.dispose();
   }
 
-  // ----------------------------------------------------------
-  // تبدیل اعداد فارسی و عربی
-  // ----------------------------------------------------------
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
-  String _toEnglishDigits(String value) {
-    const persian = '۰۱۲۳۴۵۶۷۸۹';
-    const arabic = '٠١٢٣٤٥٦٧٨٩';
+  String _latinDigits(String value) {
+    const fa = '۰۱۲۳۴۵۶۷۸۹';
+    const ar = '٠١٢٣٤٥٦٧٨٩';
 
     for (int i = 0; i < 10; i++) {
-      value = value.replaceAll(persian[i], '$i');
-      value = value.replaceAll(arabic[i], '$i');
+      value = value.replaceAll(fa[i], '$i');
+      value = value.replaceAll(ar[i], '$i');
     }
 
     return value;
   }
 
-  String _formatNumber(dynamic value) {
-    if (value == null) return '۰';
+  String _persianDigits(dynamic value) {
+    const en = '0123456789';
+    const fa = '۰۱۲۳۴۵۶۷۸۹';
 
-    final normalized = _toEnglishDigits(value.toString());
-    final number = num.tryParse(normalized);
-
-    if (number == null) return value.toString();
-
-    final rounded = number.round();
-    final text = rounded.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < text.length; i++) {
-      buffer.write(text[i]);
-
-      final remaining = text.length - i - 1;
-      if (remaining > 0 && remaining % 3 == 0) {
-        buffer.write(',');
-      }
-    }
-
-    return _toPersianDigits(buffer.toString());
-  }
-
-  String _toPersianDigits(String value) {
-    const english = '0123456789';
-    const persian = '۰۱۲۳۴۵۶۷۸۹';
+    String result = value?.toString() ?? '';
 
     for (int i = 0; i < 10; i++) {
-      value = value.replaceAll(english[i], persian[i]);
+      result = result.replaceAll(en[i], fa[i]);
     }
 
-    return value;
-  }
-
-  String _money(dynamic value) => '${_formatNumber(value)} تومان';
-
-  String _decimal(dynamic value) {
-    if (value == null) return '۰';
-
-    final normalized = _toEnglishDigits(value.toString());
-    final number = num.tryParse(normalized);
-
-    if (number == null) return value.toString();
-
-    final result = number == number.roundToDouble()
-        ? number.toInt().toString()
-        : number.toString();
-
-    return _toPersianDigits(result);
+    return result;
   }
 
   int _intValue(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
 
-    return int.tryParse(_toEnglishDigits(value?.toString() ?? '')) ?? 0;
+    return int.tryParse(
+      _latinDigits(value?.toString() ?? '').trim(),
+    ) ??
+        0;
+  }
+
+  double _number(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value == null) return 0;
+
+    return double.tryParse(
+      _latinDigits(value.toString())
+          .replaceAll(',', '')
+          .replaceAll('٬', '')
+          .replaceAll('٫', '.')
+          .trim(),
+    ) ??
+        0;
   }
 
   bool _boolValue(dynamic value) {
-    if (value == true || value == 1) return true;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
 
-    if (value is String) {
-      final text = _toEnglishDigits(value).toLowerCase().trim();
-      return text == 'true' || text == '1';
-    }
+    final text = _latinDigits(
+      value?.toString().toLowerCase() ?? '',
+    ).trim();
 
-    return false;
+    return const [
+      'true',
+      '1',
+      'yes',
+      'بله',
+    ].contains(text);
   }
 
-  // ----------------------------------------------------------
-  // خواندن پاسخ API
-  // ----------------------------------------------------------
+  String _money(dynamic value) {
+    final amount = _number(value).round();
+    final digits = amount.abs().toString();
+    final buffer = StringBuffer();
 
-  Future<void> _loadUnits() async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-      });
+    for (int i = 0; i < digits.length; i++) {
+      buffer.write(digits[i]);
+
+      final remaining = digits.length - i - 1;
+      if (remaining > 0 && remaining % 3 == 0) {
+        buffer.write(',');
+      }
+    }
+
+    return _persianDigits(
+      '${amount < 0 ? '-' : ''}$buffer',
+    );
+  }
+
+  String _formatCount(dynamic value) {
+    final number = _number(value);
+
+    final result = number == number.roundToDouble()
+        ? number.toInt().toString()
+        : number.toStringAsFixed(2);
+
+    return _persianDigits(result);
+  }
+
+  String _dateText(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+
+    if (text.isEmpty || text.toLowerCase() == 'null') {
+      return 'ثبت نشده';
     }
 
     try {
-      final dynamic response =
-      await _service.getCalculationUnitsData(widget.calculationId);
+      // استخراج تاریخ از پاسخ API مانند 2026-10-22 یا ISO datetime
+      final datePart = text.contains('T')
+          ? text.split('T').first
+          : text.split(' ').first;
 
-      if (response is! Map) {
-        throw Exception('ساختار پاسخ سرور معتبر نیست.');
+      final parts = datePart.split('-');
+
+      if (parts.length != 3) {
+        return _persianDigits(datePart.replaceAll('-', '/'));
       }
 
-      final Map<String, dynamic> data =
-      Map<String, dynamic>.from(response);
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
 
-      if (data['success'] == false) {
-        throw Exception(
-          data['message']?.toString() ?? 'دریافت اطلاعات واحدها ناموفق بود.',
+      // اگر تاریخ از قبل شمسی باشد، دوباره تبدیل نکن
+      if (year >= 1200 && year <= 1600) {
+        return _persianDigits(
+          '$year/${month.toString().padLeft(2, '0')}/${day.toString().padLeft(2, '0')}',
         );
       }
 
-      final dynamic calculationData = data['calculation'];
+      final jalali = Gregorian(year, month, day).toJalali();
 
-      final Map<String, dynamic> calculation =
-      calculationData is Map
-          ? Map<String, dynamic>.from(calculationData)
-          : <String, dynamic>{};
+      final formatted =
+          '${jalali.year}/'
+          '${jalali.month.toString().padLeft(2, '0')}/'
+          '${jalali.day.toString().padLeft(2, '0')}';
 
-      final dynamic results = data['results'];
+      return _persianDigits(formatted);
+    } catch (_) {
+      return _persianDigits(text);
+    }
+  }
 
-      if (results is! List) {
-        throw Exception('فهرست واحدها در پاسخ سرور وجود ندارد.');
-      }
+  Future<void> _loadUnits() async {
+    if (_sending) return;
 
-      final List<Map<String, dynamic>> loadedUnits = [];
+    setState(() => _loading = true);
 
-      for (final dynamic item in results) {
-        if (item is Map) {
-          loadedUnits.add(Map<String, dynamic>.from(item));
-        }
-      }
+    try {
+      // این متد باید پاسخ کامل GET را برگرداند:
+      // success, calculation, count, results
+      final data = await _service.getCalculationUnitsData(
+        widget.calculationId,
+      );
 
       if (!mounted) return;
 
+      if (data['success'] == false) {
+        throw Exception(
+          data['message']?.toString() ??
+              'دریافت اطلاعات واحدها ناموفق بود.',
+        );
+      }
+
+      final rawResults = data['results'];
+
       setState(() {
-        _units = loadedUnits;
+        _calculation = data['calculation'] is Map
+            ? Map<String, dynamic>.from(data['calculation'])
+            : <String, dynamic>{};
 
-        _chargeName = (calculation['name'] ??
-            calculation['title'] ??
-            widget.calculationName ??
-            'شارژ محاسباتی')
-            .toString();
+        _units = rawResults is List
+            ? rawResults
+            .whereType<Map>()
+            .map(
+              (item) => Map<String, dynamic>.from(item),
+        )
+            .toList()
+            : <Map<String, dynamic>>[];
 
-        _details = (calculation['details'] ?? '').toString();
-
-        _selectedSendIds.clear();
-        _selectedCancelIds.clear();
+        _selectedIds.clear();
       });
     } catch (e) {
       if (mounted) {
         _showMessage(
-          'دریافت اطلاعات با خطا مواجه شد: ${_cleanError(e)}',
-          isError: true,
+          e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        setState(() => _loading = false);
       }
     }
   }
-
-  String _cleanError(Object error) {
-    return error.toString().replaceFirst('Exception: ', '');
-  }
-
-  // ----------------------------------------------------------
-  // اطلاعات هر واحد
-  // ----------------------------------------------------------
 
   int _unitId(Map<String, dynamic> unit) {
     return _intValue(unit['unit_id'] ?? unit['id']);
   }
 
   String _unitNumber(Map<String, dynamic> unit) {
-    return (unit['unit'] ?? unit['unit_number'] ?? '-').toString();
+    final value = unit['unit'] ?? unit['unit_number'];
+    return value?.toString().trim().isNotEmpty == true
+        ? value.toString()
+        : 'نامشخص';
+  }
+
+  String _residentType(Map<String, dynamic> unit) {
+    return (unit['resident_type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+  }
+
+  bool _isRenter(Map<String, dynamic> unit) {
+    return _residentType(unit) == 'renter';
+  }
+
+  bool _isVacant(Map<String, dynamic> unit) {
+    return _residentType(unit) == 'empty';
   }
 
   bool _isPaid(Map<String, dynamic> unit) {
     return _boolValue(unit['is_paid']);
   }
 
-  bool _isNotified(Map<String, dynamic> unit) {
-    return _boolValue(unit['send_notification']);
+  String _residentName(Map<String, dynamic> unit) {
+    if (_isVacant(unit)) return 'واحد خالی';
+
+    final name = (unit['resident_name'] ?? '').toString().trim();
+
+    if (name.isNotEmpty) return name;
+
+    return _isRenter(unit)
+        ? 'نام مستأجر ثبت نشده'
+        : 'نام مالک ثبت نشده';
   }
 
-  bool _isSmsSent(Map<String, dynamic> unit) {
-    return _boolValue(unit['send_sms']);
+  double _area(Map<String, dynamic> unit) {
+    return _number(unit['area']);
   }
 
-  String _residentType(Map<String, dynamic> unit) {
-    return (unit['resident_type'] ?? '').toString().toLowerCase().trim();
+  double _peopleCount(Map<String, dynamic> unit) {
+    return _number(unit['people_count']);
   }
 
-  bool _isOwner(Map<String, dynamic> unit) {
-    final type = _residentType(unit);
-    return type == 'owner' || type == 'مالک';
+  double _otherCost(Map<String, dynamic> unit) {
+    return _number(unit['other_cost_amount']);
   }
 
-  bool _isRenter(Map<String, dynamic> unit) {
-    final type = _residentType(unit);
-    return type == 'renter' ||
-        type == 'tenant' ||
-        type == 'مستاجر' ||
-        type == 'مستأجر';
+  double _totalAmount(Map<String, dynamic> unit) {
+    // از total استفاده می‌کنیم؛ مبلغ اضافی دوباره جمع نمی‌شود.
+    return _number(unit['total']);
   }
-
-  bool _isEmptyUnit(Map<String, dynamic> unit) {
-    final type = _residentType(unit);
-    return type == 'empty' ||
-        type == 'vacant' ||
-        type == 'خالی' ||
-        type == 'empty_unit';
-  }
-
-  // پرداخت‌شده‌ها قابل انتخاب نیستند.
-  bool _canSend(Map<String, dynamic> unit) {
-    return _unitId(unit) > 0 && !_isPaid(unit) && !_isNotified(unit);
-  }
-
-  // فقط اعلان واحد پرداخت‌نشده قابل لغو است.
-  bool _canCancel(Map<String, dynamic> unit) {
-    return _unitId(unit) > 0 && !_isPaid(unit) && _isNotified(unit);
-  }
-
-  bool _isSelected(Map<String, dynamic> unit) {
-    final id = _unitId(unit);
-
-    return _selectedSendIds.contains(id) ||
-        _selectedCancelIds.contains(id);
-  }
-
-  void _toggleUnit(Map<String, dynamic> unit, bool selected) {
-    final id = _unitId(unit);
-
-    if (id <= 0 || _isPaid(unit)) return;
-
-    setState(() {
-      _selectedSendIds.remove(id);
-      _selectedCancelIds.remove(id);
-
-      if (!selected) return;
-
-      if (_canSend(unit)) {
-        _selectedSendIds.add(id);
-      } else if (_canCancel(unit)) {
-        _selectedCancelIds.add(id);
-      }
-    });
-  }
-
-  // ----------------------------------------------------------
-  // فیلتر و جستجو
-  // ----------------------------------------------------------
 
   List<Map<String, dynamic>> get _filteredUnits {
-    final query = _toEnglishDigits(
+    final query = _latinDigits(
       _searchController.text.trim().toLowerCase(),
     );
 
     return _units.where((unit) {
-      bool matchesFilter;
-
-      switch (_filter) {
-        case 'owner':
-          matchesFilter = _isOwner(unit);
-          break;
-        case 'renter':
-          matchesFilter = _isRenter(unit);
-          break;
-        case 'empty':
-          matchesFilter = _isEmptyUnit(unit);
-          break;
-        default:
-          matchesFilter = true;
+      if (_residentFilter == 'owner' &&
+          (_isRenter(unit) || _isVacant(unit))) {
+        return false;
       }
 
-      if (!matchesFilter) return false;
-      if (query.isEmpty) return true;
+      if (_residentFilter == 'renter' && !_isRenter(unit)) {
+        return false;
+      }
 
-      final unitNumber = _toEnglishDigits(_unitNumber(unit)).toLowerCase();
-      final unitId = _unitId(unit).toString();
-      final area = _toEnglishDigits(
-        (unit['area'] ?? '').toString(),
-      ).toLowerCase();
+      if (_residentFilter == 'empty' && !_isVacant(unit)) {
+        return false;
+      }
 
-      return unitNumber.contains(query) ||
-          unitId.contains(query) ||
-          area.contains(query);
+      if (query.isNotEmpty) {
+        final searchable = _latinDigits(
+          '${_unitNumber(unit)} '
+              '${_residentName(unit)} '
+              '${_unitId(unit)}',
+        ).toLowerCase();
+
+        if (!searchable.contains(query)) return false;
+      }
+
+      return true;
     }).toList();
   }
-
-  List<Map<String, dynamic>> get _selectableFilteredUnits {
-    return _filteredUnits.where((unit) {
-      return _canSend(unit) || _canCancel(unit);
-    }).toList();
-  }
-
-  int get _selectedCount =>
-      _selectedSendIds.length + _selectedCancelIds.length;
 
   bool get _allFilteredSelected {
-    final selectable = _selectableFilteredUnits;
+    final ids = _filteredUnits
+        .map(_unitId)
+        .where((id) => id > 0)
+        .toSet();
 
-    return selectable.isNotEmpty &&
-        selectable.every((unit) => _isSelected(unit));
+    return ids.isNotEmpty && ids.every(_selectedIds.contains);
   }
 
-  void _toggleSelectAll(bool selected) {
+  void _toggleUnit(int id, bool selected) {
+    if (id <= 0) return;
+
     setState(() {
-      for (final unit in _selectableFilteredUnits) {
-        final id = _unitId(unit);
-
-        _selectedSendIds.remove(id);
-        _selectedCancelIds.remove(id);
-
-        if (!selected) continue;
-
-        if (_canSend(unit)) {
-          _selectedSendIds.add(id);
-        } else if (_canCancel(unit)) {
-          _selectedCancelIds.add(id);
-        }
+      if (selected) {
+        _selectedIds.add(id);
+      } else {
+        _selectedIds.remove(id);
       }
     });
   }
 
-  // ----------------------------------------------------------
-  // ارسال اعلان
-  // ----------------------------------------------------------
+  void _toggleSelectAll() {
+    final ids = _filteredUnits
+        .map(_unitId)
+        .where((id) => id > 0)
+        .toSet();
+
+    setState(() {
+      if (ids.isNotEmpty && ids.every(_selectedIds.contains)) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
 
   Future<void> _showSendOptions() async {
-    if (_selectedSendIds.isEmpty || _processing) return;
+    if (_selectedIds.isEmpty || _sending) {
+      _showMessage('ابتدا واحدهای موردنظر را انتخاب کنید.');
+      return;
+    }
 
-    bool sendSms = false;
-
-    final result = await showDialog<bool>(
+    final sendSms = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        bool sms = false;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text(
-                'ارسال شارژ به واحدها',
-                textAlign: TextAlign.right,
-              ),
+              title: const Text('ارسال شارژ تسهیم هزینه'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '${_toPersianDigits(_selectedSendIds.length.toString())} واحد برای ارسال انتخاب شده است.',
-                    textAlign: TextAlign.right,
+                    'شارژ برای '
+                        '${_persianDigits(_selectedIds.length)} '
+                        'واحد ارسال می‌شود.',
                   ),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
+                  const SizedBox(height: 8),
+                  RadioListTile<bool>(
+                    value: false,
+                    groupValue: sms,
+                    activeColor: _primaryColor,
                     contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text(
-                      'ارسال پیامک',
-                      textAlign: TextAlign.right,
+                    title: const Text('ارسال سیستمی'),
+                    subtitle: const Text(
+                      'ثبت اعلان داخل اپلیکیشن',
                     ),
-                    value: sendSms,
-                    activeColor: _purpleColor,
                     onChanged: (value) {
-                      setDialogState(() {
-                        sendSms = value ?? false;
-                      });
+                      setDialogState(() => sms = value ?? false);
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    value: true,
+                    groupValue: sms,
+                    activeColor: _primaryColor,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('ارسال سیستمی و پیامکی'),
+                    subtitle: const Text(
+                      'ثبت اعلان و درخواست ارسال پیامک',
+                    ),
+                    onChanged: (value) {
+                      setDialogState(() => sms = value ?? true);
                     },
                   ),
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('انصراف'),
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
+                FilledButton(
+                  style: FilledButton.styleFrom(
                     backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
                   ),
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('تأیید ارسال'),
+                  onPressed: () {
+                    Navigator.pop(dialogContext, sms);
+                  },
+                  child: const Text('ادامه'),
                 ),
               ],
             );
@@ -455,176 +447,543 @@ class _ManagerChargeCalculationUnitsScreenState
       },
     );
 
-    if (result == true) {
-      await _sendSelected(sendSms: sendSms);
-    }
+    if (sendSms == null || !mounted) return;
+
+    await _sendSelected(sendSms: sendSms);
   }
 
-  Future<void> _sendSelected({required bool sendSms}) async {
-    if (_selectedSendIds.isEmpty || _processing) return;
+  Future<void> _sendSelected({
+    required bool sendSms,
+  }) async {
+    if (_selectedIds.isEmpty || _sending) return;
 
-    final ids = _selectedSendIds.toList();
-
-    setState(() {
-      _processing = true;
-    });
+    setState(() => _sending = true);
 
     try {
-      final dynamic response = await _service.sendCalculationToUnits(
+      // این متد باید در Service و API ارسال تسهیم هزینه تعریف شود.
+      final result = await _service.sendCalculationChargeToUnits(
         widget.calculationId,
-        ids,
+        _selectedIds.toList(),
         sendSms: sendSms,
       );
 
-      final Map<String, dynamic> result = response is Map
-          ? Map<String, dynamic>.from(response)
-          : <String, dynamic>{};
-
-      if (result['success'] == false) {
-        throw Exception(
-          result['message']?.toString() ?? 'ارسال شارژ ناموفق بود.',
-        );
-      }
-
-      String message =
-      (result['message'] ?? 'عملیات ارسال شارژ انجام شد.').toString();
-
-      if (sendSms && result['sms_success'] == false) {
-        final smsMessage = result['sms_message']?.toString();
-
-        if (smsMessage != null && smsMessage.isNotEmpty) {
-          message = '$message\n$smsMessage';
-        }
-      }
-
       if (!mounted) return;
 
       _showMessage(
-        message,
-        isError: sendSms && result['sms_success'] == false,
+        result['message']?.toString() ??
+            result['detail']?.toString() ??
+            'درخواست ارسال ثبت شد.',
       );
 
-      await _loadUnits();
+      await _reloadAfterAction();
     } catch (e) {
       if (mounted) {
         _showMessage(
-          'ارسال شارژ با خطا مواجه شد: ${_cleanError(e)}',
-          isError: true,
+          e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _processing = false;
-        });
+        setState(() => _sending = false);
       }
     }
   }
 
-  // ----------------------------------------------------------
-  // لغو اعلان
-  // ----------------------------------------------------------
-
   Future<void> _cancelSelected() async {
-    if (_selectedCancelIds.isEmpty || _processing) return;
+    if (_selectedIds.isEmpty || _sending) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('لغو اعلان شارژ'),
-          content: Text(
-            'اعلان شارژ برای ${_toPersianDigits(_selectedCancelIds.length.toString())} واحد لغو شود؟',
-            textAlign: TextAlign.right,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('لغو اعلان شارژ'),
+        content: Text(
+          'اعلان شارژ برای '
+              '${_persianDigits(_selectedIds.length)} '
+              'واحد لغو شود؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('انصراف'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('لغو اعلان'),
-            ),
-          ],
-        );
-      },
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('لغو اعلان'),
+          ),
+        ],
+      ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    setState(() {
-      _processing = true;
-    });
+    setState(() => _sending = true);
 
     try {
-      final ids = _selectedCancelIds.toList();
-
-      final dynamic response =
-      await _service.cancelCalculationForUnits(
+      // این متد باید در Service و API لغو اعلان تعریف شود.
+      final result = await _service.cancelCalculationChargeForUnits(
         widget.calculationId,
-        ids,
+        _selectedIds.toList(),
       );
-
-      final Map<String, dynamic> result = response is Map
-          ? Map<String, dynamic>.from(response)
-          : <String, dynamic>{};
-
-      if (result['success'] == false) {
-        throw Exception(
-          result['message']?.toString() ?? 'لغو اعلان ناموفق بود.',
-        );
-      }
 
       if (!mounted) return;
 
       _showMessage(
-        (result['message'] ?? 'اعلان واحدهای انتخاب‌شده لغو شد.')
-            .toString(),
+        result['message']?.toString() ??
+            result['detail']?.toString() ??
+            'درخواست لغو اعلان ثبت شد.',
       );
 
-      await _loadUnits();
+      await _reloadAfterAction();
     } catch (e) {
       if (mounted) {
         _showMessage(
-          'لغو اعلان با خطا مواجه شد: ${_cleanError(e)}',
-          isError: true,
+          e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _processing = false;
-        });
+        setState(() => _sending = false);
       }
     }
   }
 
-  void _showMessage(String message, {bool isError = false}) {
+  Future<void> _reloadAfterAction() async {
+    // وضعیت دکمه ارسال را برای مدت دریافت اطلاعات آزاد می‌کنیم.
+    if (mounted) setState(() => _sending = false);
+    await _loadUnits();
+  }
+
+  void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.right,
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message, textAlign: TextAlign.right),
+          behavior: SnackBarBehavior.floating,
         ),
-        backgroundColor: isError ? Colors.red.shade700 : _greenColor,
-        behavior: SnackBarBehavior.floating,
+      );
+  }
+
+  Widget _residentChip(String label, String value) {
+    final selected = _residentFilter == value;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        showCheckmark: false,
+        selectedColor: _primaryColor,
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : Colors.black87,
+          fontSize: 12,
+        ),
+        onSelected: (_) {
+          setState(() {
+            _residentFilter = value;
+            _selectedIds.clear();
+          });
+        },
       ),
     );
   }
 
-  // ----------------------------------------------------------
-  // رابط کاربری
-  // ----------------------------------------------------------
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final name = _calculation['name']?.toString().trim().isNotEmpty == true
+        ? _calculation['name'].toString().trim()
+        : widget.calculationName;
+
+    final startDate = _calculation['start_date'] ??
+        _calculation['calculation_start_date'] ??
+        _calculation['period_start'];
+    final endDate = _calculation['end_date'] ??
+        _calculation['calculation_end_date'] ??
+        _calculation['period_end'];
+    final deadline = _calculation['payment_deadline'] ??
+        _calculation['deadline'];
+
+    return Card(
+      color: _purpleColor,
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.calculate_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Divider(color: Colors.white30),
+            _headerInfo(
+              'بازه محاسبه',
+              '${_dateText(startDate)} تا ${_dateText(endDate)}',
+            ),
+            _headerInfo(
+              'مهلت پرداخت',
+              _dateText(deadline),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _headerInfo(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  Widget _buildUnitCard(Map<String, dynamic> unit) {
+    final id = _unitId(unit);
+    final selected = _selectedIds.contains(id);
+    final vacant = _isVacant(unit);
+    final renter = _isRenter(unit);
+    final paid = _isPaid(unit);
+
+    final systemSent = _boolValue(unit['send_notification']);
+    final smsSent = _boolValue(unit['send_sms']);
+
+    final amount = _totalAmount(unit);
+    final residentName = _residentName(unit);
+
+    final cardColor = vacant
+        ? const Color(0xFFFFF0F0)
+        : paid
+        ? const Color(0xFFE5F5E9)
+        : systemSent
+        ? const Color(0xFFFFF4E5)
+        : Colors.white;
+
+    final statusBorderColor = vacant
+        ? Colors.red
+        : paid
+        ? const Color(0xFF81C784)
+        : systemSent
+        ? const Color(0xFFFFCC80)
+        : Colors.grey.shade300;
+
+    final borderColor = selected ? _purpleColor : statusBorderColor;
+
+    return Card(
+      color: cardColor,
+      elevation: selected ? 2 : 0.5,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: borderColor,
+          width: selected ? 1.5 : 0.8,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: id <= 0 ? null : () => _toggleUnit(id, !selected),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: selected,
+                activeColor: _purpleColor,
+                onChanged: id <= 0
+                    ? null
+                    : (value) => _toggleUnit(id, value ?? false),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'واحد ${_persianDigits(_unitNumber(unit))}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        if (vacant && !paid)
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 19,
+                          ),
+                        if (paid)
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF2E7D32),
+                            size: 19,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      vacant
+                          ? 'وضعیت: واحد خالی'
+                          : '${renter ? 'مستأجر' : 'مالک'}: $residentName',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: vacant
+                            ? Colors.red.shade800
+                            : Colors.grey.shade800,
+                        fontWeight:
+                        vacant ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        Text(
+                          'متراژ: ${_formatCount(_area(unit))} متر',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        Text(
+                          'تعداد نفرات: ${_formatCount(_peopleCount(unit))}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        if (unit['financial_document_number'] != null)
+                          Text(
+                            'سند: ${_persianDigits(unit['financial_document_number'])}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_money(amount)} تومان',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: paid
+                                  ? Colors.green.shade800
+                                  : _purpleColor,
+                            ),
+                          ),
+                        ),
+                        if (systemSent)
+                          const Tooltip(
+                            message: 'اعلان سیستمی ثبت شده',
+                            child: Icon(
+                              Icons.notifications_active_rounded,
+                              color: Colors.deepOrange,
+                              size: 19,
+                            ),
+                          ),
+                        if (smsSent)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 5),
+                            child: Tooltip(
+                              message: 'وضعیت پیامک: ارسال‌شده',
+                              child: Icon(
+                                Icons.sms_rounded,
+                                color: Colors.blue,
+                                size: 19,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (paid)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'پرداخت شده',
+                          style: TextStyle(
+                            color: Color(0xFF2E7D32),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    // if (systemSent && !paid)
+                    //   const Padding(
+                    //     padding: EdgeInsets.only(top: 4),
+                    //     child: Text(
+                    //       'اعلان شده',
+                    //       style: TextStyle(
+                    //         color: Colors.deepOrange,
+                    //         fontSize: 11,
+                    //         fontWeight: FontWeight.bold,
+                    //       ),
+                    //     ),
+                    //   ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  Widget _buildBottomActions() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _sending || _selectedIds.isEmpty
+                    ? null
+                    : _cancelSelected,
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('لغو اعلان'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red.shade700,
+                  minimumSize: const Size(0, 45),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: FilledButton.icon(
+                onPressed: _sending || _selectedIds.isEmpty
+                    ? null
+                    : _showSendOptions,
+                icon: _sending
+                    ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Icon(Icons.send_rounded),
+                label: Text(
+                  _sending
+                      ? 'لطفاً صبر کنید'
+                      : 'ارسال (${_persianDigits(_selectedIds.length)})',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 45),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final filteredUnits = _filteredUnits;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -632,790 +991,120 @@ class _ManagerChargeCalculationUnitsScreenState
         appBar: AppBar(
           backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
-          elevation: 0,
           title: const Text(
-            'واحدهای شارژ محاسباتی',
+            'واحدهای تسهیم هزینه',
             style: TextStyle(
+              fontSize: 16,
               fontWeight: FontWeight.bold,
-              fontSize: 17,
             ),
           ),
           actions: [
             IconButton(
-              tooltip: 'بروزرسانی',
-              onPressed: _loading || _processing ? null : _loadUnits,
-              icon: const Icon(Icons.refresh),
+              tooltip: 'به‌روزرسانی',
+              onPressed: _loading || _sending ? null : _loadUnits,
+              icon: const Icon(Icons.refresh_rounded),
             ),
           ],
         ),
-        body: _loading
-            ? const Center(
-          child: CircularProgressIndicator(color: _primaryColor),
-        )
-            : Column(
+        body: Column(
           children: [
             _buildHeader(),
-            _buildFilters(),
-            _buildSearch(),
-            _buildSelectionBar(),
-            Expanded(
-              child: _filteredUnits.isEmpty
-                  ? _buildEmptyState()
-                  : RefreshIndicator(
-                onRefresh: _loadUnits,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                    12,
-                    4,
-                    12,
-                    16,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 5),
+              child: TextField(
+                controller: _searchController,
+                textDirection: TextDirection.rtl,
+                decoration: InputDecoration(
+                  hintText: 'جست‌وجوی شماره واحد یا نام ساکن',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                    onPressed: _searchController.clear,
+                    icon: const Icon(Icons.close_rounded),
                   ),
-                  itemCount: _filteredUnits.length,
-                  itemBuilder: (context, index) {
-                    return _buildUnitCard(
-                      _filteredUnits[index],
-                    );
-                  },
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-        bottomNavigationBar: _loading ? null : _buildBottomActions(),
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // کارت هدر نام شارژ
-  // ----------------------------------------------------------
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [_primaryColor, Color(0xFF008C9E)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryColor.withOpacity(0.18),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _residentChip('همه واحدها', 'all'),
+                  _residentChip('مالکین', 'owner'),
+                  _residentChip('مستأجرین', 'renter'),
+                  _residentChip('واحدهای خالی', 'empty'),
+                ],
+              ),
             ),
-            child: const Icon(
-              Icons.receipt_long,
-              color: Colors.white,
-              size: 27,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'نام شارژ',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: _allFilteredSelected,
+                    activeColor: _primaryColor,
+                    onChanged: filteredUnits.isEmpty
+                        ? null
+                        : (_) => _toggleSelectAll(),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _chargeName.isEmpty ? 'شارژ محاسباتی' : _chargeName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+                  const Expanded(
+                    child: Text(
+                      'انتخاب واحدهای نمایش‌داده‌شده',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
-                if (_details.trim().isNotEmpty) ...[
-                  const SizedBox(height: 5),
                   Text(
-                    _details,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    '${_persianDigits(_selectedIds.length)} انتخاب',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: _purpleColor,
+                      fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
                   ),
                 ],
-                const SizedBox(height: 7),
-                Text(
-                  'تعداد واحدها: ${_toPersianDigits(_units.length.toString())}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // فیلتر مالک، مستأجر و خالی
-  // ----------------------------------------------------------
-
-  Widget _buildFilters() {
-    final options = <Map<String, String>>[
-      {'key': 'all', 'label': 'همه'},
-      {'key': 'owner', 'label': 'مالکین'},
-      {'key': 'renter', 'label': 'مستأجرین'},
-      {'key': 'empty', 'label': 'واحدهای خالی'},
-    ];
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: options.map((option) {
-          final selected = _filter == option['key'];
-
-          return Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(9),
-              onTap: () {
-                setState(() {
-                  _filter = option['key']!;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? _primaryColor
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  option['label']!,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight:
-                    selected ? FontWeight.bold : FontWeight.normal,
-                    color: selected ? Colors.white : Colors.black87,
-                  ),
-                ),
               ),
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // جستجو
-  // ----------------------------------------------------------
-
-  Widget _buildSearch() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 7, 12, 5),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (_) => setState(() {}),
-        textAlign: TextAlign.right,
-        decoration: InputDecoration(
-          hintText: 'جستجو بر اساس شماره واحد یا متراژ',
-          hintStyle: const TextStyle(fontSize: 12),
-          prefixIcon: const Icon(
-            Icons.search,
-            color: _primaryColor,
-          ),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-            onPressed: () {
-              _searchController.clear();
-              setState(() {});
-            },
-            icon: const Icon(Icons.close),
-          )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 12,
-            horizontal: 12,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // انتخاب همه و شمارنده
-  // ----------------------------------------------------------
-
-  Widget _buildSelectionBar() {
-    final total = _units.length;
-    final selected = _selectedCount;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 5, 12, 5),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: _allFilteredSelected,
-            tristate: true,
-            activeColor: _primaryColor,
-            onChanged: _selectableFilteredUnits.isEmpty
-                ? null
-                : (value) => _toggleSelectAll(value == true),
-          ),
-          const Expanded(
-            child: Text(
-              'انتخاب همه واحدها',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: _purpleColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Text(
-              '${_toPersianDigits(selected.toString())} از ${_toPersianDigits(total.toString())} واحد',
-              style: const TextStyle(
-                color: _purpleColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // کارت واحد
-  // ----------------------------------------------------------
-
-  Widget _buildUnitCard(Map<String, dynamic> unit) {
-    final id = _unitId(unit);
-    final paid = _isPaid(unit);
-    final notified = _isNotified(unit);
-    final smsSent = _isSmsSent(unit);
-    final selected = _isSelected(unit);
-
-    final total = unit['total'] ?? unit['cost_total'] ?? 0;
-    final area = unit['area'] ?? 0;
-    final people = unit['people_count'] ?? 0;
-    final otherCost = unit['other_cost_amount'] ?? 0;
-    final costTotal = unit['cost_total'] ?? total;
-    final documentNumber = unit['financial_document_number'];
-
-    final Color statusColor = paid
-        ? _greenColor
-        : notified
-        ? _orangeColor
-        : _primaryColor;
-
-    final Color cardColor = selected
-        ? _primaryColor.withOpacity(0.035)
-        : Colors.white;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: selected
-              ? _primaryColor.withOpacity(0.7)
-              : Colors.grey.shade200,
-          width: selected ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.025),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 5, 8),
-            child: Row(
-              children: [
-                Checkbox(
-                  value: selected,
-                  activeColor: _purpleColor,
-                  onChanged: paid
-                      ? null
-                      : (value) =>
-                      _toggleUnit(unit, value ?? false),
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: _purpleColor.withOpacity(0.09),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Icon(
-                          Icons.home_work_outlined,
-                          color: _purpleColor,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'واحد ${_unitNumber(unit)}',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+            const Divider(height: 1),
+            Expanded(
+              child: _loading
+                  ? const Center(
+                child: CircularProgressIndicator(),
+              )
+                  : filteredUnits.isEmpty
+                  ? const Center(
+                child: Text('واحدی برای نمایش پیدا نشد.'),
+              )
+                  : RefreshIndicator(
+                onRefresh: _loadUnits,
+                child: ListView.builder(
+                  physics:
+                  const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(
+                    bottom: 12,
+                    top: 5,
                   ),
-                ),
-                if (paid)
-                  _statusChip(
-                    'پرداخت شده',
-                    _greenColor,
-                    Icons.check_circle_outline,
-                  )
-                else if (notified)
-                  _statusChip(
-                    'اعلان ثبت شده',
-                    _orangeColor,
-                    Icons.notifications_active_outlined,
-                  ),
-              ],
-            ),
-          ),
-
-          Divider(height: 1, color: Colors.grey.shade200),
-
-          // متراژ و تعداد نفرات در یک سطر
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 13,
-              vertical: 11,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _infoItem(
-                    icon: Icons.square_foot,
-                    label: 'متراژ',
-                    value: '${_decimal(area)} متر',
-                    color: _primaryColor,
-                  ),
-                ),
-                Container(
-                  height: 35,
-                  width: 1,
-                  color: Colors.grey.shade200,
-                ),
-                Expanded(
-                  child: _infoItem(
-                    icon: Icons.people_alt_outlined,
-                    label: 'تعداد نفرات',
-                    value: _formatNumber(people),
-                    color: _purpleColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Column(
-              children: [
-                _amountRow(
-                  'مبلغ پایه سهم واحد',
-                  _money(costTotal),
-                ),
-                const SizedBox(height: 5),
-                _amountRow(
-                  'هزینه اضافی',
-                  _money(otherCost),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'مبلغ نهایی شارژ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Flexible(
-                        child: Text(
-                          _money(total),
-                          textAlign: TextAlign.left,
-                          style: const TextStyle(
-                            color: _primaryColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (documentNumber != null &&
-                    documentNumber.toString().trim().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.receipt_outlined,
-                        size: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          'شماره سند مالی: $documentNumber',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (notified || smsSent) ...[
-                  const SizedBox(height: 9),
-                  Row(
-                    children: [
-                      if (notified)
-                        _statusChip(
-                          'اعلان ثبت شده',
-                          _orangeColor,
-                          Icons.notifications_active_outlined,
-                        ),
-                      if (notified && smsSent)
-                        const SizedBox(width: 7),
-                      if (smsSent)
-                        _statusChip(
-                          'پیامک ارسال شده',
-                          _greenColor,
-                          Icons.sms_outlined,
-                        ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 21),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
+                  itemCount: filteredUnits.length,
+                  itemBuilder: (context, index) =>
+                      _buildUnitCard(filteredUnits[index]),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _amountRow(String label, String amount) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 11,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            amount,
-            textAlign: TextAlign.left,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _statusChip(
-      String label,
-      Color color,
-      IconData icon,
-      ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.09),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 13),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 65),
-        Icon(
-          Icons.inbox_outlined,
-          size: 62,
-          color: Colors.grey.shade400,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          _units.isEmpty
-              ? 'واحدی برای این شارژ ثبت نشده است.'
-              : 'واحدی با این فیلتر یا جستجو پیدا نشد.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 13,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ----------------------------------------------------------
-  // دکمه‌های عملیات پایین صفحه
-  // ----------------------------------------------------------
-
-  Widget _buildBottomActions() {
-    final hasSendSelection = _selectedSendIds.isNotEmpty;
-    final hasCancelSelection = _selectedCancelIds.isNotEmpty;
-
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_selectedCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle_outline,
-                      size: 17,
-                      color: _purpleColor,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'انتخاب‌شده: ${_toPersianDigits(_selectedCount.toString())} واحد',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _processing
-                          ? null
-                          : () {
-                        setState(() {
-                          _selectedSendIds.clear();
-                          _selectedCancelIds.clear();
-                        });
-                      },
-                      child: const Text('لغو انتخاب'),
-                    ),
-                  ],
-                ),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _processing || !hasSendSelection
-                        ? null
-                        : _showSendOptions,
-                    icon: const Icon(Icons.send),
-                    label: Text(
-                      'ارسال شارژ (${_toPersianDigits(_selectedSendIds.length.toString())})',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      disabledForegroundColor: Colors.grey.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _processing || !hasCancelSelection
-                        ? null
-                        : _cancelSelected,
-                    icon: const Icon(Icons.notifications_off_outlined),
-                    label: Text(
-                      'لغو اعلان (${_toPersianDigits(_selectedCancelIds.length.toString())})',
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade700,
-                      side: BorderSide(color: Colors.red.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (_processing) ...[
-              const SizedBox(height: 9),
-              const LinearProgressIndicator(color: _primaryColor),
-            ],
-          ],
-        ),
+        bottomNavigationBar:
+        _loading ? null : _buildBottomActions(),
       ),
     );
   }

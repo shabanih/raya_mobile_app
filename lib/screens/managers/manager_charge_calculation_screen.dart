@@ -4,6 +4,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_charge_calculation_service.dart';
 import 'manager_charge_calculation_items_screen.dart';
+import 'manager_charge_calculation_units_screen.dart';
 
 const Color _primaryColor = Color(0xFF00ACC1);
 const Color _purpleColor = Color(0xFF610DB5);
@@ -1056,7 +1057,9 @@ class _ManagerChargeCalculationScreenState
 // ورود به انتخاب هزینه‌ها
 // --------------------------------------------------
 
-  void _openItems(Map<String, dynamic> calculation) {
+  Future<void> _openItems(
+      Map<String, dynamic> calculation,
+      ) async {
     final id = _idOf(calculation);
 
     if (id <= 0) {
@@ -1067,15 +1070,35 @@ class _ManagerChargeCalculationScreenState
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ManagerChargeCalculationItemsScreen(
-          calculationId: id,
-          calculationName: _text(calculation['name']),
+    final name = _text(calculation['name']);
+    final status = _text(calculation['status']).toLowerCase();
+
+    if (status == 'finalized') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ManagerChargeCalculationUnitsScreen(
+            calculationId: id,
+            calculationName: name,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ManagerChargeCalculationItemsScreen(
+            calculationId: id,
+            calculationName: name,
+          ),
+        ),
+      );
+    }
+
+    // پس از بازگشت، وضعیت جدید شارژ را از سرور دریافت کن.
+    if (!mounted) return;
+
+    await _loadCalculations();
   }
 
 // --------------------------------------------------
@@ -1088,6 +1111,9 @@ class _ManagerChargeCalculationScreenState
     final status = item['status'];
     final editable = _isEditable(item);
     final deletable = _isDeletable(item);
+
+    final isFinalized =
+        _text(item['status']).toLowerCase() == 'finalized';
 
     final startDate = _formatDate(item['start_date']);
     final endDate = _formatDate(item['end_date']);
@@ -1286,18 +1312,21 @@ class _ManagerChargeCalculationScreenState
                 width: double.infinity,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: _purpleColor,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                    ),
+                    backgroundColor:
+                    isFinalized ? Colors.purple : _purpleColor,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: () => _openItems(item),
-                  icon: const Icon(
-                    Icons.list_alt_outlined,
+                  icon: Icon(
+                    isFinalized
+                        ? Icons.notifications_active_outlined
+                        : Icons.list_alt_outlined,
                     size: 20,
                   ),
-                  label: const Text(
-                    'مشاهده و انتخاب هزینه‌ها',
+                  label: Text(
+                    isFinalized
+                        ? 'مشاهده اعلان واحدها'
+                        : 'مشاهده و انتخاب هزینه‌ها',
                   ),
                 ),
               ),
