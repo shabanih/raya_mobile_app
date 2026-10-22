@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../services/manager_charges_service.dart';
+
 import 'manager_fixed_charges_screen.dart';
 import 'manager_area_charges_screen.dart';
 import 'manager_person_charges_screen.dart';
@@ -11,62 +13,85 @@ import 'manager_fix_person_area_charges_screen.dart';
 import 'manager_fix_variable_charges_screen.dart';
 import 'manager_charge_calculation_screen.dart';
 
-class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
+class ManagerMonthlyChargeMethodsScreen extends StatefulWidget {
   const ManagerMonthlyChargeMethodsScreen({super.key});
 
-  static const Color primaryColor = Color(0xff00ACC1);
-  static const Color purpleColor = Color(0xff610DB5);
+  @override
+  State<ManagerMonthlyChargeMethodsScreen> createState() =>
+      _ManagerMonthlyChargeMethodsScreenState();
+}
 
+class _ManagerMonthlyChargeMethodsScreenState
+    extends State<ManagerMonthlyChargeMethodsScreen> {
+  static const Color primaryColor = Color(0xff00ACC1);
+
+  final ManagerChargesService _service = ManagerChargesService();
+
+  bool _loading = true;
+  String? _error;
+
+  Set<int> _allowedMethodIds = <int>{};
+
+  // شناسه‌ها دقیقاً مطابق ChargeMethod در دیتابیس Django هستند.
   static const List<_ChargeMethod> methods = [
     _ChargeMethod(
+      id: 1,
       title: 'شارژ واحدی',
       description: 'محاسبه شارژ بر اساس تعداد واحدها',
       icon: Icons.apartment_rounded,
       color: Color(0xff00838F),
     ),
     _ChargeMethod(
-      title: 'شارژ متراژی',
-      description: 'محاسبه شارژ بر اساس متراژ واحدها',
-      icon: Icons.square_foot_rounded,
-      color: Color(0xff610DB5),
-    ),
-    _ChargeMethod(
+      id: 2,
       title: 'شارژ نفری',
       description: 'محاسبه شارژ بر اساس تعداد نفرات',
       icon: Icons.people_alt_rounded,
       color: Color(0xffEF6C00),
     ),
     _ChargeMethod(
-      title: 'شارژ واحدی - متراژی',
-      description: 'ترکیب سهم واحدی و متراژی',
-      icon: Icons.balance_rounded,
-      color: Color(0xff2E7D32),
-    ),
-    _ChargeMethod(
+      id: 3,
       title: 'شارژ واحدی - نفری',
       description: 'ترکیب سهم واحدی و نفری',
       icon: Icons.groups_rounded,
       color: Color(0xffF9A825),
     ),
     _ChargeMethod(
-      title: 'شارژ نفری - متراژی',
-      description: 'ترکیب سهم نفری و متراژی',
-      icon: Icons.scale_rounded,
-      color: Color(0xffC2185B),
+      id: 4,
+      title: 'شارژ متراژی',
+      description: 'محاسبه شارژ بر اساس متراژ واحدها',
+      icon: Icons.square_foot_rounded,
+      color: Color(0xff610DB5),
     ),
     _ChargeMethod(
+      id: 5,
+      title: 'شارژ واحدی - متراژی',
+      description: 'ترکیب سهم واحدی و متراژی',
+      icon: Icons.balance_rounded,
+      color: Color(0xff2E7D32),
+    ),
+    _ChargeMethod(
+      id: 6,
       title: 'شارژ واحدی - نفری - متراژی',
       description: 'ترکیب هر سه معیار محاسبه',
       icon: Icons.calculate_rounded,
       color: Color(0xff1565C0),
     ),
     _ChargeMethod(
+      id: 7,
+      title: 'شارژ نفری - متراژی',
+      description: 'ترکیب سهم نفری و متراژی',
+      icon: Icons.scale_rounded,
+      color: Color(0xffC2185B),
+    ),
+    _ChargeMethod(
+      id: 8,
       title: 'شارژ ثابت و متغیر',
       description: 'ترکیب مبلغ ثابت و سهم متغیر',
       icon: Icons.tune_rounded,
       color: Color(0xff7B1FA2),
     ),
     _ChargeMethod(
+      id: 9,
       title: 'شارژ تسهیم هزینه',
       description: 'تخصیص هزینه‌ها بر اساس معیارهای تسهیم',
       icon: Icons.receipt_long_rounded,
@@ -74,105 +99,130 @@ class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
     ),
   ];
 
-  void _onMethodTap(BuildContext context, int index) {
-    if (index == 0) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerFixedChargesScreen(),
-        ),
-      );
-      return;
+  List<_ChargeMethod> get _visibleMethods {
+    return methods
+        .where((method) => _allowedMethodIds.contains(method.id))
+        .toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMethods();
+  }
+
+  Future<void> _loadMethods() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final results = await _service.getChargeMethods();
+
+      final ids = results
+          .map((item) => int.tryParse(item['id'].toString()))
+          .whereType<int>()
+          .toSet();
+
+      debugPrint('ALLOWED CHARGE METHOD IDS: $ids');
+
+      if (!mounted) return;
+
+      setState(() {
+        _allowedMethodIds = ids;
+        _loading = false;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('LOAD CHARGE METHODS ERROR: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
-    if (index == 1) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerAreaChargesScreen(),
+  }
+
+  void _onMethodTap(
+      BuildContext context,
+      _ChargeMethod method,
+      ) {
+    // بررسی دسترسی قبل از باز کردن صفحه.
+    if (!_allowedMethodIds.contains(method.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('شما به این روش شارژ دسترسی ندارید.'),
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    if (index == 2) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerPersonChargesScreen(),
-        ),
-      );
-      return;
+    final Widget page;
+
+    switch (method.id) {
+      case 1:
+        page = const ManagerFixedChargesScreen();
+        break;
+
+      case 2:
+        page = const ManagerPersonChargesScreen();
+        break;
+
+      case 3:
+        page = const ManagerFixPersonChargesScreen();
+        break;
+
+      case 4:
+        page = const ManagerAreaChargesScreen();
+        break;
+
+      case 5:
+        page = const ManagerFixAreaChargesScreen();
+        break;
+
+      case 6:
+        page = const ManagerFixPersonAreaChargesScreen();
+        break;
+
+      case 7:
+        page = const ManagerPersonAreaChargesScreen();
+        break;
+
+      case 8:
+        page = const ManagerFixVariableChargesScreen();
+        break;
+
+      case 9:
+        page = const ManagerChargeCalculationScreen();
+        break;
+
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('صفحه این روش شارژ تعریف نشده است.'),
+          ),
+        );
+        return;
     }
 
-    if (index == 3) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerFixAreaChargesScreen(),
-        ),
-      );
-      return;
-    }
-    if (index == 4) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerFixPersonChargesScreen(),
-        ),
-      );
-      return;
-    }
-    if (index == 5) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerPersonAreaChargesScreen(),
-        ),
-      );
-      return;
-    }
-    if (index == 6) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerFixPersonAreaChargesScreen(),
-        ),
-      );
-      return;
-    }
-    if (index == 7) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerFixVariableChargesScreen(),
-        ),
-      );
-      return;
-    }
-    if (index == 8) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ManagerChargeCalculationScreen(),
-        ),
-      );
-      return;
-    }
-
-
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'روش «${methods[index].title}» انتخاب شد.',
-        ),
-        behavior: SnackBarBehavior.floating,
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => page,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final visibleMethods = _visibleMethods;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -188,69 +238,153 @@ class ManagerMonthlyChargeMethodsScreen extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
+          actions: [
+            if (!_loading)
+              IconButton(
+                tooltip: 'به‌روزرسانی دسترسی‌ها',
+                onPressed: _loadMethods,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+          ],
         ),
         body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              14,
-              16,
-              14,
-              24,
-            ),
+          child: _buildBody(visibleMethods),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(List<_ChargeMethod> visibleMethods) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 44,
+                color: Colors.red,
+              ),
+              const SizedBox(height: 12),
               const Text(
-                'انتخاب روش محاسبه',
+                'دریافت دسترسی‌های روش شارژ ناموفق بود.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xff263238),
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'روش مناسب برای محاسبه شارژ ماهانه ساختمان را انتخاب کنید.',
-                style: TextStyle(
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
                   fontSize: 12,
-                  height: 1.8,
                   color: Colors.black54,
                 ),
               ),
               const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: methods.length,
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 11,
-                  mainAxisSpacing: 11,
-                  mainAxisExtent: 158,
-                ),
-                itemBuilder: (context, index) {
-                  final method = methods[index];
-
-                  return _MethodCard(
-                    method: method,
-                    onTap: () => _onMethodTap(context, index),
-                  );
-                },
+              ElevatedButton.icon(
+                onPressed: _loadMethods,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('تلاش مجدد'),
               ),
             ],
           ),
         ),
-      ),
+      );
+    }
+
+    if (visibleMethods.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 48,
+                color: Colors.black38,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'هیچ روش شارژی برای شما فعال نشده است.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _loadMethods,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('بررسی مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
+      children: [
+        const Text(
+          'انتخاب روش محاسبه',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xff263238),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'روش مناسب برای محاسبه شارژ ماهانه ساختمان را انتخاب کنید.',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.8,
+            color: Colors.black54,
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visibleMethods.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 11,
+            mainAxisSpacing: 11,
+            mainAxisExtent: 158,
+          ),
+          itemBuilder: (context, index) {
+            final method = visibleMethods[index];
+
+            return _MethodCard(
+              method: method,
+              onTap: () => _onMethodTap(context, method),
+            );
+          },
+        ),
+      ],
     );
   }
 }
 
 class _ChargeMethod {
+  final int id;
   final String title;
   final String description;
   final IconData icon;
   final Color color;
 
   const _ChargeMethod({
+    required this.id,
     required this.title,
     required this.description,
     required this.icon,

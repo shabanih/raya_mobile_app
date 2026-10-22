@@ -1015,10 +1015,10 @@ class _FixPersonChargeFormSheetState
     final charge = widget.charge;
 
     if (charge == null) {
-      _fixedAmountController.text = '0';
-      _personAmountController.text = '0';
-      _penaltyController.text = '0';
-      _otherCostController.text = '0';
+      _fixedAmountController.text = '';
+      _personAmountController.text = '';
+      _penaltyController.text = '';
+      _otherCostController.text = '';
       return;
     }
 

@@ -1028,10 +1028,10 @@ super.initState();
 final charge = widget.charge;
 
 if (charge == null) {
-_fixedAmountController.text = '0';
-_areaAmountController.text = '0';
-_penaltyController.text = '0';
-_otherCostController.text = '0';
+_fixedAmountController.text = '';
+_areaAmountController.text = '';
+_penaltyController.text = '';
+_otherCostController.text = '';
 return;
 }
 

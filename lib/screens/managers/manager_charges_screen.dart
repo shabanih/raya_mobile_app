@@ -197,7 +197,7 @@ class ManagerChargesScreen extends StatelessWidget {
                   context: context,
                   title: 'شارژ عمرانی',
                   description:
-                  'مدیریت هزینه‌ها و شارژهای عمرانی ساختمان',
+                  'مدیریت شارژهای عمرانی ساختمان',
                   icon: Icons.construction_rounded,
                   color: purpleColor,
                   onTap: () {
@@ -213,7 +213,7 @@ class ManagerChargesScreen extends StatelessWidget {
                   context: context,
                   title: 'شارژهای من',
                   description:
-                  'مشاهده و پیگیری شارژهای ثبت‌شده توسط مدیر',
+                  'مشاهده و پیگیری شارژهای ثبت‌شده',
                   icon: Icons.receipt_long_rounded,
                   color: const Color(0xffEF6C00),
                   onTap: () {

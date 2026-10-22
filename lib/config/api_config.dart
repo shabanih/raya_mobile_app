@@ -307,6 +307,8 @@ class ApiConfig {
 // -----------------------------------------------------
 // Charges - شارژها
 // -----------------------------------------------------
+  static const String managerChargeMethods =
+      '${baseUrl}/manager/charge-methods/';
 
   static const String managerCharges =
       '${baseUrl}/manager/charges/';

@@ -1071,12 +1071,12 @@ class _FixVariableChargeFormSheetState
     final charge = widget.charge;
 
     if (charge == null) {
-      _fixAmountController.text = '0';
-      _personAmountController.text = '0';
-      _areaAmountController.text = '0';
-      _parkingController.text = '0';
-      _penaltyController.text = '0';
-      _otherCostController.text = '0';
+      _fixAmountController.text = '';
+      _personAmountController.text = '';
+      _areaAmountController.text = '';
+      _parkingController.text = '';
+      _penaltyController.text = '';
+      _otherCostController.text = '';
       return;
     }
 
@@ -1140,11 +1140,14 @@ class _FixVariableChargeFormSheetState
   }
 
   String? _amountValidator(String? value) {
-    final normalized = _cleanNumber(value ?? '');
-    final number = num.tryParse(normalized);
+    if (value == null || value.trim().isEmpty) {
+      return 'وارد کردن این مبلغ الزامی است.';
+    }
+
+    final number = num.tryParse(_cleanNumber(value));
 
     if (number == null || number < 0) {
-      return 'مبلغ باید عدد غیرمنفی باشد.';
+      return 'مبلغ باید عدد معتبر و غیرمنفی باشد.';
     }
 
     return null;

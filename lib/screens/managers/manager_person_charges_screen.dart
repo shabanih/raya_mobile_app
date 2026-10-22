@@ -975,8 +975,8 @@ super.initState();
 final charge = widget.charge;
 
 if (charge == null) {
-_penaltyController.text = '0';
-_otherCostController.text = '0';
+_penaltyController.text = '';
+_otherCostController.text = '';
 return;
 }
 

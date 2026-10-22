@@ -1048,10 +1048,10 @@ class _PersonAreaChargeFormSheetState
     final charge = widget.charge;
 
     if (charge == null) {
-      _areaAmountController.text = '0';
-      _personAmountController.text = '0';
-      _penaltyController.text = '0';
-      _otherCostController.text = '0';
+      _areaAmountController.text = '';
+      _personAmountController.text = '';
+      _penaltyController.text = '';
+      _otherCostController.text = '';
       return;
     }
 

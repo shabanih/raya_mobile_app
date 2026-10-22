@@ -931,11 +931,11 @@ super.initState();
 final charge = widget.charge;
 
 if (charge == null) {
-_fixAmountController.text = '0';
-_areaAmountController.text = '0';
-_personAmountController.text = '0';
-_penaltyController.text = '0';
-_otherCostController.text = '0';
+_fixAmountController.text = '';
+_areaAmountController.text = '';
+_personAmountController.text = '';
+_penaltyController.text = '';
+_otherCostController.text = '';
 return;
 }
 

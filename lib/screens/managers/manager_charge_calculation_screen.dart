@@ -207,18 +207,24 @@ class _ManagerChargeCalculationScreenState
   }
 
   bool _isEditable(Map<String, dynamic> item) {
-    final status = _text(item['status']).toLowerCase();
+    // اگر API صراحتاً اجازه یا عدم اجازه را مشخص کرده، همان ملاک است.
+    if (item['can_edit'] != null) {
+      return item['can_edit'] == true;
+    }
 
-    return status == 'draft' &&
-        item['can_edit'] != false &&
+    // سازگاری با پاسخ‌های قدیمی API
+    return _notifiedUnitsCount(item) == 0 &&
+        item['send_notification'] != true &&
         item['is_finalized'] != true;
   }
 
   bool _isDeletable(Map<String, dynamic> item) {
-    final status = _text(item['status']).toLowerCase();
+    if (item['can_delete'] != null) {
+      return item['can_delete'] == true;
+    }
 
-    return status == 'draft' &&
-        item['can_delete'] != false &&
+    return _notifiedUnitsCount(item) == 0 &&
+        item['send_notification'] != true &&
         item['is_finalized'] != true;
   }
 
@@ -560,6 +566,7 @@ class _ManagerChargeCalculationScreenState
     );
 
     bool saving = false;
+    bool showDateErrors = false;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -653,7 +660,11 @@ class _ManagerChargeCalculationScreenState
                                 : _jalaliLabel(startDate!),
                             icon: Icons.event_available,
                             onTap: chooseStartDate,
+                            errorText: showDateErrors && startDate == null
+                                ? 'تاریخ شروع را انتخاب کنید.'
+                                : null,
                           ),
+
                           const SizedBox(height: 12),
 
                           _dateField(
@@ -663,16 +674,22 @@ class _ManagerChargeCalculationScreenState
                                 : _jalaliLabel(endDate!),
                             icon: Icons.event,
                             onTap: chooseEndDate,
+                            errorText: showDateErrors && endDate == null
+                                ? 'تاریخ پایان را انتخاب کنید.'
+                                : null,
                           ),
                           const SizedBox(height: 12),
 
                           _dateField(
-                            title: 'مهلت پرداخت',
+                            title: 'مهلت پرداخت *',
                             value: paymentDeadline == null
                                 ? null
                                 : _jalaliLabel(paymentDeadline!),
                             icon: Icons.payments_outlined,
                             onTap: choosePaymentDeadline,
+                            errorText: showDateErrors && paymentDeadline == null
+                                ? 'مهلت پرداخت را انتخاب کنید.'
+                                : null,
                           ),
                           const SizedBox(height: 14),
 
@@ -970,6 +987,7 @@ class _ManagerChargeCalculationScreenState
     required String? value,
     required IconData icon,
     required VoidCallback onTap,
+    String? errorText,
   }) {
     return InkWell(
       onTap: onTap,
@@ -980,6 +998,7 @@ class _ManagerChargeCalculationScreenState
           prefixIcon: Icon(icon, color: _purpleColor),
           suffixIcon: const Icon(Icons.calendar_month),
           border: const OutlineInputBorder(),
+          errorText: errorText,
         ),
         child: Text(
           value ?? 'انتخاب تاریخ',
@@ -990,7 +1009,6 @@ class _ManagerChargeCalculationScreenState
       ),
     );
   }
-
 // --------------------------------------------------
 // حذف محاسبه
 // --------------------------------------------------
