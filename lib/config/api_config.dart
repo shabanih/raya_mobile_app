@@ -340,8 +340,33 @@ class ApiConfig {
   static const String managerChargeCalculations =
       '$baseUrl/manager/charge-calculations/';
 
+  // -----------------------------------------------------
+  // Civil Charge - شارژ عمرانی
+  // -----------------------------------------------------
+  static const String managerCivilCharges =
+      '$baseUrl/manager/civil-charges/';
+
+  static String managerCivilChargeUnits(int chargeId) =>
+      '$baseUrl/manager/civil-charges/$chargeId/units/';
+
+  static String managerSendCivilCharge(int chargeId) =>
+      '$baseUrl/manager/civil-charges/$chargeId/send/';
+
+  // -----------------------------------------------------
+  // My Charge - شارژ من
+  // -----------------------------------------------------
+  static const String managerMonthlyCharges =
+      '$baseUrl/manager/monthly-charges/';
+
+  // واحدهای یک شارژ ماهیانه
+  static String managerMonthlyChargeUnits({
+    required String appLabel,
+    required String modelName,
+    required int chargeId,
+  }) {
+    return '$managerMonthlyCharges$appLabel/$modelName/$chargeId/units/';
+  }
 
 
 
-  
 }

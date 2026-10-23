@@ -1,6 +1,10 @@
 
 import 'package:flutter/material.dart';
 import 'manager_monthly_charge_methods_screen.dart';
+
+import 'manager_civil_charges_screen.dart';
+import 'manager_my_charges_screen.dart';
+
 class ManagerChargesScreen extends StatelessWidget {
   const ManagerChargesScreen({super.key});
 
@@ -196,31 +200,35 @@ class ManagerChargesScreen extends StatelessWidget {
                 _buildChargeCard(
                   context: context,
                   title: 'شارژ عمرانی',
-                  description:
-                  'مدیریت شارژهای عمرانی ساختمان',
+                  description: 'مدیریت شارژهای عمرانی ساختمان',
                   icon: Icons.construction_rounded,
                   color: purpleColor,
                   onTap: () {
-                    _showMessage(
+                    Navigator.push(
                       context,
-                      'بخش شارژ عمرانی در مرحله بعد تکمیل می‌شود.',
+                      MaterialPageRoute(
+                        builder: (context) =>
+                        const ManagerCivilChargesScreen(),
+                      ),
                     );
                   },
                 ),
                 const SizedBox(height: 12),
 
-                _buildChargeCard(
-                  context: context,
-                  title: 'شارژهای من',
-                  description:
-                  'مشاهده و پیگیری شارژهای ثبت‌شده',
-                  icon: Icons.receipt_long_rounded,
-                  color: const Color(0xffEF6C00),
-                  onTap: () {
-                    _showMessage(
-                      context,
-                      'صفحه شارژهای من در مرحله بعد تکمیل می‌شود.',
-                    );
+              _buildChargeCard(
+                context: context,
+                title: 'شارژهای من',
+                description: 'مشاهده و پیگیری شارژهای ثبت‌شده',
+                icon: Icons.receipt_long_rounded,
+                color: const Color(0xffEF6C00),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ManagerMyChargesScreen(),
+                    ),
+                  );
+
                   },
                 ),
               ],
