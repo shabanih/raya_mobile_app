@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/api_service.dart';
 import '../../services/manager_my_charge_service.dart';
@@ -98,49 +99,91 @@ buffer.write(',');
 buffer.write(text[i]);
 }
 
-return '${number < 0 ? '-' : ''}$buffer';
+return _persianDigits(
+  '${number < 0 ? '-' : ''}$buffer',
+);
 }
+
+String _persianDigits(String value) {
+  const english = '0123456789';
+  const persian = '۰۱۲۳۴۵۶۷۸۹';
+
+  return value.split('').map((char) {
+    final index = english.indexOf(char);
+    return index >= 0 ? persian[index] : char;
+  }).join();
+}
+
+String _jalaliDate(dynamic value) {
+  if (value == null || value.toString().trim().isEmpty) {
+    return 'تعیین نشده';
+  }
+
+  final raw = value.toString().trim();
+  final date = DateTime.tryParse(raw);
+
+  if (date == null) {
+    // اگر تاریخ از قبل شمسی یا با قالب دیگری آمده باشد،
+    // آن را بدون تبدیل اشتباه نمایش می‌دهیم.
+    return _persianDigits(raw);
+  }
+
+  final jalali = Jalali.fromDateTime(date);
+  return _persianDigits(
+    '${jalali.year}/${jalali.month.toString().padLeft(2, '0')}/${jalali.day.toString().padLeft(2, '0')}',
+  );
+}
+
 
 Future<void> _openCharge(Map<String, dynamic> charge) async {
-final idValue = charge['id'];
-final id = idValue is num
-? idValue.toInt()
-    : int.tryParse(idValue?.toString() ?? '');
+  debugPrint('CHARGE DATA FOR DETAILS: $charge');
 
-final appLabel = charge['app_label']?.toString();
-final modelName = charge['model_name']?.toString();
+  final rawId = charge['id'] ?? charge['charge_id'];
+  final id = rawId is num
+      ? rawId.toInt()
+      : int.tryParse(rawId?.toString() ?? '');
 
-if (id == null ||
-appLabel == null ||
-appLabel.isEmpty ||
-modelName == null ||
-modelName.isEmpty) {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text('اطلاعات شناسایی این شارژ کامل نیست.'),
-),
-);
-return;
+  final appLabel = charge['app_label']?.toString().trim();
+  final modelName = charge['model_name']?.toString().trim();
+
+  if (id == null ||
+      appLabel == null ||
+      appLabel.isEmpty ||
+      modelName == null ||
+      modelName.isEmpty) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'اطلاعات شارژ اصلی ناقص است؛ app_label و model_name باید از API دریافت شوند.',
+        ),
+      ),
+    );
+    return;
+  }
+
+  final title = _value(
+    charge,
+    ['name', 'title', 'details', 'charge_name'],
+    fallback: 'شارژ شماره $id',
+  );
+
+  if (!mounted) return;
+
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ManagerMonthlyChargeUnitsScreen(
+        chargeId: id,
+        appLabel: appLabel,
+        modelName: modelName.toLowerCase(),
+        chargeTitle: title,
+      ),
+    ),
+  );
 }
 
-final title = _value(
-charge,
-['name', 'title', 'details'],
-fallback: 'شارژ شماره $id',
-);
-
-await Navigator.push(
-context,
-MaterialPageRoute(
-builder: (_) => ManagerMonthlyChargeUnitsScreen(
-chargeId: id,
-appLabel: appLabel,
-modelName: modelName,
-chargeTitle: title,
-),
-),
-);
-}
 
 @override
 Widget build(BuildContext context) {
@@ -193,180 +236,164 @@ buttonText: 'بارگذاری مجدد',
 onPressed: _loadCharges,
 );
 }
+  return RefreshIndicator(
+  onRefresh: _loadCharges,
+  color: _teal,
+  child: ListView.builder(
+  padding: const EdgeInsets.all(14),
+  itemCount: _charges.length,
+  itemBuilder: (context, index) {
+  final charge = _charges[index];
 
-return RefreshIndicator(
-onRefresh: _loadCharges,
-color: _teal,
-child: ListView.builder(
-padding: const EdgeInsets.all(14),
-itemCount: _charges.length,
-itemBuilder: (context, index) {
-final charge = _charges[index];
+  final title = _value(
+  charge,
+  ['name', 'title', 'details'],
+  fallback: 'شارژ شماره ${charge['id'] ?? ''}',
+  );
 
-final title = _value(
-charge,
-['name', 'title', 'details'],
-fallback: 'شارژ شماره ${charge['id'] ?? ''}',
-);
+  final total = _number(charge, 'total_count');
+  final notified = _number(charge, 'notified_count');
+  final paid = _number(charge, 'paid_count');
 
-final total = _number(charge, 'total_count');
-final notified = _number(charge, 'notified_count');
-final paid = _number(charge, 'paid_count');
+  final deadline = _jalaliDate(charge['payment_deadline_date']);
 
-final isCalculation =
-charge['is_charge_calculation'] == true;
+  return Card(
+  margin: const EdgeInsets.only(bottom: 14),
+  elevation: 1,
+  color: Colors.white,
+  shape: RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(16),
+  side: BorderSide(color: Colors.grey.shade200),
+  ),
+  child: Padding(
+  padding: const EdgeInsets.all(16),
+  child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+  // عنوان شارژ
+  Row(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+  Container(
+  width: 44,
+  height: 44,
+  decoration: BoxDecoration(
+  color: _teal.withValues(alpha: 0.12),
+  borderRadius: BorderRadius.circular(12),
+  ),
+  child: const Icon(
+  Icons.receipt_long_rounded,
+  color: _teal,
+  size: 25,
+  ),
+  ),
+  const SizedBox(width: 12),
+  Expanded(
+  child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+  const Text(
+  'عنوان شارژ',
+  style: TextStyle(
+  color: Colors.grey,
+  fontSize: 12,
+  ),
+  ),
+  const SizedBox(height: 4),
+  Text(
+  _persianDigits(title),
+  style: const TextStyle(
+  fontSize: 15,
+  fontWeight: FontWeight.bold,
+  ),
+  ),
+  ],
+  ),
+  ),
+  ],
+  ),
 
-final date = _value(
-charge,
-['created_at', 'created_date'],
-);
+  const SizedBox(height: 18),
+  const Divider(height: 1),
+  const SizedBox(height: 15),
 
-final status = _value(
-charge,
-['status_display', 'status'],
-fallback: isCalculation ? 'محاسبه شارژ' : 'شارژ ماهیانه',
-);
+  // مهلت پرداخت
+  Row(
+  children: [
+  const Icon(
+  Icons.event_available_rounded,
+  color: _purple,
+  size: 21,
+  ),
+  const SizedBox(width: 9),
+  const Expanded(
+  child: Text(
+  'مهلت پرداخت',
+  style: TextStyle(fontSize: 13),
+  ),
+  ),
+  Text(
+  deadline,
+  style: const TextStyle(
+  fontWeight: FontWeight.bold,
+  fontSize: 13,
+  ),
+  ),
+  ],
+  ),
 
-return Card(
-margin: const EdgeInsets.only(bottom: 12),
-elevation: 1,
-color: Colors.white,
-shape: RoundedRectangleBorder(
-borderRadius: BorderRadius.circular(16),
-side: BorderSide(color: Colors.grey.shade200),
-),
-clipBehavior: Clip.antiAlias,
-child: InkWell(
-onTap: () => _openCharge(charge),
-child: Padding(
-padding: const EdgeInsets.all(15),
-child: Column(
-crossAxisAlignment: CrossAxisAlignment.start,
-children: [
-Row(
-children: [
-Container(
-width: 46,
-height: 46,
-decoration: BoxDecoration(
-color: _teal.withValues(alpha: 0.12),
-borderRadius: BorderRadius.circular(13),
-),
-child: Icon(
-isCalculation
-? Icons.calculate_rounded
-    : Icons.receipt_long_rounded,
-color: _teal,
-size: 26,
-),
-),
-const SizedBox(width: 12),
-Expanded(
-child: Column(
-crossAxisAlignment: CrossAxisAlignment.start,
-children: [
-Text(
-title,
-maxLines: 2,
-overflow: TextOverflow.ellipsis,
-style: const TextStyle(
-fontWeight: FontWeight.bold,
-fontSize: 15,
-),
-),
-const SizedBox(height: 5),
-Text(
-status,
-style: TextStyle(
-color: Colors.grey.shade600,
-fontSize: 12,
-),
-),
-],
-),
-),
-const Icon(
-Icons.chevron_left_rounded,
-color: _purple,
-),
-],
-),
-const SizedBox(height: 14),
-if (date != '—')
-_InfoLine(
-icon: Icons.calendar_today_rounded,
-label: 'تاریخ ثبت',
-value: date,
-),
-if (charge['start_date'] != null ||
-charge['end_date'] != null)
-_InfoLine(
-icon: Icons.date_range_rounded,
-label: 'دوره شارژ',
-value:
-'${charge['start_date'] ?? '—'} تا ${charge['end_date'] ?? '—'}',
-),
-if (charge['payment_deadline'] != null)
-_InfoLine(
-icon: Icons.event_available_rounded,
-label: 'مهلت پرداخت',
-value: charge['payment_deadline'].toString(),
-),
-if (charge['other_cost_amount'] != null)
-_InfoLine(
-icon: Icons.payments_outlined,
-label: 'هزینه‌های دیگر',
-value:
-'${_money(charge['other_cost_amount'])} تومان',
-),
-const Divider(height: 22),
-Row(
-children: [
-Expanded(
-child: _CountBox(
-label: 'کل واحدها',
-count: total,
-color: _purple,
-),
-),
-const SizedBox(width: 7),
-Expanded(
-child: _CountBox(
-label: 'اعلان‌شده',
-count: notified,
-color: _teal,
-),
-),
-const SizedBox(width: 7),
-Expanded(
-child: _CountBox(
-label: 'پرداخت‌شده',
-count: paid,
-color: Colors.green,
-),
-),
-],
-),
-const SizedBox(height: 10),
-Align(
-alignment: Alignment.centerLeft,
-child: Text(
-'مشاهده واحدها',
-style: TextStyle(
-color: _purple,
-fontWeight: FontWeight.bold,
-fontSize: 12,
-),
-),
-),
-],
-),
-),
-),
-);
-},
-),
-);
+  const SizedBox(height: 18),
+
+  // اعلام شارژ
+  _ChargeProgressRow(
+  title: 'اعلام شارژ',
+  icon: Icons.notifications_active_rounded,
+  color: _teal,
+  value: notified,
+  total: total,
+  ),
+
+  const SizedBox(height: 16),
+
+  // پرداخت شارژ
+  _ChargeProgressRow(
+  title: 'پرداخت شارژ',
+  icon: Icons.payments_rounded,
+  color: Colors.green,
+  value: paid,
+  total: total,
+  ),
+
+  const SizedBox(height: 20),
+
+  // نمایش جزئیات و صورتحساب واحدها
+  SizedBox(
+  width: double.infinity,
+  child: FilledButton.icon(
+  onPressed: () => _openCharge(charge),
+  icon: const Icon(Icons.receipt_long_rounded),
+  label: const Text(
+  'نمایش جزئیات و صورتحساب واحدها',
+  style: TextStyle(fontWeight: FontWeight.bold),
+  ),
+  style: FilledButton.styleFrom(
+  backgroundColor: _purple,
+  foregroundColor: Colors.white,
+  padding: const EdgeInsets.symmetric(vertical: 13),
+  shape: RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(12),
+  ),
+  ),
+  ),
+  ),
+  ],
+  ),
+  ),
+  );
+  },
+  ),
+  );
+
 }
 }
 
@@ -451,6 +478,79 @@ style: const TextStyle(fontSize: 10),
 ),
 );
 }
+}
+
+class _ChargeProgressRow extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final int value;
+  final int total;
+
+  const _ChargeProgressRow({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.total,
+  });
+
+  String _persianDigits(String value) {
+    const english = '0123456789';
+    const persian = '۰۱۲۳۴۵۶۷۸۹';
+
+    return value.split('').map((char) {
+      final index = english.indexOf(char);
+      return index >= 0 ? persian[index] : char;
+    }).join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total > 0
+        ? (value / total).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color, size: 21),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Text(
+              '${_persianDigits(value.toString())} از '
+                  '${_persianDigits(total.toString())} واحد',
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 7,
+            backgroundColor: color.withValues(alpha: 0.12),
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _MessageView extends StatelessWidget {
