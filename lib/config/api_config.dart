@@ -366,7 +366,36 @@ class ApiConfig {
   }) {
     return '$managerMonthlyCharges$appLabel/$modelName/$chargeId/units/';
   }
-  
+
+  // -----------------------------------------------------
+// Civil Charge - شارژ عمرانی
+// -----------------------------------------------------
+
+// فهرست شارژهای عمرانی مدیر
+  static const String managerCivilChargesList =
+      '$baseUrl/manager/civil-charges/';
+
+// فهرست واحدهای یک شارژ عمرانی
+  static String managerCivilChargeUnitsList(int civilId) =>
+      '$baseUrl/manager/civil-charges/$civilId/units/';
+
+// اقساط یک واحد از شارژ عمرانی
+  static String managerCivilUnitInstallments({
+    required int civilId,
+    required int unitId,
+  }) {
+    return '$managerCivilCharges$civilId/units/$unitId/installments/';
+  }
+
+// دریافت حساب‌های بانکی و ثبت پرداخت قسط
+  static String managerCivilInstallmentPay(int installmentId) {
+    return '$baseUrl/manager/civil-installments/$installmentId/pay/';
+  }
+
+// لغو پرداخت قسط
+  static String managerCivilInstallmentCancelPayment(int installmentId) {
+    return '$baseUrl/manager/civil-installments/$installmentId/cancel-payment/';
+  }
 
 
 

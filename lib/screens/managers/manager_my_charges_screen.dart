@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'manager_my_monthly_charges_screen.dart';
+import 'manager_civil_charges_list_screen.dart';
 
 class ManagerMyChargesScreen extends StatelessWidget {
   final VoidCallback? onMonthlyChargesTap;
@@ -63,14 +64,18 @@ class ManagerMyChargesScreen extends StatelessWidget {
               const SizedBox(height: 14),
               _ChargeTypeCard(
                 title: 'شارژهای عمرانی',
-                subtitle: '  مدیریت شارژهای عمرانی ساختمان',
+                subtitle: 'مدیریت شارژهای عمرانی ساختمان',
                 icon: Icons.apartment_rounded,
                 color: _purple,
                 onTap: onCivilChargesTap ??
-                        () => _showNotConnectedMessage(
-                      context,
-                      'صفحه شارژهای عمرانی هنوز به این صفحه متصل نشده است.',
-                    ),
+                        () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ManagerCivilChargesListScreen(),
+                        ),
+                      );
+                    },
               ),
             ],
           ),

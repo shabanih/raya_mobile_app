@@ -605,24 +605,6 @@ class _ManagerCivilChargesScreenState
                               'مبلغ شارژ عمرانی',
                               '${_money(charge['amount'])} تومان',
                             ),
-                            // _detailRow(
-                            //   'پیش‌پرداخت',
-                            //   '${_money(charge['prepayment'])} تومان',
-                            // ),
-                            // _detailRow(
-                            //   'تعداد اقساط',
-                            //   charge['installment_count'] ?? 0,
-                            // ),
-                            // _detailRow(
-                            //   'محدوده واحدها',
-                            //   _unitScopeLabel(charge['unit_scope']),
-                            // ),
-                            // _detailRow(
-                            //   'واحدهای مشمول',
-                            //   charge['eligible_unit_count'] ??
-                            //       charge['total_unit_count'] ??
-                            //       0,
-                            // ),
                             _detailRow(
                               'اولین سررسید',
                               _dateText(

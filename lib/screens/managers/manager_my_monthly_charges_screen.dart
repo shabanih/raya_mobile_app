@@ -182,6 +182,10 @@ Future<void> _openCharge(Map<String, dynamic> charge) async {
       ),
     ),
   );
+  if (!mounted) return;
+
+// بعد از بازگشت از صفحه واحدها، فهرست را دوباره بارگذاری کن.
+  await _loadCharges();
 }
 
 

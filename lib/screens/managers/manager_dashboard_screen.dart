@@ -23,6 +23,7 @@ import 'manager_support_tickets_screen.dart';
 import 'manager_admin_support_tickets_screen.dart';
 import 'manager_units_screen.dart';
 import 'manager_charges_screen.dart';
+import 'manager_operations_screen.dart';
 
 
 // =====================================================
@@ -1156,25 +1157,21 @@ height: 10,
 
 Row(
 children: [
-Expanded(
-child:
-_ManagerMiddleMenuCard(
-title:
-'مدیریت عملیات',
-icon:
-Icons
-    .settings_suggest_outlined,
-color:
-const Color(
-0xff6D4C41,
-),
-onTap: () {
-_showComingSoon(
-'مدیریت عملیات',
-);
-},
-),
-),
+  Expanded(
+    child: _ManagerMiddleMenuCard(
+      title: 'مدیریت عملیات',
+      icon: Icons.settings_suggest_outlined,
+      color: const Color(0xff6D4C41),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ManagerOperationsScreen(),
+          ),
+        );
+      },
+    ),
+  ),
 
 const SizedBox(
 width: 9,
