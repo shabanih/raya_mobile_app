@@ -297,7 +297,128 @@ class ManagerExpenseService {
       data['expense'] as Map? ?? data,
     );
   }
+  // =====================================================
+  // دریافت حساب‌های بانکی مدیر
+  // GET /manager/expense-banks/
+  // =====================================================
 
+  Future<List<Map<String, dynamic>>> getExpenseBanks() async {
+    final response = await _api.get(
+      _url('/manager/expense-banks/'),
+    );
+
+    final data = _decode(response);
+    return _extractList(data, 'results');
+  }
+
+  // =====================================================
+  // دریافت دریافت‌کنندگان هزینه
+  // type: owner | renter | other
+  // GET /manager/expense-receivers/
+  // =====================================================
+
+  Future<List<Map<String, dynamic>>> getExpenseReceivers({
+    required String type,
+    String search = '',
+  }) async {
+    final query = <String, String>{
+      'type': type,
+      'limit': '30',
+    };
+
+    if (search.trim().isNotEmpty) {
+      query['search'] = search.trim();
+    }
+
+    final uri = Uri.parse(
+      _url('/manager/expense-receivers/'),
+    ).replace(queryParameters: query);
+
+    final response = await _api.get(uri.toString());
+    final data = _decode(response);
+
+    return _extractList(data, 'results');
+  }
+
+  // =====================================================
+  // ثبت پرداخت هزینه
+  // POST /manager/expenses/<id>/pay/
+  // =====================================================
+
+
+
+  Future<Map<String, dynamic>> payExpense({
+    required int expenseId,
+    required int bankId,
+    required String paymentDate,
+    required String receiverType,
+    required String transactionReference,
+    int? unitId,
+    int? renterId,
+    int? thirdPartyId,
+    String receiverName = '',
+  }) async {
+    final body = <String, dynamic>{
+      'bank_id': bankId,
+      'payment_date': _normalizeDigits(paymentDate),
+      'receiver_type': receiverType,
+      'transaction_reference':
+      _normalizeDigits(transactionReference.trim()),
+    };
+
+    if (receiverType == 'owner') {
+      if (unitId == null) {
+        throw Exception('لطفاً واحد مالک را انتخاب کنید.');
+      }
+      body['unit_id'] = unitId;
+    } else if (receiverType == 'renter') {
+      if (renterId == null) {
+        throw Exception('لطفاً مستأجر را انتخاب کنید.');
+      }
+      body['receiver_renter_id'] = renterId;
+    } else if (receiverType == 'other') {
+      if (thirdPartyId == null) {
+        throw Exception('لطفاً شخص دریافت‌کننده را انتخاب کنید.');
+      }
+      body['receiver_third_party_id'] = thirdPartyId;
+    } else {
+      throw Exception('نوع دریافت‌کننده معتبر نیست.');
+    }
+
+    final response = await _api.post(
+      _url('/manager/expenses/$expenseId/pay/'),
+      body: body,
+    );
+
+    // استخراج پیام موفقیت یا خطای سرور
+    final data = _decode(response);
+
+    return Map<String, dynamic>.from(
+      data['expense'] as Map? ?? data,
+    );
+  }
+
+
+
+  // =====================================================
+  // لغو پرداخت هزینه
+  // POST /manager/expenses/<id>/cancel-payment/
+  // =====================================================
+
+  Future<Map<String, dynamic>> cancelExpensePayment(
+      int expenseId,
+      ) async {
+    final response = await _api.post(
+      _url('/manager/expenses/$expenseId/cancel-payment/'),
+      body: <String, dynamic>{},
+    );
+
+    final data = _decode(response);
+
+    return Map<String, dynamic>.from(
+      data['expense'] as Map? ?? data,
+    );
+  }
   // =====================================================
   // Multipart با Refresh خودکار توکن
   // =====================================================
