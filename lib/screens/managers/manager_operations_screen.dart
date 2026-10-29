@@ -1,6 +1,9 @@
 
 import 'package:flutter/material.dart';
 import 'manager_expenses_screen.dart';
+import 'manager_incomes_screen.dart';
+import 'manager_receivables_screen.dart';
+import 'manager_payables_screen.dart';
 
 class ManagerOperationsScreen extends StatelessWidget {
   const ManagerOperationsScreen({super.key});
@@ -77,6 +80,33 @@ class ManagerOperationsScreen extends StatelessWidget {
       );
       return;
     }
+
+    if (operation.title == 'ثبت درآمد') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerIncomesScreen(),
+        ),
+      );
+      return;
+    }
+    if (operation.title == 'ثبت اسناد دریافتنی') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerReceivablesScreen(),
+        ),
+      );
+      return;
+    }
+    if (operation.title == 'ثبت اسناد پرداختنی') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerPayablesScreen(),
+        ),
+      );
+      return;
+    }
+
+
 
     _showComingSoon(context, operation.title);
   }

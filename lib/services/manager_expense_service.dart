@@ -7,12 +7,17 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../storage/token_storage.dart';
 import 'api_service.dart';
+import 'manager_financial_common_service.dart';
 
 class ManagerExpenseService {
   ManagerExpenseService({ApiService? apiService})
-      : _api = apiService ?? ApiService();
+      : _api = apiService ?? ApiService(),
+        _financialCommon = ManagerFinancialCommonService(
+          apiService: apiService,
+        );
 
   final ApiService _api;
+  final ManagerFinancialCommonService _financialCommon;
 
   String get _baseUrl => ApiConfig.baseUrl;
 
@@ -20,20 +25,13 @@ class ManagerExpenseService {
     final base = _baseUrl.endsWith('/')
         ? _baseUrl.substring(0, _baseUrl.length - 1)
         : _baseUrl;
-
-    final normalizedPath =
-    path.startsWith('/') ? path : '/$path';
-
-    return '$base$normalizedPath';
+    return '$base${path.startsWith('/') ? path : '/$path'}';
   }
 
   Map<String, dynamic> _decode(http.Response response) {
     dynamic decoded;
-
     try {
-      decoded = jsonDecode(
-        utf8.decode(response.bodyBytes),
-      );
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } catch (_) {
       throw Exception(
         'پاسخ سرور قابل خواندن نیست. کد: ${response.statusCode}',
@@ -46,8 +44,7 @@ class ManagerExpenseService {
 
     final data = Map<String, dynamic>.from(decoded);
 
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
         data['message']?.toString() ??
             data['detail']?.toString() ??
@@ -57,10 +54,7 @@ class ManagerExpenseService {
     }
 
     if (data['success'] == false) {
-      throw Exception(
-        data['message']?.toString() ??
-            'عملیات ناموفق بود.',
-      );
+      throw Exception(data['message']?.toString() ?? 'عملیات ناموفق بود.');
     }
 
     return data;
@@ -71,7 +65,6 @@ class ManagerExpenseService {
       String key,
       ) {
     final value = data[key];
-
     if (value is! List) return [];
 
     return value
@@ -80,17 +73,39 @@ class ManagerExpenseService {
         .toList();
   }
 
-  // =====================================================
+  Map<String, dynamic> _extractObject(
+      Map<String, dynamic> data,
+      String key,
+      ) {
+    final value = data[key] ?? data['result'] ?? data['data'] ?? data;
+    if (value is! Map) {
+      throw Exception('ساختار اطلاعات دریافتی نامعتبر است.');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
+  // بانک‌ها و دریافت‌کنندگان هزینه
+
+  Future<List<Map<String, dynamic>>> getExpenseBanks() {
+    return _financialCommon.getBanks(type: 'expense');
+  }
+
+  Future<List<Map<String, dynamic>>> getExpenseReceivers({
+    required String type,
+    String search = '',
+  }) {
+    return _financialCommon.getPayers(
+      financialType: 'expense',
+      payerType: type,
+      search: search,
+    );
+  }
+
   // سرفصل‌های هزینه
-  // =====================================================
 
   Future<List<Map<String, dynamic>>> getCategories() async {
-    final response = await _api.get(
-      _url('/manager/expense-categories/'),
-    );
-
-    final data = _decode(response);
-    return _extractList(data, 'results');
+    final response = await _api.get(_url('/manager/expense-categories/'));
+    return _extractList(_decode(response), 'results');
   }
 
   Future<Map<String, dynamic>> createCategory({
@@ -100,11 +115,7 @@ class ManagerExpenseService {
       _url('/manager/expense-categories/'),
       body: {'title': title.trim()},
     );
-
-    final data = _decode(response);
-    return Map<String, dynamic>.from(
-      data['category'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'category');
   }
 
   Future<Map<String, dynamic>> updateCategory({
@@ -115,25 +126,17 @@ class ManagerExpenseService {
       _url('/manager/expense-categories/$categoryId/'),
       body: {'title': title.trim()},
     );
-
-    final data = _decode(response);
-    return Map<String, dynamic>.from(
-      data['category'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'category');
   }
 
   Future<void> deleteCategory(int categoryId) async {
     final response = await _api.delete(
       _url('/manager/expense-categories/$categoryId/'),
     );
-
     _decode(response);
   }
 
-  // =====================================================
   // فهرست هزینه‌ها
-  // paymentStatus: all | paid | unpaid
-  // =====================================================
 
   Future<List<Map<String, dynamic>>> getExpenses({
     String paymentStatus = 'all',
@@ -141,28 +144,22 @@ class ManagerExpenseService {
   }) async {
     final query = <String, String>{};
 
-    if (paymentStatus == 'paid' ||
-        paymentStatus == 'unpaid') {
+    if (paymentStatus == 'paid' || paymentStatus == 'unpaid') {
       query['payment_status'] = paymentStatus;
     }
-
     if (categoryId != null) {
       query['category_id'] = categoryId.toString();
     }
 
-    final uri = Uri.parse(
-      _url('/manager/expenses/'),
-    ).replace(queryParameters: query.isEmpty ? null : query);
+    final uri = Uri.parse(_url('/manager/expenses/')).replace(
+      queryParameters: query.isEmpty ? null : query,
+    );
 
     final response = await _api.get(uri.toString());
-    final data = _decode(response);
-
-    return _extractList(data, 'results');
+    return _extractList(_decode(response), 'results');
   }
 
-  // =====================================================
-  // ثبت هزینه بدون فایل
-  // =====================================================
+  // ثبت هزینه
 
   Future<Map<String, dynamic>> createExpense({
     required int categoryId,
@@ -183,16 +180,10 @@ class ManagerExpenseService {
         'doc_no': docNo.trim(),
       },
     );
-
-    final data = _decode(response);
-    return Map<String, dynamic>.from(
-      data['expense'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'expense');
   }
 
-  // =====================================================
-  // ویرایش هزینه بدون فایل
-  // =====================================================
+  // ویرایش هزینه
 
   Future<Map<String, dynamic>> updateExpense({
     required int expenseId,
@@ -205,56 +196,30 @@ class ManagerExpenseService {
   }) async {
     final body = <String, dynamic>{};
 
-    if (categoryId != null) {
-      body['category_id'] = categoryId;
-    }
-    if (amount != null) {
-      body['amount'] = _normalizeDigits(amount);
-    }
-    if (date != null) {
-      body['date'] = _normalizeDigits(date);
-    }
-    if (description != null) {
-      body['description'] = description.trim();
-    }
-    if (details != null) {
-      body['details'] = details.trim();
-    }
-    if (docNo != null) {
-      body['doc_no'] = docNo.trim();
-    }
+    if (categoryId != null) body['category_id'] = categoryId;
+    if (amount != null) body['amount'] = _normalizeDigits(amount);
+    if (date != null) body['date'] = _normalizeDigits(date);
+    if (description != null) body['description'] = description.trim();
+    if (details != null) body['details'] = details.trim();
+    if (docNo != null) body['doc_no'] = docNo.trim();
 
     final response = await _api.patch(
       _url('/manager/expenses/$expenseId/'),
       body: body,
     );
-
-    final data = _decode(response);
-    return Map<String, dynamic>.from(
-      data['expense'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'expense');
   }
 
-  // =====================================================
-  // حذف / غیرفعال‌سازی هزینه
-  // =====================================================
+  // حذف هزینه
 
   Future<void> deleteExpense(int expenseId) async {
     final response = await _api.delete(
       _url('/manager/expenses/$expenseId/'),
     );
-
     _decode(response);
   }
 
-  // =====================================================
   // ثبت یا ویرایش هزینه همراه مدارک
-  //
-  // برای ثبت: expenseId = null
-  // برای ویرایش: expenseId = شناسه هزینه
-  //
-  // files حداکثر دو فایل است.
-  // =====================================================
 
   Future<Map<String, dynamic>> saveExpenseWithFiles({
     int? expenseId,
@@ -291,61 +256,10 @@ class ManagerExpenseService {
       files: files,
     );
 
-    final data = _decode(response);
-
-    return Map<String, dynamic>.from(
-      data['expense'] as Map? ?? data,
-    );
-  }
-  // =====================================================
-  // دریافت حساب‌های بانکی مدیر
-  // GET /manager/expense-banks/
-  // =====================================================
-
-  Future<List<Map<String, dynamic>>> getExpenseBanks() async {
-    final response = await _api.get(
-      _url('/manager/expense-banks/'),
-    );
-
-    final data = _decode(response);
-    return _extractList(data, 'results');
+    return _extractObject(_decode(response), 'expense');
   }
 
-  // =====================================================
-  // دریافت دریافت‌کنندگان هزینه
-  // type: owner | renter | other
-  // GET /manager/expense-receivers/
-  // =====================================================
-
-  Future<List<Map<String, dynamic>>> getExpenseReceivers({
-    required String type,
-    String search = '',
-  }) async {
-    final query = <String, String>{
-      'type': type,
-      'limit': '30',
-    };
-
-    if (search.trim().isNotEmpty) {
-      query['search'] = search.trim();
-    }
-
-    final uri = Uri.parse(
-      _url('/manager/expense-receivers/'),
-    ).replace(queryParameters: query);
-
-    final response = await _api.get(uri.toString());
-    final data = _decode(response);
-
-    return _extractList(data, 'results');
-  }
-
-  // =====================================================
   // ثبت پرداخت هزینه
-  // POST /manager/expenses/<id>/pay/
-  // =====================================================
-
-
 
   Future<Map<String, dynamic>> payExpense({
     required int expenseId,
@@ -389,39 +303,20 @@ class ManagerExpenseService {
       _url('/manager/expenses/$expenseId/pay/'),
       body: body,
     );
-
-    // استخراج پیام موفقیت یا خطای سرور
-    final data = _decode(response);
-
-    return Map<String, dynamic>.from(
-      data['expense'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'expense');
   }
 
-
-
-  // =====================================================
   // لغو پرداخت هزینه
-  // POST /manager/expenses/<id>/cancel-payment/
-  // =====================================================
 
-  Future<Map<String, dynamic>> cancelExpensePayment(
-      int expenseId,
-      ) async {
+  Future<Map<String, dynamic>> cancelExpensePayment(int expenseId) async {
     final response = await _api.post(
       _url('/manager/expenses/$expenseId/cancel-payment/'),
       body: <String, dynamic>{},
     );
-
-    final data = _decode(response);
-
-    return Map<String, dynamic>.from(
-      data['expense'] as Map? ?? data,
-    );
+    return _extractObject(_decode(response), 'expense');
   }
-  // =====================================================
-  // Multipart با Refresh خودکار توکن
-  // =====================================================
+
+  // ارسال Multipart همراه با تمدید خودکار توکن
 
   Future<http.Response> _sendMultipart({
     required String url,
@@ -430,10 +325,7 @@ class ManagerExpenseService {
     required List<File> files,
   }) async {
     Future<http.Response> send(String token) async {
-      final request = http.MultipartRequest(
-        method,
-        Uri.parse(url),
-      );
+      final request = http.MultipartRequest(method, Uri.parse(url));
 
       request.headers.addAll({
         'Authorization': 'Bearer $token',
@@ -446,24 +338,18 @@ class ManagerExpenseService {
         if (!await file.exists()) {
           throw Exception('فایل انتخاب‌شده پیدا نشد.');
         }
-
         request.files.add(
-          await http.MultipartFile.fromPath(
-            'documents',
-            file.path,
-          ),
+          await http.MultipartFile.fromPath('documents', file.path),
         );
       }
 
       final streamed = await request.send().timeout(
         const Duration(seconds: 30),
       );
-
       return http.Response.fromStream(streamed);
     }
 
     var token = await TokenStorage.getAccessToken();
-
     if (token == null || token.trim().isEmpty) {
       throw Exception('نشست کاربری شما منقضی شده است.');
     }
@@ -472,17 +358,12 @@ class ManagerExpenseService {
 
     if (response.statusCode == 401) {
       final refreshed = await _api.refreshAccessToken();
-
-      if (!refreshed) {
-        throw Exception('TOKEN_EXPIRED');
-      }
+      if (!refreshed) throw Exception('TOKEN_EXPIRED');
 
       token = await TokenStorage.getAccessToken();
-
       if (token == null || token.trim().isEmpty) {
         throw Exception('TOKEN_EXPIRED');
       }
-
       response = await send(token.trim());
     }
 
