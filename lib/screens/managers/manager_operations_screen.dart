@@ -4,6 +4,8 @@ import 'manager_expenses_screen.dart';
 import 'manager_incomes_screen.dart';
 import 'manager_receivables_screen.dart';
 import 'manager_payables_screen.dart';
+import 'manager_maintenance_screen.dart';
+import 'manager_property_screen.dart';
 
 class ManagerOperationsScreen extends StatelessWidget {
   const ManagerOperationsScreen({super.key});
@@ -101,6 +103,22 @@ class ManagerOperationsScreen extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const ManagerPayablesScreen(),
+        ),
+      );
+      return;
+    }
+    if (operation.title == 'ثبت هزینه تعمیر و نگهداری') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerMaintenanceScreen(),
+        ),
+      );
+      return;
+    }
+    if (operation.title == 'ثبت اموال') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerPropertyScreen(),
         ),
       );
       return;
