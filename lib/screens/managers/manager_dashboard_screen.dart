@@ -24,6 +24,7 @@ import 'manager_admin_support_tickets_screen.dart';
 import 'manager_units_screen.dart';
 import 'manager_charges_screen.dart';
 import 'manager_operations_screen.dart';
+import 'manager_reports_screen.dart';
 
 
 // =====================================================
@@ -1177,25 +1178,21 @@ const SizedBox(
 width: 9,
 ),
 
-Expanded(
-child:
-_ManagerMiddleMenuCard(
-title:
-'مدیریت گزارش‌ها',
-icon:
-Icons
-    .assessment_outlined,
-color:
-const Color(
-0xff3949AB,
-),
-onTap: () {
-_showComingSoon(
-'مدیریت گزارش‌ها',
-);
-},
-),
-),
+  Expanded(
+    child: _ManagerMiddleMenuCard(
+      title: 'مدیریت گزارش‌ها',
+      icon: Icons.assessment_outlined,
+      color: const Color(0xFF00ACC1),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ManagerReportsScreen(),
+          ),
+        );
+      },
+    ),
+  ),
 ],
 ),
 

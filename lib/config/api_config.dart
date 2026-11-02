@@ -397,6 +397,12 @@ class ApiConfig {
     return '$baseUrl/manager/civil-installments/$installmentId/cancel-payment/';
   }
 
+  // -----------------------------------------------------
+// Sewage - هزینه فاضلاب
+// -----------------------------------------------------
+  static String get managerSewageCharges =>
+      '$baseUrl/manager/sewage/';
+
 
 
 }

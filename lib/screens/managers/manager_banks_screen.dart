@@ -6,9 +6,10 @@ import '../../services/api_service.dart';
 import '../../services/manager_bank_service.dart';
 import 'manager_bank_transfers_screen.dart';
 
-// اگر صفحه انتقال بانکی در فایل جداگانه است، import آن را اضافه کن.
-// مثال:
-// import 'manager_bank_transfer_screen.dart';
+const Color _primaryColor = Color(0xFF00ACC1);
+const Color _secondaryColor = Color(0xFF610DB5);
+const Color _pageBackground = Color(0xFFF5F7FA);
+const Color _primaryText = Color(0xFF263238);
 
 // ==================================================================
 // Formatter شماره شبا
@@ -533,22 +534,22 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-        const Color(0xff00ACC1),
+        backgroundColor: _pageBackground,
         appBar: AppBar(
           title: const Text(
             'حساب‌های بانکی',
             style: TextStyle(
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           centerTitle: true,
-          backgroundColor: Colors.white,
-          foregroundColor:
-          const Color(0xffF5F7FA),
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
           elevation: 0,
         ),
         body: RefreshIndicator(
+          color: _primaryColor,
           onRefresh: _loadBanks,
           child: _buildBody(),
         ),
@@ -648,7 +649,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
               style:
               ElevatedButton.styleFrom(
                 backgroundColor:
-                const Color(0xff00ACC1),
+                const Color(0xFF610DB5),
                 foregroundColor:
                 Colors.white,
               ),
@@ -718,10 +719,6 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
   Widget _buildTopActionButtons() {
     return Row(
       children: [
-        // --------------------------------------------------------
-        // انتقال بین بانکی
-        // --------------------------------------------------------
-
         Expanded(
           child: SizedBox(
             height: 52,
@@ -741,37 +738,26 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                const Color(0xffFAF5FC),
+                foregroundColor: _secondaryColor,
                 side: const BorderSide(
-                  color: Color(0xffFAF5FC),
+                  color: _secondaryColor,
                   width: 1.2,
                 ),
-                backgroundColor:
-                const Color(0xff7B1FA2),
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(14),
+                backgroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
           ),
         ),
-
         const SizedBox(width: 10),
-
-        // --------------------------------------------------------
-        // افزودن حساب
-        // --------------------------------------------------------
-
         Expanded(
           child: SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () {
-                _openBankForm();
-              },
+              onPressed: () => _openBankForm(),
               icon: const Icon(
                 Icons.add_rounded,
                 size: 23,
@@ -785,17 +771,12 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
                   fontSize: 13,
                 ),
               ),
-              style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                const Color(0xff00ACC1),
-                foregroundColor:
-                Colors.white,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _secondaryColor,
+                foregroundColor: Colors.white,
                 elevation: 0,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
@@ -814,18 +795,18 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
           colors: [
-            Color(0xff00ACC1),
-            Color(0xff00838F),
+            _primaryColor,
+            _secondaryColor,
           ],
         ),
-        borderRadius:
-        BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color:
-            Colors.black.withOpacity(.08),
-            blurRadius: 12,
+            color: _primaryColor.withOpacity(.18),
+            blurRadius: 14,
             offset: const Offset(0, 5),
           ),
         ],
@@ -836,10 +817,8 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color:
-              Colors.white.withOpacity(.18),
-              borderRadius:
-              BorderRadius.circular(16),
+              color: Colors.white.withOpacity(.18),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
               Icons.account_balance,
@@ -850,8 +829,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
           const SizedBox(width: 16),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'مجموع موجودی حساب‌ها',

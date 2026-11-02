@@ -6,6 +6,8 @@ import 'manager_receivables_screen.dart';
 import 'manager_payables_screen.dart';
 import 'manager_maintenance_screen.dart';
 import 'manager_property_screen.dart';
+import 'manager_sewage_charges_screen.dart';
+import 'manager_third_party_screen.dart';
 
 class ManagerOperationsScreen extends StatelessWidget {
   const ManagerOperationsScreen({super.key});
@@ -119,6 +121,23 @@ class ManagerOperationsScreen extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const ManagerPropertyScreen(),
+        ),
+      );
+      return;
+    }
+    if (operation.title == 'ثبت هزینه فاضلاب') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerSewageChargesScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (operation.title == 'ثبت اشخاص ثالث') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManagerThirdPartyScreen(),
         ),
       );
       return;

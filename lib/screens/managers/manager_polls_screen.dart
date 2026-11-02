@@ -28,7 +28,7 @@ class _ManagerPollsScreenState
   List<Map<String, dynamic>> polls = [];
 
   static const Color primaryColor =
-  Color(0xff00838F);
+  Color(0xFF00ACC1);
 
   @override
   void initState() {

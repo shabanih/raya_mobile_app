@@ -293,66 +293,15 @@ class _ManagerCivilChargeUnitsScreenState
   }
 
   String _residentType(Map<String, dynamic> unit) {
-    final value = (_value(
-      unit,
-      ['resident_type', 'residence_type', 'occupant_type'],
-    ) ??
-        '')
-        .toString()
-        .toLowerCase()
-        .trim();
-
-    if (['owner', 'مالک', 'owner_resident'].contains(value)) {
-      return 'owner';
-    }
-
-    if (['renter', 'tenant', 'مستاجر', 'مستأجر'].contains(value)) {
-      return 'renter';
-    }
-
-    if (unit['is_renter'] == true) return 'renter';
-
-    final name = _value(
-      unit,
-      ['resident_name', 'owner_name', 'renter_name', 'full_name'],
-    );
-
-    if (name != null) return 'owner';
-
-    return 'empty';
+    return unit['resident_type']?.toString() == 'owner'
+        ? 'owner'
+        : 'empty';
   }
 
   String _residentName(Map<String, dynamic> unit) {
-    final type = _residentType(unit);
-
-    final residentName = _value(
-      unit,
-      ['resident_name', 'resident_full_name'],
-    );
-
-    if (residentName != null) {
-      return residentName.toString().trim();
-    }
-
-    if (type == 'owner') {
-      return (_value(
-        unit,
-        ['owner_name', 'owner_full_name', 'full_name'],
-      ) ??
-          'نام مالک ثبت نشده')
-          .toString();
-    }
-
-    if (type == 'renter') {
-      return (_value(
-        unit,
-        ['renter_name', 'tenant_name', 'full_name'],
-      ) ??
-          'نام مستأجر ثبت نشده')
-          .toString();
-    }
-
-    return 'بدون ساکن';
+    return (unit['resident_name'] ?? 'نام مالک ثبت نشده')
+        .toString()
+        .trim();
   }
 
   int _peopleCount(Map<String, dynamic> unit) {
@@ -662,10 +611,10 @@ class _ManagerCivilChargeUnitsScreenState
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: _buildSearch(),
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: _buildFilters(),
-            ),
+            // Padding(
+            //   padding: const EdgeInsets.only(top: 8),
+            //   child: _buildFilters(),
+            // ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: _buildSelectAll(),
@@ -867,39 +816,39 @@ class _ManagerCivilChargeUnitsScreenState
   // فیلترها
   // --------------------------------------------------
 
-  Widget _buildFilters() {
-    return Center(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _filterChip('همه', 'all'),
-            _filterChip('مالک', 'owner'),
-            _filterChip('مستأجر', 'renter'),
-            _filterChip('واحد خالی', 'empty'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _filterChip(String title, String value) {
-    final selected = _filter == value;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: ChoiceChip(
-        label: Text(title),
-        selected: selected,
-        onSelected: (_) => setState(() => _filter = value),
-        selectedColor: teal.withValues(alpha: 0.16),
-        checkmarkColor: teal,
-      ),
-    );
-  }
+  // Widget _buildFilters() {
+  //   return Center(
+  //     child: SingleChildScrollView(
+  //       scrollDirection: Axis.horizontal,
+  //       padding: const EdgeInsets.symmetric(horizontal: 8),
+  //       child: Row(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         mainAxisSize: MainAxisSize.min,
+  //         children: [
+  //           _filterChip('همه', 'all'),
+  //           _filterChip('مالک', 'owner'),
+  //           _filterChip('مستأجر', 'renter'),
+  //           _filterChip('واحد خالی', 'empty'),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+  //
+  // Widget _filterChip(String title, String value) {
+  //   final selected = _filter == value;
+  //
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(horizontal: 3),
+  //     child: ChoiceChip(
+  //       label: Text(title),
+  //       selected: selected,
+  //       onSelected: (_) => setState(() => _filter = value),
+  //       selectedColor: teal.withValues(alpha: 0.16),
+  //       checkmarkColor: teal,
+  //     ),
+  //   );
+  // }
 
   // --------------------------------------------------
   // انتخاب همه

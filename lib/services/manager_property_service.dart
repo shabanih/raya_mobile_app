@@ -432,12 +432,13 @@ class ManagerPropertyService {
     required int bankId,
     required String paymentDate,
     String transactionReference = '',
+    String receiverName = '',
   }) async {
     final body = <String, dynamic>{
       'bank_id': bankId,
       'payment_date': _normalizeDigits(paymentDate),
-      'transaction_reference':
-      _normalizeDigits(transactionReference),
+      'transaction_reference': _normalizeDigits(transactionReference),
+      'receiver_name': receiverName.trim(),
     };
 
     final response = await _request(

@@ -744,7 +744,7 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
   final formKey = GlobalKey<FormState>();
 
-  // final receiverName = TextEditingController();
+  final receiverName = TextEditingController();
   final companyName = TextEditingController();
   final documentNumber = TextEditingController();
   final count = TextEditingController();
@@ -788,13 +788,14 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
     // receiverName.text = '${item['receiver_name'] ?? ''}';
     companyName.text = '${item['company_name'] ?? ''}';
-    documentNumber.text = '${item['document_number'] ?? ''}';
+    documentNumber.text = toPersianDigits(item['document_number']);
+    propertyPrice.text = toPersianDigits(item['property_price']);
     count.text = '${item['count'] ?? ''}';
     propertyName.text = '${item['property_name'] ?? ''}';
     propertyUnit.text = '${item['property_unit'] ?? ''}';
     propertyLocation.text = '${item['property_location'] ?? ''}';
     propertyCode.text = '${item['property_code'] ?? ''}';
-    propertyPrice.text = '${item['property_price'] ?? ''}';
+    // propertyPrice.text = '${item['property_price'] ?? ''}';
     details.text = '${item['details'] ?? ''}';
 
     final date = DateTime.tryParse(
@@ -841,6 +842,19 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
       RegExp(r'[0-9]'),
           (m) => persian[int.parse(m.group(0)!)],
     );
+  }
+  String toPersianDigits(dynamic value) {
+    if (value == null) return '';
+
+    String result;
+
+    if (value is List) {
+      result = value.isEmpty ? '' : value.first.toString();
+    } else {
+      result = value.toString();
+    }
+
+    return fa(result);
   }
   final List<DropdownMenuItem<String>> propertyUnitItems = const [
     DropdownMenuItem(value: '', child: Text('--- انتخاب کنید ---')),
@@ -1393,6 +1407,7 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
 
   final formKey = GlobalKey<FormState>();
   final reference = TextEditingController();
+  final receiverName = TextEditingController();
 
   List<Map<String, dynamic>> banks = [];
 
@@ -1407,11 +1422,16 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
   @override
   void initState() {
     super.initState();
+
+    receiverName.text =
+        (widget.item['receiver_name'] ?? '').toString();
+
     loadInitialData();
   }
 
   @override
   void dispose() {
+    receiverName.dispose();
     reference.dispose();
     super.dispose();
   }
@@ -1546,11 +1566,18 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
     });
 
     try {
+      // await widget.service.payProperty(
+      //   id: intValue(widget.item['id']),
+      //   bankId: bankId!,
+      //   paymentDate: dateString(date),
+      //   transactionReference: normal(reference.text),
+      // );
       await widget.service.payProperty(
         id: intValue(widget.item['id']),
         bankId: bankId!,
         paymentDate: dateString(date),
         transactionReference: normal(reference.text),
+        receiverName: receiverName.text.trim(),
       );
 
       if (mounted) Navigator.pop(context, true);
@@ -1696,6 +1723,7 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
                         : null,
                   ),
                   const SizedBox(height: 14),
+
                   InkWell(
                     onTap: saving ? null : chooseDate,
                     child: InputDecorator(
@@ -1705,6 +1733,23 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
                       ),
                       child: Text(dateText(date)),
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: receiverName,
+                    enabled: !saving,
+                    maxLength: 200,
+                    textDirection: TextDirection.rtl,
+                    decoration: decoration(
+                      'نام دریافت‌کننده *',
+                      Icons.person_outline,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'نام دریافت‌کننده را وارد کنید.';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
