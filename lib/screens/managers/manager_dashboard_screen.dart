@@ -13,7 +13,7 @@ import '../../storage/token_storage.dart';
 import '../announcements_screen.dart';
 import '../login_screen.dart';
 import '../messages_screen.dart';
-import '../finance_menu_screen.dart';
+
 
 import 'manager_announcements_screen.dart';
 import 'manager_messages_screen.dart';
@@ -25,6 +25,7 @@ import 'manager_units_screen.dart';
 import 'manager_charges_screen.dart';
 import 'manager_operations_screen.dart';
 import 'manager_reports_screen.dart';
+import 'manager_admin_fund_screen.dart';
 
 
 // =====================================================
@@ -1733,11 +1734,11 @@ Icons.sms_outlined,
 }
 
 Widget buildFinancePage() {
-return const FinanceMenuScreen();
+return const ManagerAdminFundScreen();
 }
 
 Widget buildMessagesPage() {
-return const MessagesScreen();
+return const ManagerAdminFundScreen();
 }
 
 // =====================================================

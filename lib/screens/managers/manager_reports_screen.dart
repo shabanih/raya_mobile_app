@@ -1,6 +1,12 @@
 
 import 'package:flutter/material.dart';
 
+import 'manager_fund_turnover_screen.dart';
+import 'manager_debtor_units_screen.dart';
+import 'manager_creditor_units_screen.dart';
+import 'manager_sewage_charges_list_screen.dart';
+import 'manager_user_help_money_screen.dart';
+
 const Color _primaryColor = Color(0xFF00ACC1);
 const Color _secondaryColor = Color(0xFF610DB5);
 const Color _pageBackground = Color(0xFFF5F7FA);
@@ -48,6 +54,52 @@ class ManagerReportsScreen extends StatelessWidget {
   ];
 
   void _openReport(BuildContext context, _ReportItem report) {
+    if (report.title == 'گردش صندوق') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerFundTurnoverScreen(),
+        ),
+      );
+      return;
+    }
+    if (report.title == 'واحدهای بدهکار') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerDebtorUnitsScreen(),
+        ),
+      );
+      return;
+    }
+    if (report.title == 'واحدهای بستانکار') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerCreditorUnitsScreen(),
+        ),
+      );
+      return;
+    }
+    if (report.title == 'هزینه فاضلاب') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerSewageChargesListScreen(),
+        ),
+      );
+      return;
+    }
+    if (report.title == 'کمک ساکنین') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerUserHelpMoneyScreen(),
+        ),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(

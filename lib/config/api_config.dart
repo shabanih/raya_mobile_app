@@ -402,6 +402,55 @@ class ApiConfig {
 // -----------------------------------------------------
   static String get managerSewageCharges =>
       '$baseUrl/manager/sewage/';
+  // -----------------------------------------------------
+// گزارش ها
+// -----------------------------------------------------
+
+  static const String managerFundTurnover =
+      '$baseUrl/manager/reports/fund-turnover/';
+
+  // گزارش واحدهای بدهکار
+  static const String managerDebtorUnits =
+      '$baseUrl/manager/reports/debtor-units/';
+
+  static const String managerCreditorUnits =
+      '$baseUrl/manager/reports/creditor-units/';
+
+  // -----------------------------------------------------
+// Sewage Charge - شارژ فاضلاب
+// -----------------------------------------------------
+
+// فهرست شارژهای فاضلاب مدیر
+  static const String managerSewageChargesList =
+      '$baseUrl/manager/sewage-charges/';
+
+// فهرست واحدهای یک شارژ فاضلاب
+  static String managerSewageChargeUnitsList(int sewageId) =>
+      '$baseUrl/manager/sewage-charges/$sewageId/units/';
+
+// اقساط یک واحد از شارژ فاضلاب
+  static String managerSewageUnitInstallments({
+    required int sewageId,
+    required int unitId,
+  }) {
+    return '$baseUrl/manager/sewage-charges/$sewageId/units/$unitId/installments/';
+  }
+
+// دریافت حساب‌های بانکی و ثبت پرداخت قسط
+  static String managerSewageInstallmentPay(int installmentId) {
+    return '$baseUrl/manager/sewage-installments/$installmentId/payment/';
+  }
+
+// لغو پرداخت قسط
+  static String managerSewageInstallmentCancelPayment(int installmentId) {
+    return '$baseUrl/manager/sewage-installments/$installmentId/cancel-payment/';
+  }
+
+  static const String managerUserHelpMoney =
+      '$baseUrl/manager/user-help-money/';
+
+  static const String managerAdminFunds =
+      '$baseUrl/manager/admin-funds/';
 
 
 
