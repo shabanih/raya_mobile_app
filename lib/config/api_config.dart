@@ -452,6 +452,29 @@ class ApiConfig {
   static const String managerAdminFunds =
       '$baseUrl/manager/admin-funds/';
 
+  static const String managerAdminMessages =
+      '/manager/admin-messages/';
 
+  static String managerAdminMessageRead(int id) =>
+      '/manager/admin-messages/$id/read/';
+
+  // =====================================================
+// اشتراک ساختمان مدیر
+// =====================================================
+
+  static const String managerCurrentSubscription =
+      '$baseUrl/manager/subscription/current/';
+
+  static const String managerSubscriptionPlans =
+      '$baseUrl/manager/subscription/plans/';
+
+  static const String managerSubscriptionPaymentRequest =
+      '$baseUrl/manager/subscription/payment/request/';
+
+  static const String managerSubscriptionPaymentCallback =
+      '$baseUrl/manager/subscription/payment/callback/';
+
+  static String managerSubscriptionPaymentStatus(String resNum) =>
+      '$baseUrl/manager/subscription/payment/status/$resNum/';
 
 }
