@@ -558,7 +558,7 @@ Widget build(BuildContext context) {
 return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
-backgroundColor: const Color(0xff9ce7ef),
+backgroundColor: const Color(0xffe7eded),
 body: Center(
 child: SingleChildScrollView(
 padding: const EdgeInsets.symmetric(
@@ -702,7 +702,7 @@ child: ElevatedButton(
 style: ElevatedButton.styleFrom(
 backgroundColor: const Color(0xff00ACC1),
 disabledBackgroundColor:
-const Color(0xff80D5DF),
+const Color(0xffd0ecef),
 shape: RoundedRectangleBorder(
 borderRadius: BorderRadius.circular(13),
 ),
@@ -801,6 +801,19 @@ fontWeight: FontWeight.w600,
 ),
 ),
 ],
+
+// آدرس سایت در پایین کارت ورود
+  const SizedBox(height: 24),
+
+  const Text(
+    'اطلاعات بیشتر در www.rayacharge.ir',
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      fontSize: 12,
+      color: Colors.black54,
+      fontWeight: FontWeight.w700,
+    ),
+  ),
 ],
 ),
 ),

@@ -1,0 +1,9 @@
+subprojects { subproject ->
+    subproject.plugins.withId("com.android.library") {
+        subproject.extensions.configure("android") { androidExtension ->
+            androidExtension.lint {
+                disable += ["EasterEgg", "StopShip"]
+            }
+        }
+    }
+}

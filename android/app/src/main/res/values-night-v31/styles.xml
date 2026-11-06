@@ -6,7 +6,7 @@
         <item name="android:windowFullscreen">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-        <item name="android:windowSplashScreenBackground">#9CE7EF</item>
+        <item name="android:windowSplashScreenBackground">#E7EDED</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
 
 
