@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
+import 'package:shamsi_date/shamsi_date.dart';
 import '../../services/api_service.dart';
 import '../../services/announcement_service.dart';
 import '../../services/manager_support_service.dart';
 import '../../services/manager_admin_support_service.dart';
 import '../../services/manager_admin_message_service.dart';
+import '../../services/manager_pending_payments_service.dart';
 import '../../storage/token_storage.dart';
 
 import '../announcements_screen.dart';
@@ -25,6 +26,9 @@ import 'manager_charges_screen.dart';
 import 'manager_operations_screen.dart';
 import 'manager_reports_screen.dart';
 import 'manager_admin_fund_screen.dart';
+import 'manager_pending_payments_screen.dart';
+import 'manager_profile_screen.dart';
+
 
 // =====================================================
 // صفحه اصلی مدیران
@@ -113,6 +117,13 @@ class _ManagerDashboardScreenState
   int _statisticsIndex = 0;
 
   // =====================================================
+// پرداخت‌های در انتظار تأیید
+// =====================================================
+
+  int pendingPaymentCount = 0;
+  bool isLoadingPendingPayments = false;
+
+  // =====================================================
   // Init
   // =====================================================
 
@@ -138,6 +149,10 @@ class _ManagerDashboardScreenState
 
     // پشتیبانی مدیر ← ادمین
     loadAdminSupportTicketStatus();
+
+    loadManagerSubscription();
+
+    loadPendingPaymentStatus();
 
     _startStatisticsSlider();
   }
@@ -238,6 +253,14 @@ class _ManagerDashboardScreenState
 
     return {};
   }
+  // =====================================================
+// اطلاعات اشتراک مدیر
+// =====================================================
+
+  Map<String, dynamic>? subscriptionData;
+
+  bool isSubscriptionLoading = false;
+  String? subscriptionError;
 
   // =====================================================
   // مقدار آماری
@@ -260,6 +283,39 @@ class _ManagerDashboardScreenState
       value?.toString() ?? '',
     ) ?? 0;
   }
+
+  // =====================================================
+// دریافت تعداد پرداخت‌های در انتظار تأیید
+// =====================================================
+
+  Future<void> loadPendingPaymentStatus() async {
+    if (isLoadingPendingPayments) return;
+
+    isLoadingPendingPayments = true;
+
+    try {
+      final service = ManagerPendingPaymentsService(
+        apiService: ApiService(),
+      );
+
+      final count = await service.getPendingPaymentsCount();
+
+      if (!mounted) return;
+
+      setState(() {
+        pendingPaymentCount = count;
+      });
+
+      debugPrint('PENDING PAYMENT COUNT: $pendingPaymentCount');
+    } catch (e, stackTrace) {
+      debugPrint('PENDING PAYMENT STATUS ERROR: $e');
+      debugPrint(stackTrace.toString());
+    } finally {
+      isLoadingPendingPayments = false;
+    }
+  }
+
+
 
   // =====================================================
   // موجودی صندوق
@@ -349,6 +405,521 @@ class _ManagerDashboardScreenState
 
       setState(() {
         isDashboardLoading = false;
+      });
+    }
+  }
+
+  // =====================================================
+  // ابزارهای نمایش اشتراک مدیر
+  // =====================================================
+
+  // تبدیل تاریخ میلادی به شمسی
+  String _formatJalaliDate(dynamic value) {
+    if (value == null || value.toString().isEmpty) {
+      return '-';
+    }
+
+    try {
+      final date = DateTime.parse(value.toString()).toLocal();
+      final jalali = Gregorian.fromDateTime(date).toJalali();
+
+      return toPersianDigits(
+        '${jalali.year}/${jalali.month.toString().padLeft(2, '0')}/${jalali.day.toString().padLeft(2, '0')}',
+      );
+    } catch (e) {
+      debugPrint('JALALI DATE ERROR: $e');
+      return value.toString();
+    }
+  }
+
+  // دریافت مقدار عددی از چند نام احتمالی
+  int _subscriptionInt(
+      Map<String, dynamic> data,
+      List<String> keys, {
+        int defaultValue = 0,
+      }) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value is num) {
+        return value.toInt();
+      }
+
+      final parsed = int.tryParse(value?.toString() ?? '');
+
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    return defaultValue;
+  }
+
+  // استخراج تاریخ از پاسخ API
+  dynamic _subscriptionDate(
+      Map<String, dynamic> data,
+      List<String> keys,
+      ) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value != null && value.toString().isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  // عنوان اشتراک
+  String _subscriptionPlanTitle(Map<String, dynamic> data) {
+    final dynamic planValue = data['plan'];
+
+    Map<String, dynamic> plan = {};
+
+    if (planValue is Map) {
+      plan = Map<String, dynamic>.from(planValue);
+    }
+
+    // ابتدا نام آماده اشتراک بررسی می‌شود.
+    final directTitle = [
+      data['plan_title'],
+      data['subscription_title'],
+      data['plan_name'],
+      plan['title'],
+      plan['name'],
+      plan['label'],
+    ];
+
+    for (final value in directTitle) {
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString();
+      }
+    }
+
+    // سپس مدت اشتراک بررسی می‌شود.
+    final int months = _subscriptionInt(
+      data,
+      ['duration_months', 'plan_duration_months'],
+      defaultValue: _subscriptionInt(
+        plan,
+        ['duration_months', 'months', 'duration'],
+      ),
+    );
+
+    switch (months) {
+      case 1:
+        return 'اشتراک یک‌ماهه';
+      case 3:
+        return 'اشتراک سه‌ماهه';
+      case 6:
+        return 'اشتراک شش‌ماهه';
+      case 12:
+        return 'اشتراک یک‌ساله';
+      case 24:
+        return 'اشتراک دوساله';
+    }
+
+    return 'اشتراک فعال';
+  }
+
+  // ردیف اطلاعات اشتراک
+  Widget _subscriptionInfoRow({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: const Color(0xff00ACC1),
+          ),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xff263238),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // کارت اشتراک
+  // =====================================================
+
+  Widget _buildSubscriptionCard() {
+    if (isSubscriptionLoading && subscriptionData == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(25),
+          child: CircularProgressIndicator(
+            color: Color(0xff00ACC1),
+          ),
+        ),
+      );
+    }
+
+    if (subscriptionError != null && subscriptionData == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            children: [
+              const Text('خطا در دریافت اطلاعات اشتراک'),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: loadManagerSubscription,
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (subscriptionData == null ||
+        subscriptionData!['has_subscription'] != true) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Column(
+          children: [
+            Icon(
+              Icons.info_outline,
+              color: Colors.orange,
+              size: 35,
+            ),
+            SizedBox(height: 10),
+            Text(
+              'برای این ساختمان اشتراک فعالی ثبت نشده است.',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // اطلاعات اصلی اشتراک داخل subscription قرار دارد.
+    final dynamic subscriptionValue =
+    subscriptionData!['subscription'];
+
+    if (subscriptionValue is! Map) {
+      return const Text('اطلاعات اشتراک قابل دریافت نیست.');
+    }
+
+    final Map<String, dynamic> subscription =
+    Map<String, dynamic>.from(subscriptionValue);
+
+    final Map<String, dynamic> plan =
+    subscription['plan'] is Map
+        ? Map<String, dynamic>.from(subscription['plan'])
+        : {};
+
+    final int remainingDays =
+    _toInt(subscription['days_remaining']);
+
+    final int totalDays =
+    _toInt(subscription['total_days']);
+
+    final double progress = totalDays > 0
+        ? (remainingDays / totalDays).clamp(0.0, 1.0)
+        : 0.0;
+
+    final bool expired = remainingDays <= 0;
+
+    final Color progressColor = expired
+        ? Colors.red
+        : remainingDays <= 7
+        ? Colors.orange
+        : const Color(0xFF610DB5);
+
+    // عنوان اشتراک بر اساس مدت واقعی پلن
+    final dynamic durationValue = plan['duration'];
+    final int duration = _toInt(durationValue);
+
+    String planTitle;
+
+    switch (duration) {
+      case 3:
+        planTitle = 'اشتراک سه‌ماهه';
+        break;
+      case 6:
+        planTitle = 'اشتراک شش‌ماهه';
+        break;
+      case 12:
+        planTitle = 'اشتراک یک‌ساله';
+        break;
+      case 24:
+        planTitle = 'اشتراک دوساله';
+        break;
+      default:
+        planTitle = duration > 0
+            ? 'اشتراک $duration ماهه'
+            : 'اشتراک';
+    }
+
+    final String startDate =
+    _formatJalaliDate(subscription['start_date']);
+
+    final String endDate =
+    _formatJalaliDate(subscription['end_date']);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xffECEFF1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.card_membership_rounded,
+                color: Color(0xff00ACC1),
+              ),
+              SizedBox(width: 9),
+              Text(
+                'اطلاعات اشتراک',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 9,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xff159c35).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: Text(
+                planTitle,
+                style: const TextStyle(
+                  color: Color(0xff37ac51),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 25),
+
+          // نمودار دایره‌ای
+          Center(
+            child: SizedBox(
+              width: 170,
+              height: 170,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 170,
+                    height: 170,
+                    child: CircularProgressIndicator(
+                      value: 1,
+                      strokeWidth: 20,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.grey.shade200,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(
+                    width: 170,
+                    height: 170,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 20,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        progressColor,
+                      ),
+                    ),
+                  ),
+
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        toPersianDigits(
+                          remainingDays.toString(),
+                        ),
+                        style: TextStyle(
+                          fontSize: 38,
+                          fontWeight: FontWeight.bold,
+                          color: progressColor,
+                        ),
+                      ),
+
+                      Container(
+                        width: 55,
+                        height: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 5),
+                        color: Colors.grey.shade300,
+                      ),
+
+                      Text(
+                        toPersianDigits(
+                          totalDays.toString(),
+                        ),
+                        style: const TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff546E7A),
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      const Text(
+                        'روز',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Center(
+            child: Text(
+              expired
+                  ? 'اشتراک به پایان رسیده است'
+                  : 'روز باقی‌مانده از اشتراک',
+              style: TextStyle(
+                color: progressColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          Divider(color: Colors.grey.shade200),
+
+          _subscriptionInfoRow(
+            icon: Icons.calendar_today_outlined,
+            title: 'تاریخ شروع',
+            value: startDate,
+          ),
+
+          _subscriptionInfoRow(
+            icon: Icons.event_available_outlined,
+            title: 'تاریخ پایان',
+            value: endDate,
+          ),
+
+          _subscriptionInfoRow(
+            icon: Icons.info_outline,
+            title: 'وضعیت اشتراک',
+            value: subscription['status_label']?.toString() ?? '-',
+          ),
+
+          _subscriptionInfoRow(
+            icon: Icons.apartment_outlined,
+            title: 'تعداد واحدها',
+            value: toPersianDigits(
+              (subscription['units_count'] ?? 0).toString(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+// دریافت اطلاعات اشتراک
+// =====================================================
+
+  Future<void> loadManagerSubscription() async {
+    if (isSubscriptionLoading) return;
+
+    if (mounted) {
+      setState(() {
+        isSubscriptionLoading = true;
+        subscriptionError = null;
+      });
+    }
+
+    try {
+      final result = await ApiService().getManagerSubscription();
+
+      if (!mounted) return;
+
+      if (result is! Map) {
+        throw Exception('پاسخ اشتراک معتبر نیست');
+      }
+
+      setState(() {
+        subscriptionData = Map<String, dynamic>.from(result);
+        isSubscriptionLoading = false;
+      });
+
+      debugPrint('MANAGER SUBSCRIPTION: $result');
+
+    } catch (e, stackTrace) {
+      debugPrint('MANAGER SUBSCRIPTION ERROR: $e');
+      debugPrint(stackTrace.toString());
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubscriptionLoading = false;
+        subscriptionError = e.toString();
       });
     }
   }
@@ -685,16 +1256,13 @@ class _ManagerDashboardScreenState
     });
 
     if (index == 3) {
-      loadMessageStatus();
+      loadPendingPaymentStatus();
     }
 
-    // هنگام خروج از صفحه پیام‌های مدیریت سامانه،
-    // تعداد پیام‌های خوانده‌نشده مجدداً بررسی شود.
     if (wasAdminMessagesPage) {
       loadAdminMessageStatus();
     }
   }
-
   // =====================================================
   // هدر ساختمان و مدیر
   // =====================================================
@@ -782,6 +1350,7 @@ class _ManagerDashboardScreenState
             loadAdminMessageStatus(),
             loadSupportTicketStatus(),
             loadAdminSupportTicketStatus(),
+            loadPendingPaymentStatus(),
           ]);
         },
 
@@ -994,7 +1563,7 @@ class _ManagerDashboardScreenState
                   // پشتیبانی مدیر ← ادمین
                   Expanded(
                     child: _ManagerTopMenuItem(
-                      title: 'پشتیبانی',
+                      title: 'پشتیبانی سامانه',
                       icon: Icons.headset_mic_outlined,
                       color: const Color(0xff7B1FA2),
 
@@ -1334,7 +1903,7 @@ class _ManagerDashboardScreenState
   }
 
   Widget buildMessagesPage() {
-    return const ManagerAdminFundScreen();
+    return const ManagerPendingPaymentsScreen();
   }
 
   Widget buildAdminMessagesPage() {
@@ -1343,103 +1912,23 @@ class _ManagerDashboardScreenState
     );
   }
 
+
+
+
   // =====================================================
-  // پروفایل
-  // =====================================================
+// پروفایل مدیر
+// =====================================================
 
   Widget buildProfilePage() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            const CircleAvatar(
-              radius: 45,
-              backgroundColor: Color(0xff00ACC1),
-
-              child: Icon(
-                Icons.person,
-                size: 45,
-                color: Colors.white,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              fullName,
-
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              toPersianDigits(
-                user['mobile']?.toString() ?? '-',
-              ),
-
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 15,
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            _ProfileItem(
-              icon: Icons.apartment,
-              title: 'ساختمان',
-              value: houseName,
-            ),
-
-            _ProfileItem(
-              icon: Icons.manage_accounts_outlined,
-              title: 'نوع کاربر',
-              value: 'مدیر',
-            ),
-
-            const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-
-              child: OutlinedButton.icon(
-                onPressed: _showLogoutDialog,
-
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red,
-                ),
-
-                label: const Text(
-                  'خروج از حساب کاربری',
-
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ManagerProfileScreen(
+      user: user,
+      fullName: fullName,
+      houseName: houseName,
+      subscriptionData: subscriptionData,
+      isSubscriptionLoading: isSubscriptionLoading,
+      subscriptionError: subscriptionError,
+      onRefresh: loadManagerSubscription,
+      onLogout: _showLogoutDialog,
     );
   }
 
@@ -1447,40 +1936,97 @@ class _ManagerDashboardScreenState
   // خروج
   // =====================================================
 
+
   Future<void> _showLogoutDialog() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
+      builder: (dialogContext) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+            contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
 
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('خروج از حساب'),
-
-          content: const Text(
-            'آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟',
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-
-              child: const Text('انصراف'),
+            title: const Row(
+              children: [
+                CircleAvatar(
+                  radius: 23,
+                  backgroundColor: Color(0xFFFFEBEE),
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: Colors.red,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'خروج از حساب کاربری',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF263238),
+                  ),
+                ),
+              ],
             ),
 
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+            content: const Text(
+              'آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.9,
+                color: Color(0xFF546E7A),
+              ),
+            ),
 
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+            actionsAlignment: MainAxisAlignment.start,
+
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade700,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 11,
+                  ),
+                ),
+                child: const Text('انصراف'),
               ),
 
-              child: const Text('خروج'),
-            ),
-          ],
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  size: 18,
+                ),
+                label: const Text('خروج از حساب'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 11,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1499,6 +2045,7 @@ class _ManagerDashboardScreenState
           (route) => false,
     );
   }
+
 
   // =====================================================
   // Coming Soon
@@ -1622,37 +2169,37 @@ class _ManagerDashboardScreenState
             // پیام‌های قبلی مدیران
             // ---------------------------------------------
 
-            Stack(
-              clipBehavior: Clip.none,
-
-              children: [
-                IconButton(
-                  tooltip: 'پیام‌ها',
-                  onPressed: openMessages,
-
-                  icon: const Icon(
-                    Icons.mail_outline_rounded,
-                    size: 27,
-                  ),
-                ),
-
-                if (hasNewMessages)
-                  Positioned(
-                    top: 15,
-                    right: 8,
-
-                    child: Container(
-                      width: 9,
-                      height: 9,
-
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            // Stack(
+            //   clipBehavior: Clip.none,
+            //
+            //   children: [
+            //     IconButton(
+            //       tooltip: 'پیام‌ها',
+            //       onPressed: openMessages,
+            //
+            //       icon: const Icon(
+            //         Icons.mail_outline_rounded,
+            //         size: 27,
+            //       ),
+            //     ),
+            //
+            //     if (hasNewMessages)
+            //       Positioned(
+            //         top: 15,
+            //         right: 8,
+            //
+            //         child: Container(
+            //           width: 9,
+            //           height: 9,
+            //
+            //           decoration: const BoxDecoration(
+            //             color: Colors.red,
+            //             shape: BoxShape.circle,
+            //           ),
+            //         ),
+            //       ),
+            //   ],
+            // ),
 
             const SizedBox(width: 5),
           ],
@@ -1752,42 +2299,62 @@ class _ManagerDashboardScreenState
                 icon: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(Icons.mail_outline_rounded),
-                    if (hasNewMessages)
+                    const Icon(
+                      Icons.check_circle_outline_rounded,
+                    ),
+
+                    if (pendingPaymentCount > 0)
                       Positioned(
                         top: -3,
-                        right: -4,
+                        right: -5,
                         child: Container(
-                          width: 9,
-                          height: 9,
+                          width: 10,
+                          height: 10,
                           decoration: const BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              BorderSide(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                   ],
                 ),
+
                 activeIcon: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(Icons.mail_rounded),
-                    if (hasNewMessages)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                    ),
+
+                    if (pendingPaymentCount > 0)
                       Positioned(
                         top: -3,
-                        right: -4,
+                        right: -5,
                         child: Container(
-                          width: 9,
-                          height: 9,
+                          width: 10,
+                          height: 10,
                           decoration: const BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              BorderSide(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                   ],
                 ),
-                label: 'پیام‌ها',
+
+                label: 'پرداخت‌ها',
               ),
 
               const BottomNavigationBarItem(

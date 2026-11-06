@@ -558,7 +558,7 @@ Widget build(BuildContext context) {
 return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
-backgroundColor: const Color(0xff00ACC1),
+backgroundColor: const Color(0xff9ce7ef),
 body: Center(
 child: SingleChildScrollView(
 padding: const EdgeInsets.symmetric(

@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void startTextAnimation() {
     textTimer = Timer.periodic(
-      const Duration(milliseconds: 120),
+      const Duration(milliseconds: 110),
           (timer) {
         // اگر Splash دیگر روی صفحه نیست
         if (!mounted) {
@@ -77,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff00ACC1),
+      backgroundColor: const Color(0xff9ce7ef),
 
       body: Stack(
         children: [
@@ -87,8 +87,8 @@ class _SplashScreenState extends State<SplashScreen> {
           // ==================================================
           Center(
             child: Container(
-              width: 180,
-              height: 180,
+              width: 150,
+              height: 150,
 
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -119,7 +119,7 @@ class _SplashScreenState extends State<SplashScreen> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: Colors.white,
+                color: Colors.black,
                 letterSpacing: 1,
               ),
             ),
@@ -134,12 +134,12 @@ class _SplashScreenState extends State<SplashScreen> {
             bottom: 30,
 
             child: Text(
-              'نسخه 5.2.0',
+              'نسخه 2.0.1',
               textAlign: TextAlign.center,
 
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white70,
+                color: Colors.black,
               ),
             ),
           ),

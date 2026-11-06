@@ -17,8 +17,20 @@ class ApiConfig {
   static const String managerDashboard =
       '$baseUrl/manager/dashboard/';
 
+  static const String managerSubscription =
+      '$baseUrl/manager/subscription/current/';
+
   static const String dashboard =
       '$baseUrl/dashboard/';
+
+  static const String contactUs =
+      '$baseUrl/contact-us/';
+
+  static const String appVersion =
+      '$baseUrl/app/version/';
+
+
+
 
   // ==============================
   // شارژها
@@ -476,5 +488,11 @@ class ApiConfig {
 
   static String managerSubscriptionPaymentStatus(String resNum) =>
       '$baseUrl/manager/subscription/payment/status/$resNum/';
+
+  static const String managerPendingPayments =
+      '$baseUrl/manager/pending-payments/';
+
+  static const String managerApprovePayment =
+      '$baseUrl/manager/approve-payment/';
 
 }

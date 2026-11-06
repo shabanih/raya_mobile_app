@@ -849,6 +849,62 @@ class ApiService {
     );
   }
 
+// =====================================================
+// دریافت اطلاعات اشتراک مدیر ساختمان
+// =====================================================
+
+  Future<Map<String, dynamic>> getManagerSubscription() async {
+    final response = await _getWithRefresh(
+      ApiConfig.managerSubscription,
+    );
+
+    debugPrint('==========================================');
+    debugPrint('GET MANAGER SUBSCRIPTION');
+    debugPrint('URL: ${ApiConfig.managerSubscription}');
+    debugPrint('STATUS: ${response.statusCode}');
+    debugPrint('BODY: ${response.body}');
+    debugPrint('==========================================');
+
+    Map<String, dynamic> data = {};
+
+    try {
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+      } else {
+        throw Exception('ساختار پاسخ اطلاعات اشتراک نامعتبر است.');
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('پاسخ اطلاعات اشتراک قابل خواندن نیست.');
+    }
+
+    if (response.statusCode == 200) {
+      if (data['success'] == false) {
+        throw Exception(
+          data['message']?.toString() ??
+              'دریافت اطلاعات اشتراک ناموفق بود.',
+        );
+      }
+
+      return data;
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception('شما دسترسی به اطلاعات اشتراک را ندارید.');
+    }
+
+    if (response.statusCode == 404) {
+      throw Exception('اطلاعات اشتراک پیدا نشد.');
+    }
+
+    throw Exception(
+      data['message']?.toString() ??
+          data['detail']?.toString() ??
+          'خطا در دریافت اطلاعات اشتراک (${response.statusCode})',
+    );
+  }
   // =====================================================
   // دریافت لیست شارژها
   // =====================================================
