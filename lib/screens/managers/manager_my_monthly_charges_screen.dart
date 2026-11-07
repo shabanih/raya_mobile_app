@@ -196,6 +196,7 @@ textDirection: TextDirection.rtl,
 child: Scaffold(
 backgroundColor: const Color(0xFFF6F8FB),
 appBar: AppBar(
+  toolbarHeight: 88,
 title: const Text(
 'شارژهای ماهیانه',
 style: TextStyle(fontWeight: FontWeight.bold),

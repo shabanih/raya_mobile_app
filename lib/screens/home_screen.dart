@@ -2297,6 +2297,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         appBar:
         AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           const Color(
             0xff00ACC1,

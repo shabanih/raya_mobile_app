@@ -805,6 +805,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         backgroundColor: backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: backgroundColor,
           elevation: 0,
           centerTitle: true,
@@ -966,6 +967,7 @@ class _MessageDetailScreen
         backgroundColor: backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: backgroundColor,
           elevation: 0,
           centerTitle: true,

@@ -979,6 +979,7 @@ class _ManagerProfileScreenState
           padding: const EdgeInsets.fromLTRB(14, 18, 14, 25),
           children: [
             // اطلاعات مدیر
+            // اطلاعات مدیر و ساختمان
             Card(
               elevation: 2,
               shadowColor: primaryColor.withOpacity(0.10),
@@ -1002,41 +1003,104 @@ class _ManagerProfileScreenState
                     end: Alignment.centerLeft,
                   ),
                 ),
-                child: Row(
-                  textDirection: TextDirection.rtl,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 23,
-                      backgroundColor:
-                      primaryColor.withOpacity(0.13),
-                      child: const Icon(
-                        Icons.person_outline_rounded,
-                        color: primaryColor,
-                        size: 27,
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: Text(
-                        widget.fullName,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: textColor,
+                    // نام و شماره همراه مدیر
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        CircleAvatar(
+                          radius: 23,
+                          backgroundColor: primaryColor.withOpacity(0.13),
+                          child: const Icon(
+                            Icons.person_outline_rounded,
+                            color: primaryColor,
+                            size: 27,
+                          ),
                         ),
-                      ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Text(
+                            widget.fullName,
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+
+                        Text(
+                          toPersianDigits(mobile),
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: mutedColor,
+                          ),
+                        ),
+                      ],
                     ),
 
-                    Text(
-                      toPersianDigits(mobile),
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: mutedColor,
-                      ),
+                    const SizedBox(height: 16),
+
+                    Divider(
+                      height: 1,
+                      color: primaryColor.withOpacity(0.12),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // نام ساختمان
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: secondaryColor.withOpacity(0.09),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: const Icon(
+                            Icons.apartment_rounded,
+                            color: secondaryColor,
+                            size: 23,
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'ساختمان تحت مدیریت',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: mutedColor,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                widget.houseName.isNotEmpty
+                                    ? widget.houseName
+                                    : '-',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: textColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1114,6 +1178,7 @@ class ManagerAboutScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F8FB),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'درباره رایا شارژ',
             style: TextStyle(

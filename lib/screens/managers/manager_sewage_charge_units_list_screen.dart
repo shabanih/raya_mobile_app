@@ -713,6 +713,7 @@ class _ManagerSewageChargeUnitsListScreenState
       child: Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: teal,
           foregroundColor: Colors.white,
           elevation: 0,

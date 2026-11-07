@@ -1055,6 +1055,7 @@ class _SewageChargeScreenState
         backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
           elevation: 0,

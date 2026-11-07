@@ -736,6 +736,7 @@ class _ManagerDebtorHistoryScreenState
         backgroundColor: const Color(0xFFF7F8FA),
 
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'سوابق بدهی',
             style: TextStyle(

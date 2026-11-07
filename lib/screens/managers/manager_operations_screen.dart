@@ -171,6 +171,7 @@ class ManagerOperationsScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت عملیات',
             style: TextStyle(

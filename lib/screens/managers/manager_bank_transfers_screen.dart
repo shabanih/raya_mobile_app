@@ -886,6 +886,7 @@ class _ManagerBankTransfersScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'انتقال بین بانکی',
           ),

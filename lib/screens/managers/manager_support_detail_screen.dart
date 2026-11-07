@@ -1787,6 +1787,7 @@ const Color(
 ),
 appBar:
 AppBar(
+  toolbarHeight: 88,
 backgroundColor:
 primaryColor,
 foregroundColor:

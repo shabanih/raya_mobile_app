@@ -536,6 +536,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
       child: Scaffold(
         backgroundColor: _pageBackground,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'حساب‌های بانکی',
             style: TextStyle(
@@ -2772,6 +2773,7 @@ class _ManagerBankFormScreenState
         backgroundColor:
         const Color(0xffF5F7FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: Text(
             _isEdit
                 ? 'ویرایش حساب بانکی'

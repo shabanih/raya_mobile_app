@@ -408,7 +408,8 @@ class _ManagerSewageChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('هزینه فاضلاب'),
+          toolbarHeight: 88,
+          title: const Text('مدیریت هزینه فاضلاب'),
           backgroundColor: _teal,
           foregroundColor: Colors.white,
           actions: [

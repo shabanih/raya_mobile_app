@@ -1004,6 +1004,7 @@ class _ManagerMessageRecipientsScreenState
       TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           elevation: 0,
           backgroundColor: const Color(0xff00ACC1),
           foregroundColor: Colors.white,

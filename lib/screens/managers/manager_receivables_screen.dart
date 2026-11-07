@@ -389,6 +389,7 @@ class _ManagerReceivablesScreenState
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت اسناد دریافتنی',
             style: TextStyle(

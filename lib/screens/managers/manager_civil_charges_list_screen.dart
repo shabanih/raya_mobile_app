@@ -480,6 +480,7 @@ return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
 appBar: AppBar(
+  toolbarHeight: 88,
 title: const Text('شارژهای عمرانی'),
 backgroundColor: _teal,
 foregroundColor: Colors.white,

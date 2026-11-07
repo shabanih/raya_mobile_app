@@ -549,6 +549,7 @@ class _ManagerThirdPartyScreenState
         backgroundColor: background,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت اشخاص ثالث',
             style: TextStyle(

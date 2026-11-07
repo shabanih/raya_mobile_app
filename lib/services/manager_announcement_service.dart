@@ -116,6 +116,7 @@ static Future<Map<String, dynamic>> updateAnnouncement({
 required int id,
 required String title,
 required bool showInMarquee,
+required List<int> deletedDocumentIds,
 bool? isActive,
 List<File> files = const [],
 }) async {
@@ -136,6 +137,10 @@ request.headers.addAll({
 request.fields['title'] = title;
 request.fields['show_in_marquee'] =
 showInMarquee ? 'true' : 'false';
+
+// شناسه فایل‌هایی که باید از سرور حذف شوند
+  request.fields['deleted_document_ids'] =
+      deletedDocumentIds.join(',');
 
 if (isActive != null) {
 request.fields['is_active'] =
@@ -215,6 +220,7 @@ id: id,
 title: title,
 showInMarquee: showInMarquee,
 isActive: isActive,
+deletedDocumentIds: [],
 );
 }
 

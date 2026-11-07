@@ -685,6 +685,7 @@ class _ManagerUserHelpMoneyScreenState
         backgroundColor: const Color(0xFFF7F8FA),
 
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'کمک‌های ساکنین',
             style: TextStyle(

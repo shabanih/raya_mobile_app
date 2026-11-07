@@ -186,6 +186,7 @@ class _ManagerAdminSupportTicketsScreenState
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
+          toolbarHeight: 88,
           title: const Text(
             'تیکت‌های من',
             style: TextStyle(

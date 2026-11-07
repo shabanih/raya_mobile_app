@@ -864,6 +864,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         backgroundColor: backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: backgroundColor,
           elevation: 0,
           centerTitle: true,

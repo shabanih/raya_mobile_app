@@ -874,6 +874,7 @@ class _ManagerFixPersonChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('شارژ واحدی نفری'),
           centerTitle: true,
           backgroundColor: _primaryColor,

@@ -1262,6 +1262,7 @@ class _UserPaymentsScreenState
         backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
           elevation: 0,

@@ -1936,6 +1936,7 @@ class _ManualCivilPaymentScreenState
         backgroundColor:
         backgroundColor,
         appBar: AppBar(
+          toolbarHeight: 88,
           elevation: 0,
           backgroundColor:
           Colors.white,

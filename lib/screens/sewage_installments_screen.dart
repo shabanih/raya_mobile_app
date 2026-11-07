@@ -1077,6 +1077,7 @@ class _SewageInstallmentsScreenState
         // =================================================
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
 

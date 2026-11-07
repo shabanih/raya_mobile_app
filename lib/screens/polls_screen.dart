@@ -91,6 +91,7 @@ class _PollsScreenState
         const Color(0xffF5F8FA),
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           const Color(0xff00ACC1),
           foregroundColor:

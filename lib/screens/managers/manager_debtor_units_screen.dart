@@ -596,6 +596,7 @@ class _ManagerDebtorUnitsScreenState
         backgroundColor: const Color(0xFFF7F8FA),
 
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'واحدهای بدهکار',
             style: TextStyle(

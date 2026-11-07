@@ -195,6 +195,7 @@ class _ManagerCreateMessageScreenState
         // =================================================
 
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'پیام جدید',
             style: TextStyle(

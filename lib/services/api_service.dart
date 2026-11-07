@@ -348,14 +348,23 @@ class ApiService {
       if (filePath != null && filePath.trim().isNotEmpty) {
         final file = File(filePath);
 
-        if (await file.exists()) {
-          request.files.add(
-            await http.MultipartFile.fromPath(
-              fileField,
-              file.path,
-            ),
-          );
+        debugPrint('MULTIPART FILE PATH: $filePath');
+
+        if (!await file.exists()) {
+          throw Exception('فایل پیوست در مسیر انتخاب‌شده پیدا نشد.');
         }
+
+        final multipartFile = await http.MultipartFile.fromPath(
+          fileField,
+          file.path,
+        );
+
+        request.files.add(multipartFile);
+
+        debugPrint('MULTIPART FILE NAME: ${multipartFile.filename}');
+        debugPrint('MULTIPART FILE SIZE: ${await file.length()}');
+      } else {
+        debugPrint('MULTIPART: NO FILE SELECTED');
       }
 
       final streamedResponse = await request.send();

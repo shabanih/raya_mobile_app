@@ -551,6 +551,7 @@ class _ManagerPropertyScreenState extends State<ManagerPropertyScreen> {
       child: Scaffold(
         backgroundColor: background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت اموال',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),

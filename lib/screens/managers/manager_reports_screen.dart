@@ -122,6 +122,7 @@ class ManagerReportsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: _pageBackground,
       appBar: AppBar(
+        toolbarHeight: 88,
         title: const Text(
           'مدیریت گزارش‌ها',
           style: TextStyle(

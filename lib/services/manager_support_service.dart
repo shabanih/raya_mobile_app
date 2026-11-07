@@ -197,7 +197,7 @@ class ManagerSupportService {
       ),
       fields: fields,
       filePath: filePath,
-      fileField: 'file',
+      fileField: 'files',
     );
 
     _debugResponse(

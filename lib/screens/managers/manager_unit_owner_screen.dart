@@ -1318,6 +1318,7 @@ class _ManagerUnitOwnerScreenState
         backgroundColor:
         const Color(0xffF7F9FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           primaryColor,
           foregroundColor:

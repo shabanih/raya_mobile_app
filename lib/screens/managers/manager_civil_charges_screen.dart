@@ -1,3 +1,4 @@
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,8 @@ import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_civil_charge_service.dart';
 import 'manager_civil_charge_units_screen.dart';
-// تبدیل اعداد انگلیسی و عربی به فارسی در تمام صفحه
+
+// تبدیل اعداد انگلیسی و عربی به فارسی
 String _faDigits(dynamic value) {
   const english = '0123456789';
   const arabic = '٠١٢٣٤٥٦٧٨٩';
@@ -27,7 +29,7 @@ String _faDigits(dynamic value) {
   );
 }
 
-// تبدیل اعداد فارسی و عربی به انگلیسی برای ذخیره‌سازی
+// تبدیل اعداد فارسی و عربی به انگلیسی
 String _enDigits(String value) {
   const persian = '۰۱۲۳۴۵۶۷۸۹';
   const arabic = '٠١٢٣٤٥٦٧٨٩';
@@ -43,6 +45,195 @@ String _enDigits(String value) {
       final a = arabic.indexOf(digit);
       return a >= 0 ? english[a] : digit;
     },
+  );
+}
+
+// نمایش تصویر در صفحه جداگانه با قابلیت بزرگ‌نمایی
+void _openCivilImage(BuildContext context, String imageUrl) {
+  if (imageUrl.trim().isEmpty) return;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: const Text('مشاهده تصویر'),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white,
+                  size: 70,
+                ),
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+
+                  return const CircularProgressIndicator(
+                    color: Colors.white,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// پیش‌نمایش تصویر مدرک ذخیره‌شده در سرور
+Widget _civilDocumentThumbnail({
+  required BuildContext context,
+  required String imageUrl,
+  required VoidCallback? onDelete,
+}) {
+  return Stack(
+    children: [
+      InkWell(
+        onTap: () => _openCivilImage(context, imageUrl),
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 105,
+            height: 105,
+            color: Colors.grey.shade100,
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+
+                return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
+              },
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.grey,
+                  size: 35,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (onDelete != null)
+        Positioned(
+          top: 4,
+          left: 4,
+          child: Material(
+            color: Colors.red,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onDelete,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 17,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+// پیش‌نمایش تصویر جدید انتخاب‌شده از گوشی
+Widget _newCivilImageThumbnail({
+  required BuildContext context,
+  required XFile image,
+  required VoidCallback onDelete,
+}) {
+  return Stack(
+    children: [
+      InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  backgroundColor: Colors.black,
+                  appBar: AppBar(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    title: const Text('مشاهده تصویر'),
+                  ),
+                  body: Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5,
+                      child: Image.file(
+                        File(image.path),
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            File(image.path),
+            width: 105,
+            height: 105,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              width: 105,
+              height: 105,
+              color: Colors.grey.shade100,
+              child: const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.grey,
+                size: 35,
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 4,
+        left: 4,
+        child: Material(
+          color: Colors.red,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onDelete,
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 17,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
   );
 }
 
@@ -205,6 +396,7 @@ class _ManagerCivilChargesScreenState
           '${date.day.toString().padLeft(2, '0')}',
     );
   }
+
   Future<void> _openCivilChargeUnits(
       Map<String, dynamic> charge,
       ) async {
@@ -226,6 +418,7 @@ class _ManagerCivilChargesScreenState
       await _loadCharges();
     }
   }
+
   Future<void> _openForm({
     Map<String, dynamic>? charge,
   }) async {
@@ -286,9 +479,9 @@ class _ManagerCivilChargesScreenState
     }
   }
 
+  // جزئیات شارژ همراه با پیش‌نمایش تصاویر مدارک
   void _showDetails(Map<String, dynamic> charge) {
-    final documents =
-    ManagerCivilChargeService.getDocuments(charge);
+    final documents = ManagerCivilChargeService.getDocuments(charge);
 
     showModalBottomSheet<void>(
       context: context,
@@ -319,7 +512,10 @@ class _ManagerCivilChargesScreenState
                   ),
                   _detailRow(
                     'پیش‌پرداخت',
-                    ManagerCivilChargeService.toInt(charge['prepayment']) == 0
+                    ManagerCivilChargeService.toInt(
+                      charge['prepayment'],
+                    ) ==
+                        0
                         ? '۰'
                         : '${_money(charge['prepayment'])} تومان',
                   ),
@@ -350,32 +546,36 @@ class _ManagerCivilChargesScreenState
                   const Divider(height: 28),
                   const Text(
                     'مدارک ثبت‌شده',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   if (documents.isEmpty)
                     const Text('مدرکی ثبت نشده است.')
                   else
-                    ...documents.map((document) {
-                      final name = document['name'] ??
-                          document['filename'] ??
-                          document['document'] ??
-                          'مدرک پیوست‌شده';
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: documents.map((document) {
+                        final imageUrl = (
+                            document['url'] ??
+                                document['document'] ??
+                                ''
+                        ).toString();
 
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.attach_file,
-                          color: _purple,
-                        ),
-                        title: Text(
-                          _faDigits(name.toString().split('/').last),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 12),
+                        if (imageUrl.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return _civilDocumentThumbnail(
+                          context: context,
+                          imageUrl: imageUrl,
+                          onDelete: null,
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 20),
                   FilledButton(
                     onPressed: () => Navigator.pop(sheetContext),
                     child: const Text('بستن'),
@@ -421,6 +621,7 @@ class _ManagerCivilChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('شارژ عمرانی'),
           backgroundColor: _teal,
           foregroundColor: Colors.white,
@@ -544,54 +745,91 @@ class _ManagerCivilChargesScreenState
                                 PopupMenuButton<String>(
                                   onSelected: (action) {
                                     if (action == 'send') {
-                                      _openCivilChargeUnits(charge);
-                                    } else if (action == 'details') {
+                                      _openCivilChargeUnits(
+                                        charge,
+                                      );
+                                    } else if (action ==
+                                        'details') {
                                       _showDetails(charge);
-                                    } else if (action == 'edit') {
-                                      _openForm(charge: charge);
-                                    } else if (action == 'delete') {
+                                    } else if (action ==
+                                        'edit') {
+                                      _openForm(
+                                        charge: charge,
+                                      );
+                                    } else if (action ==
+                                        'delete') {
                                       _deleteCharge(charge);
                                     }
                                   },
                                   itemBuilder: (_) {
-                                    final sentCount = ManagerCivilChargeService.toInt(
-                                      charge['sent_units_count'],
+                                    final sentCount =
+                                    ManagerCivilChargeService
+                                        .toInt(
+                                      charge[
+                                      'sent_units_count'],
                                     );
 
-                                    final isSent = charge['is_sent'] == true || sentCount > 0;
+                                    final isSent =
+                                        charge['is_sent'] ==
+                                            true ||
+                                            sentCount > 0;
 
                                     return [
                                       const PopupMenuItem(
                                         value: 'send',
                                         child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(Icons.send_rounded, color: Color(0xFF00ACC1)),
-                                          title: Text('ارسال شارژ به واحدها'),
+                                          contentPadding:
+                                          EdgeInsets.zero,
+                                          leading: Icon(
+                                            Icons.send_rounded,
+                                            color: Color(
+                                              0xFF00ACC1,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            'ارسال شارژ به واحدها',
+                                          ),
                                         ),
                                       ),
                                       const PopupMenuItem(
                                         value: 'details',
                                         child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(Icons.info_outline),
-                                          title: Text('جزئیات شارژ'),
+                                          contentPadding:
+                                          EdgeInsets.zero,
+                                          leading: Icon(
+                                            Icons.info_outline,
+                                          ),
+                                          title: Text(
+                                            'جزئیات شارژ',
+                                          ),
                                         ),
                                       ),
                                       if (!isSent) ...[
                                         const PopupMenuItem(
                                           value: 'edit',
                                           child: ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(Icons.edit_outlined),
-                                            title: Text('ویرایش'),
+                                            contentPadding:
+                                            EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.edit_outlined,
+                                            ),
+                                            title: Text(
+                                              'ویرایش',
+                                            ),
                                           ),
                                         ),
                                         const PopupMenuItem(
                                           value: 'delete',
                                           child: ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(Icons.delete_outline, color: Colors.red),
-                                            title: Text('حذف'),
+                                            contentPadding:
+                                            EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.red,
+                                            ),
+                                            title: Text(
+                                              'حذف',
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -617,11 +855,16 @@ class _ManagerCivilChargesScreenState
                                 .isNotEmpty)
                               Padding(
                                 padding:
-                                const EdgeInsets.only(top: 8),
+                                const EdgeInsets.only(
+                                  top: 8,
+                                ),
                                 child: Text(
-                                  _faDigits(charge['details']),
+                                  _faDigits(
+                                    charge['details'],
+                                  ),
                                   maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  overflow:
+                                  TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.black54,
                                   ),
@@ -630,11 +873,15 @@ class _ManagerCivilChargesScreenState
                             const SizedBox(height: 12),
                             Builder(
                               builder: (context) {
-                                final sentCount = ManagerCivilChargeService.toInt(
+                                final sentCount =
+                                ManagerCivilChargeService
+                                    .toInt(
                                   charge['sent_units_count'],
                                 );
 
-                                final totalCount = ManagerCivilChargeService.toInt(
+                                final totalCount =
+                                ManagerCivilChargeService
+                                    .toInt(
                                   charge['total_unit_count'],
                                 );
 
@@ -642,18 +889,24 @@ class _ManagerCivilChargesScreenState
                                   children: [
                                     Icon(
                                       sentCount > 0
-                                          ? Icons.mark_email_read_outlined
-                                          : Icons.mark_email_unread_outlined,
+                                          ? Icons
+                                          .mark_email_read_outlined
+                                          : Icons
+                                          .mark_email_unread_outlined,
                                       size: 20,
-                                      color: sentCount > 0 ? Colors.green : Colors.grey,
+                                      color: sentCount > 0
+                                          ? Colors.green
+                                          : Colors.grey,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'ارسال‌شده: ${_faDigits(sentCount)} از ${_faDigits(totalCount)} واحد',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight:
+                                        FontWeight.w600,
                                         color: sentCount > 0
-                                            ? Colors.green.shade700
+                                            ? Colors
+                                            .green.shade700
                                             : Colors.black54,
                                       ),
                                     ),
@@ -661,16 +914,6 @@ class _ManagerCivilChargesScreenState
                                 );
                               },
                             ),
-                            // OutlinedButton.icon(
-                            //   onPressed: () =>
-                            //       _showDetails(charge),
-                            //   icon: const Icon(
-                            //     Icons.visibility_outlined,
-                            //   ),
-                            //   label: const Text(
-                            //     'مشاهده جزئیات و مدارک',
-                            //   ),
-                            // ),
                           ],
                         ),
                       ),
@@ -712,10 +955,45 @@ class _CivilChargeFormSheetState
 
   Jalali? _firstDueDate;
   String _unitScope = 'all';
+
   final List<XFile> _newFiles = [];
+
+  // شناسه مدارکی که برای حذف انتخاب شده‌اند.
+  final Set<int> _deletedDocumentIds = {};
+
   bool _saving = false;
 
   bool get _isEditing => widget.charge != null;
+
+  // تمام مدارک قبلی
+  List<Map<String, dynamic>> get _allExistingDocuments {
+    return ManagerCivilChargeService.getDocuments(
+      widget.charge ?? <String, dynamic>{},
+    );
+  }
+
+  // مدارک قبلی که هنوز برای حذف انتخاب نشده‌اند.
+  List<Map<String, dynamic>> get _visibleExistingDocuments {
+    return _allExistingDocuments.where((document) {
+      final id = ManagerCivilChargeService.toInt(document['id']);
+      return !_deletedDocumentIds.contains(id);
+    }).toList();
+  }
+
+  // مدارک انتخاب‌شده برای حذف، جهت امکان بازگردانی
+  List<Map<String, dynamic>> get _deletedDocuments {
+    return _allExistingDocuments.where((document) {
+      final id = ManagerCivilChargeService.toInt(document['id']);
+      return _deletedDocumentIds.contains(id);
+    }).toList();
+  }
+
+  // تعداد ظرفیت باقی‌مانده برای افزودن تصویر
+  int get _remainingDocuments {
+    return 2 -
+        _visibleExistingDocuments.length -
+        _newFiles.length;
+  }
 
   @override
   void initState() {
@@ -726,21 +1004,28 @@ class _CivilChargeFormSheetState
     _nameController = TextEditingController(
       text: (charge?['name'] ?? '').toString(),
     );
+
     _amountController = TextEditingController(
       text: _faDigits(charge?['amount'] ?? ''),
     );
+
     _prepaymentController = TextEditingController(
       text: _faDigits(charge?['prepayment'] ?? 0),
     );
+
     _installmentsController = TextEditingController(
       text: _faDigits(charge?['installment_count'] ?? 0),
     );
+
     _detailsController = TextEditingController(
       text: _faDigits(charge?['details'] ?? ''),
     );
 
     _firstDueDate = _parseJalali(charge?['first_due_date']);
-    final savedScope = (charge?['unit_scope'] ?? 'all').toString();
+
+    final savedScope =
+    (charge?['unit_scope'] ?? 'all').toString();
+
     _unitScope = ['all', 'occupied', 'vacant'].contains(savedScope)
         ? savedScope
         : 'all';
@@ -781,7 +1066,6 @@ class _CivilChargeFormSheetState
     }
   }
 
-  // تاریخ شمسی به میلادی تبدیل می‌شود تا API تاریخ استاندارد دریافت کند.
   String _formatApiDate(Jalali date) {
     final gregorian = date.toGregorian();
 
@@ -823,11 +1107,45 @@ class _CivilChargeFormSheetState
     return int.tryParse(normalized) ?? 0;
   }
 
+  // علامت‌گذاری مدرک قبلی برای حذف
+  void _markDocumentForDeletion(
+      Map<String, dynamic> document,
+      ) {
+    final id = ManagerCivilChargeService.toInt(document['id']);
+
+    if (id <= 0) {
+      _showMessage('شناسه مدرک معتبر نیست.');
+      return;
+    }
+
+    setState(() {
+      _deletedDocumentIds.add(id);
+    });
+  }
+
+  // بازگرداندن مدرک حذف‌شده
+  void _restoreDocument(Map<String, dynamic> document) {
+    final id = ManagerCivilChargeService.toInt(document['id']);
+
+    setState(() {
+      _deletedDocumentIds.remove(id);
+    });
+  }
+
+  // حذف تصویر جدید انتخاب‌شده
+  void _removeNewFile(XFile image) {
+    setState(() {
+      _newFiles.remove(image);
+    });
+  }
+
   Future<void> _pickFiles() async {
-    final remaining = 2 - _newFiles.length;
+    final remaining = _remainingDocuments;
 
     if (remaining <= 0) {
-      _showMessage('حداکثر دو تصویر جدید می‌توانید انتخاب کنید.');
+      _showMessage(
+        'حداکثر دو مدرک می‌توانید برای این شارژ ثبت کنید.',
+      );
       return;
     }
 
@@ -846,7 +1164,8 @@ class _CivilChargeFormSheetState
 
       if (images.length > remaining) {
         _showMessage(
-          'به دلیل محدودیت، فقط ${_faDigits(remaining)} تصویر اضافه شد.',
+          'به دلیل محدودیت، فقط '
+              '${_faDigits(remaining)} تصویر اضافه شد.',
         );
       }
     } catch (e) {
@@ -870,19 +1189,21 @@ class _CivilChargeFormSheetState
     setState(() => _firstDueDate = selected);
   }
 
-
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     final name = _nameController.text.trim();
     final amount = _parseAmount(_amountController.text);
+
     final prepayment = _prepaymentController.text.trim().isEmpty
         ? amount
         : _parseAmount(_prepaymentController.text);
 
-    final installments = _installmentsController.text.trim().isEmpty
+    final installments =
+    _installmentsController.text.trim().isEmpty
         ? 0
         : _parseAmount(_installmentsController.text);
+
     final details = _detailsController.text.trim();
 
     if (name.isEmpty) {
@@ -896,7 +1217,9 @@ class _CivilChargeFormSheetState
     }
 
     if (prepayment > amount) {
-      _showMessage('پیش‌پرداخت نمی‌تواند بیشتر از مبلغ شارژ باشد.');
+      _showMessage(
+        'پیش‌پرداخت نمی‌تواند بیشتر از مبلغ شارژ باشد.',
+      );
       return;
     }
 
@@ -914,15 +1237,31 @@ class _CivilChargeFormSheetState
       return;
     }
 
+    // بررسی تعداد مدارک باقی‌مانده به همراه تصاویر جدید
+    final totalDocuments =
+        _visibleExistingDocuments.length + _newFiles.length;
+
+    if (totalDocuments > 2) {
+      _showMessage(
+        'مجموع مدارک نمی‌تواند بیشتر از دو تصویر باشد.',
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
-      final files = _newFiles.map((image) => File(image.path)).toList();
+      final files = _newFiles
+          .map((image) => File(image.path))
+          .toList();
+
       final date = _formatApiDate(_firstDueDate!);
 
       if (_isEditing) {
         await ManagerCivilChargeService.updateCharge(
-          id: ManagerCivilChargeService.toInt(widget.charge!['id']),
+          id: ManagerCivilChargeService.toInt(
+            widget.charge!['id'],
+          ),
           name: name,
           amount: amount,
           prepayment: prepayment,
@@ -931,6 +1270,9 @@ class _CivilChargeFormSheetState
           unitScope: _unitScope,
           details: details,
           files: files,
+
+          // ارسال شناسه مدارک انتخاب‌شده برای حذف
+          deletedDocumentIds: _deletedDocumentIds.toList(),
         );
       } else {
         await ManagerCivilChargeService.createCharge(
@@ -946,16 +1288,18 @@ class _CivilChargeFormSheetState
       }
 
       if (!mounted) return;
+
       Navigator.of(context).pop(true);
     } catch (e) {
-      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      _showMessage(
+        e.toString().replaceFirst('Exception: ', ''),
+      );
     } finally {
       if (mounted) {
         setState(() => _saving = false);
       }
     }
   }
-
 
   Widget _field({
     required String label,
@@ -993,7 +1337,9 @@ class _CivilChargeFormSheetState
           if (isNumeric && text.isNotEmpty) {
             final parsed = _parseAmount(text);
 
-            if (parsed < 0) return 'مقدار معتبر وارد کنید.';
+            if (parsed < 0) {
+              return 'مقدار معتبر وارد کنید.';
+            }
           }
 
           return null;
@@ -1004,10 +1350,9 @@ class _CivilChargeFormSheetState
 
   @override
   Widget build(BuildContext context) {
-    final existingDocuments =
-    ManagerCivilChargeService.getDocuments(
-      widget.charge ?? <String, dynamic>{},
-    );
+    final existingDocuments = _visibleExistingDocuments;
+    final deletedDocuments = _deletedDocuments;
+    final remainingDocuments = _remainingDocuments;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1145,9 +1490,6 @@ class _CivilChargeFormSheetState
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            errorText: _firstDueDate == null
-                                ? null
-                                : null,
                           ),
                           child: Row(
                             children: [
@@ -1178,83 +1520,188 @@ class _CivilChargeFormSheetState
                         icon: Icons.notes,
                         maxLines: 3,
                       ),
+
+                      // مدارک قبلی
                       const SizedBox(height: 8),
                       const Text(
-                        'مدارک قبلی',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        'مدارک ثبت‌شده',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                      const SizedBox(height: 10),
+
                       if (existingDocuments.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('مدرکی ثبت نشده است.'),
                         )
                       else
-                        ...existingDocuments.map((document) {
-                          final name = document['name'] ??
-                              document['filename'] ??
-                              document['document'] ??
-                              'مدرک ثبت‌شده';
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: existingDocuments.map((document) {
+                            final imageUrl = (
+                                document['url'] ??
+                                    document['document'] ??
+                                    ''
+                            ).toString();
 
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
-                              Icons.attach_file,
-                              color: _purple,
+                            if (imageUrl.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return _civilDocumentThumbnail(
+                              context: context,
+                              imageUrl: imageUrl,
+                              onDelete: _saving
+                                  ? null
+                                  : () => _markDocumentForDeletion(
+                                document,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+
+                      // مدارک انتخاب‌شده برای حذف و امکان بازگردانی
+                      if (deletedDocuments.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.red.shade100,
                             ),
-                            title: Text(
-                              _faDigits(name.toString().split('/').last),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }),
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                            CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red.shade700,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'مدارک انتخاب‌شده برای حذف',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ...deletedDocuments.map((document) {
+                                final id =
+                                ManagerCivilChargeService.toInt(
+                                  document['id'],
+                                );
+
+                                return Padding(
+                                  padding:
+                                  const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.image_outlined,
+                                        color: Colors.red,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'مدرک ${_faDigits(id)}',
+                                        ),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: _saving
+                                            ? null
+                                            : () => _restoreDocument(
+                                          document,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.undo,
+                                          size: 18,
+                                        ),
+                                        label: const Text('بازگردانی'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              const SizedBox(height: 4),
+                              Text(
+                                'این مدارک هنوز از سرور حذف نشده‌اند. '
+                                    'حذف نهایی پس از ذخیره موفق انجام می‌شود.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       const Divider(height: 28),
+
                       const Text(
-                        'پیوست تصاویر (حداکثر ۲ تصویر جدید)',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _saving ? null : _pickFiles,
-                        icon: const Icon(Icons.add_photo_alternate),
-                        label: Text(
-                          _newFiles.length >= 2
-                              ? 'ظرفیت انتخاب تصویر تکمیل شده'
-                              : 'انتخاب تصویر',
+                        'پیوست تصاویر',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      ..._newFiles.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final image = entry.value;
+                      const SizedBox(height: 6),
+                      Text(
+                        'حداکثر دو تصویر برای هر شارژ قابل ثبت است. '
+                            'ظرفیت باقی‌مانده: '
+                            '${_faDigits(remainingDocuments < 0 ? 0 : remainingDocuments)}',
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(
-                            Icons.image_outlined,
-                            color: _teal,
+                      OutlinedButton.icon(
+                        onPressed: _saving || remainingDocuments <= 0
+                            ? null
+                            : _pickFiles,
+                        icon: const Icon(Icons.add_photo_alternate),
+                        label: const Text('انتخاب تصویر'),
+                      ),
+
+                      if (_newFiles.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'تصاویر جدید انتخاب‌شده',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
                           ),
-                          title: Text(
-                            _faDigits(image.name),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: IconButton(
-                            tooltip: 'حذف تصویر انتخاب‌شده',
-                            onPressed: _saving
-                                ? null
-                                : () {
-                              setState(() {
-                                _newFiles.removeAt(index);
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 20),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: _newFiles.map((image) {
+                            return _newCivilImageThumbnail(
+                              context: context,
+                              image: image,
+                              onDelete: _saving
+                                  ? () {}
+                                  : () => _removeNewFile(image),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+
+                      const SizedBox(height: 24),
+
                       SizedBox(
                         height: 50,
                         child: FilledButton.icon(
@@ -1293,7 +1740,7 @@ class _CivilChargeFormSheetState
   }
 }
 
-// انتخاب‌گر تقویم شمسی با چیدمان عمودی و نمایش اعداد فارسی
+// انتخاب‌گر تقویم شمسی
 class _PersianCalendarSheet extends StatefulWidget {
   final Jalali initialDate;
 
@@ -1353,8 +1800,13 @@ class _PersianCalendarSheetState
 
   int get _firstWeekdayOffset {
     final firstDay = Jalali(_year, _month, 1).toGregorian();
+
     // هفته از شنبه شروع می‌شود.
-    return (DateTime(firstDay.year, firstDay.month, firstDay.day).weekday +
+    return (DateTime(
+      firstDay.year,
+      firstDay.month,
+      firstDay.day,
+    ).weekday +
         1) %
         7;
   }
@@ -1427,8 +1879,9 @@ class _PersianCalendarSheetState
               _faDigits(day),
               style: TextStyle(
                 color: selected ? Colors.white : Colors.black87,
-                fontWeight:
-                selected || isToday ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected || isToday
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
           ),
@@ -1482,7 +1935,9 @@ class _PersianCalendarSheetState
                     IconButton(
                       tooltip: 'سال قبل',
                       onPressed: () => _changeYear(-1),
-                      icon: const Icon(Icons.keyboard_double_arrow_right),
+                      icon: const Icon(
+                        Icons.keyboard_double_arrow_right,
+                      ),
                     ),
                     Expanded(
                       child: Center(
@@ -1498,7 +1953,9 @@ class _PersianCalendarSheetState
                     IconButton(
                       tooltip: 'سال بعد',
                       onPressed: () => _changeYear(1),
-                      icon: const Icon(Icons.keyboard_double_arrow_left),
+                      icon: const Icon(
+                        Icons.keyboard_double_arrow_left,
+                      ),
                     ),
                   ],
                 ),
@@ -1532,6 +1989,7 @@ class _PersianCalendarSheetState
                       _month = value;
                       final maxDay =
                           Jalali(_year, _month, 1).monthLength;
+
                       if (_selectedDay > maxDay) {
                         _selectedDay = maxDay;
                       }
@@ -1609,4 +2067,3 @@ class _PersianCalendarSheetState
     );
   }
 }
-

@@ -1679,6 +1679,7 @@ class _UserManualPaymentScreenState
         backgroundColor:
         const Color(0xffF7F9FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           Colors.white,
           elevation: 0,

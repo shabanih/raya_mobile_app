@@ -520,6 +520,7 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
       child: Scaffold(
         backgroundColor: background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت اسناد پرداختنی',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),

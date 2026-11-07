@@ -891,6 +891,7 @@ class _ManagerFixVariableChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('شارژ ثابت و متغیر'),
           centerTitle: true,
           backgroundColor: _primaryColor,

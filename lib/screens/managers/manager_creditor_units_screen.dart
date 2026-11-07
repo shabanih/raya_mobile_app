@@ -502,6 +502,7 @@ child: Scaffold(
 backgroundColor: const Color(0xFFF7F8FA),
 
 appBar: AppBar(
+  toolbarHeight: 88,
 title: const Text(
 'واحدهای بستانکار',
 style: TextStyle(

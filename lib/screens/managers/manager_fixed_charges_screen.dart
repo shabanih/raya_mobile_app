@@ -689,6 +689,7 @@ class _ManagerFixedChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('شارژ واحدی'),
           centerTitle: true,
           backgroundColor: _primaryColor,

@@ -531,6 +531,7 @@ class _ManagerMaintenanceScreenState
       child: Scaffold(
         backgroundColor: background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت تعمیر و نگهداری',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),

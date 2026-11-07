@@ -1366,9 +1366,9 @@ class _ManagerDashboardScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHouseHeader(),
-
-              const SizedBox(height: 16),
+              // _buildHouseHeader(),
+              //
+              // const SizedBox(height: 16),
 
               // اسلایدر آمار
               _buildStatisticsSlider(),
@@ -1514,7 +1514,7 @@ class _ManagerDashboardScreenState
 
                   Expanded(
                     child: _ManagerMiddleMenuCard(
-                      title: 'مدیریت گزارش‌ها',
+                      title: 'مدیریت گزارش‌',
                       icon: Icons.assessment_outlined,
                       color: const Color(0xFF00ACC1),
 
@@ -2090,6 +2090,7 @@ class _ManagerDashboardScreenState
         // =================================================
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: const Color(0xff00ACC1),
           foregroundColor: Colors.white,
           elevation: 0,

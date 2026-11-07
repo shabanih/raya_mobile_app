@@ -424,6 +424,7 @@ class _ManagerSewageChargesListScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('مدیریت شارژ فاضلاب'),
           backgroundColor: teal,
           foregroundColor: Colors.white,

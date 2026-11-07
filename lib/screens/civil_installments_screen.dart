@@ -1077,6 +1077,7 @@ class _CivilInstallmentsScreenState
         // =================================================
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
 

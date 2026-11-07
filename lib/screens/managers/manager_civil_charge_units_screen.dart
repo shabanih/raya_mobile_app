@@ -582,6 +582,7 @@ class _ManagerCivilChargeUnitsScreenState
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'ارسال شارژ عمرانی ',
             style: TextStyle(fontWeight: FontWeight.bold),

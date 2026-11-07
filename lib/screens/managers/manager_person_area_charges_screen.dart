@@ -910,6 +910,7 @@ class _ManagerPersonAreaChargesScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('شارژ متراژی نفری'),
           centerTitle: true,
           backgroundColor: _primaryColor,

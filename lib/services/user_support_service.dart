@@ -252,49 +252,46 @@ throw Exception(
 // POST Multipart
 // =====================================================
 
-Future<Map<String, dynamic>> sendMessage({
-required int ticketId,
-String? message,
-String? filePath,
-}) async {
-final fields = <String, String>{};
 
-if (message != null &&
-message.trim().isNotEmpty) {
-fields['message'] = message.trim();
-}
+  Future<Map<String, dynamic>> sendMessage({
+    required int ticketId,
+    String? message,
+    String? filePath,
+  }) async {
+    final fields = <String, String>{};
 
-final response =
-await apiService.postMultipart(
-url:
-'${ApiConfig.userSupportTickets}'
-'$ticketId/messages/',
-fields: fields,
-filePath: filePath,
-fileField: 'file',
-);
+    if (message != null && message.trim().isNotEmpty) {
+      fields['message'] = message.trim();
+    }
 
-if (response.statusCode != 200 &&
-response.statusCode != 201) {
-throw Exception(
-_extractError(response),
-);
-}
+    final response = await apiService.postMultipart(
+      url: '${ApiConfig.userSupportTickets}$ticketId/messages/',
+      fields: fields,
+      filePath: filePath,
+      fileField: 'files', // مطابق نام فیلد در Django
+    );
 
-final data = jsonDecode(response.body);
+    debugPrint('SUPPORT MESSAGE STATUS: ${response.statusCode}');
+    debugPrint('SUPPORT MESSAGE BODY: ${response.body}');
 
-if (data is Map<String, dynamic>) {
-return data;
-}
+    if (response.statusCode != 200 &&
+        response.statusCode != 201) {
+      throw Exception(_extractError(response));
+    }
 
-if (data is Map) {
-return Map<String, dynamic>.from(data);
-}
+    final data = jsonDecode(response.body);
 
-throw Exception(
-'پاسخ ارسال پیام نامعتبر است.',
-);
-}
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception('پاسخ ارسال پیام نامعتبر است.');
+  }
+
 
 // =====================================================
 // بستن تیکت

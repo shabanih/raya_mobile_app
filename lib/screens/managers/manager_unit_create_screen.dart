@@ -562,6 +562,7 @@ return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
 appBar: AppBar(
+  toolbarHeight: 88,
 title: const Text('افزودن واحد'),
 centerTitle: true,
 backgroundColor: primaryColor,

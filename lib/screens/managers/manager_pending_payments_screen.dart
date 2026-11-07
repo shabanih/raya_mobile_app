@@ -328,8 +328,8 @@ class _ManagerPendingPaymentsScreenState
       spacing: 8,
       children: [
         _filterChip('همه', 'all'),
-        _filterChip('شارژ ماهانه', 'monthly'),
-        _filterChip('شارژ عمرانی', 'civil'),
+        _filterChip(' ماهانه', 'monthly'),
+        _filterChip(' عمرانی', 'civil'),
         _filterChip('هزینه فاضلاب', 'sewage'),
       ],
     );

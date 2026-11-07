@@ -217,6 +217,7 @@ class _ManagerFundTurnoverScreenState
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'گردش صندوق',
             style: TextStyle(

@@ -451,6 +451,7 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('مدیریت هزینه‌ها',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           centerTitle: true,
@@ -2093,6 +2094,7 @@ class _ManagerExpenseCategoriesScreenState extends State<ManagerExpenseCategorie
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F7FB),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('مدیریت دسته‌بندی هزینه‌ها'),
           centerTitle: true,
           backgroundColor: _teal,

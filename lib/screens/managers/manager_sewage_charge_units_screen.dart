@@ -628,6 +628,7 @@ class _ManagerSewageChargeUnitsScreenState
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'ارسال هزینه فاضلاب',
             style: TextStyle(

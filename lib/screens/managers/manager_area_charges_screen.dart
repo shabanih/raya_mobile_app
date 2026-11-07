@@ -830,6 +830,7 @@ return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
 appBar: AppBar(
+  toolbarHeight: 88,
 title: const Text('شارژ متراژی'),
 centerTitle: true,
 backgroundColor: _primaryColor,

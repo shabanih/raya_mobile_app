@@ -960,6 +960,7 @@ class _AddUserPaymentScreenState
         // =================================================
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
           elevation: 0,

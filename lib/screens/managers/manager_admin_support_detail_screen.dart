@@ -1351,6 +1351,7 @@ child: Scaffold(
 backgroundColor:
 const Color(0xffF5F7F8),
 appBar: AppBar(
+  toolbarHeight: 88,
 backgroundColor:
 primaryColor,
 foregroundColor:

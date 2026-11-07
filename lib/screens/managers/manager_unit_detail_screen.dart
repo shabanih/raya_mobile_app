@@ -1791,6 +1791,7 @@ class _ManagerUnitDetailScreenState
       child: Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           centerTitle: true,

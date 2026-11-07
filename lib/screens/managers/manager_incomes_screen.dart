@@ -410,6 +410,7 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'مدیریت درآمدها',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -2018,6 +2019,7 @@ class _IncomeCategoriesScreenState extends State<_IncomeCategoriesScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F7FB),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text('دسته‌بندی درآمدها'),
           centerTitle: true,
           backgroundColor: _teal,

@@ -355,6 +355,7 @@ class _ManagerSuggestionScreenState
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F8FB),
         appBar: AppBar(
+          toolbarHeight: 88,
           title: const Text(
             'ارسال پیشنهاد',
             style: TextStyle(

@@ -1533,6 +1533,7 @@ class _ManagerChargeCalculationScreenState
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F8FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           elevation: 0,

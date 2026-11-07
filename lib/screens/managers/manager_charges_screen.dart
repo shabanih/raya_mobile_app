@@ -102,6 +102,7 @@ class ManagerChargesScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: const Color(0xffF5F8FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           elevation: 0,

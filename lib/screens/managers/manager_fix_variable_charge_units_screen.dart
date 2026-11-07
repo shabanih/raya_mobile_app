@@ -1128,6 +1128,7 @@ class _ManagerFixVariableChargeUnitsScreenState
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           title: const Text(

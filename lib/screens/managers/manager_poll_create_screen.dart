@@ -2170,6 +2170,7 @@ backgroundColor:
 backgroundColor,
 appBar:
 AppBar(
+  toolbarHeight: 88,
 backgroundColor:
 primaryColor,
 foregroundColor:

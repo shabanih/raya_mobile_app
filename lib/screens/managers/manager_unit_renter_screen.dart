@@ -1275,6 +1275,7 @@ textDirection: TextDirection.rtl,
 child: Scaffold(
 backgroundColor: const Color(0xffF7F9FA),
 appBar: AppBar(
+  toolbarHeight: 88,
 backgroundColor: primaryColor,
 foregroundColor: Colors.white,
 elevation: 0,

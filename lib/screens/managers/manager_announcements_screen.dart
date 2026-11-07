@@ -411,6 +411,7 @@ child: Scaffold(
 backgroundColor:
 const Color(0xffF5F7FA),
 appBar: AppBar(
+    toolbarHeight: 88,
     elevation: 0,
     backgroundColor: const Color(0xff00ACC1),
     foregroundColor: Colors.white,
@@ -907,6 +908,7 @@ bool isActive = true;
 bool isSaving = false;
 
 List<File> selectedFiles = [];
+List<int> deletedDocumentIds = [];
 
 List<Map<String, dynamic>>
 existingDocuments = [];
@@ -987,6 +989,25 @@ _showError(
 );
 }
 }
+// =====================================================
+// حذف تصویر قبلی
+// =====================================================
+  void removeExistingDocument(int index) {
+    if (index < 0 || index >= existingDocuments.length) {
+      return;
+    }
+
+    final document = existingDocuments[index];
+    final id = int.tryParse(document['id']?.toString() ?? '');
+
+    setState(() {
+      if (id != null) {
+        deletedDocumentIds.add(id);
+      }
+
+      existingDocuments.removeAt(index);
+    });
+  }
 
 // =====================================================
 // حذف تصویر انتخاب شده
@@ -1052,6 +1073,7 @@ showInMarquee:
 showInMarquee,
 isActive: isActive,
 files: selectedFiles,
+deletedDocumentIds: deletedDocumentIds,
 );
 } else {
 await ManagerAnnouncementService
@@ -1527,133 +1549,85 @@ Color(
 // تصاویر قبلی
 // =========================================
 
-if (existingDocuments
-    .isNotEmpty) ...[
-const SizedBox(
-height: 15,
-),
-const Text(
-'تصاویر قبلی',
-style:
-TextStyle(
-fontSize: 13,
-fontWeight:
-FontWeight.bold,
-color:
-Color(
-0xff455A64,
-),
-),
-),
-const SizedBox(
-height: 8,
-),
-...existingDocuments
-    .map(
-(document) {
-final url =
-document[
-'url']
-    ?.toString() ??
-'';
+  if (existingDocuments.isNotEmpty) ...[
+    const SizedBox(height: 15),
 
-return Container(
-margin:
-const EdgeInsets
-    .only(
-bottom: 8,
-),
-padding:
-const EdgeInsets
-    .all(
-10,
-),
-decoration:
-BoxDecoration(
-color:
-Colors.white,
-borderRadius:
-BorderRadius
-    .circular(
-12,
-),
-),
-child: Row(
-children: [
-ClipRRect(
-borderRadius:
-BorderRadius
-    .circular(
-8,
-),
-child: url
-    .isNotEmpty
-? Image.network(
-url,
-width:
-55,
-height:
-55,
-fit: BoxFit
-    .cover,
-errorBuilder:
-(
-context,
-error,
-stackTrace,
-) {
-return Container(
-width:
-55,
-height:
-55,
-color:
-const Color(
-0xffECEFF1,
-),
-child:
-const Icon(
-Icons
-    .image_not_supported_outlined,
-),
-);
-},
-)
-    : Container(
-width:
-55,
-height:
-55,
-color:
-const Color(
-0xffECEFF1,
-),
-child:
-const Icon(
-Icons
-    .image_outlined,
-),
-),
-),
-const SizedBox(
-width: 10,
-),
-const Expanded(
-child: Text(
-'تصویر ثبت شده',
-style:
-TextStyle(
-fontSize:
-13,
-),
-),
-),
-],
-),
-);
-},
-),
-],
+    const Text(
+      'تصاویر قبلی',
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff455A64),
+      ),
+    ),
+
+    const SizedBox(height: 8),
+
+    ...List.generate(existingDocuments.length, (index) {
+      final document = existingDocuments[index];
+
+      final url = document['url']?.toString() ?? '';
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: url.isNotEmpty
+                  ? Image.network(
+                url,
+                width: 55,
+                height: 55,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 55,
+                    height: 55,
+                    color: const Color(0xffECEFF1),
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                    ),
+                  );
+                },
+              )
+                  : Container(
+                width: 55,
+                height: 55,
+                color: const Color(0xffECEFF1),
+                child: const Icon(Icons.image_outlined),
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            const Expanded(
+              child: Text(
+                'تصویر ثبت شده',
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+
+            IconButton(
+              onPressed: isSaving
+                  ? null
+                  : () => removeExistingDocument(index),
+              tooltip: 'حذف تصویر',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red,
+              ),
+            ),
+          ],
+        ),
+      );
+    }),
+  ],
 
 // =========================================
 // تصاویر جدید

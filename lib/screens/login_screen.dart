@@ -7,8 +7,12 @@ import 'package:local_auth/local_auth.dart';
 
 import '../services/api_service.dart';
 import '../storage/token_storage.dart';
+
+import '../services/app_installation_service.dart';
+
 import 'home_screen.dart';
 import 'managers/manager_dashboard_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
 const LoginScreen({super.key});
@@ -264,6 +268,9 @@ access.toString(),
 refresh.toString(),
 );
 
+// ثبت نصب و اتصال آن به حساب کاربر
+  await AppInstallationService.registerInstallation();
+
 final savedAccess = await TokenStorage.getAccessToken();
 final savedRefresh = await TokenStorage.getRefreshToken();
 
@@ -281,6 +288,9 @@ await TokenStorage.setFirstLoginCompleted();
 
 // دریافت اطلاعات کامل کاربر
 final meResult = await apiService.getMeWithRefresh();
+
+// به‌روزرسانی نصب با توکن کاربر
+  await AppInstallationService.registerInstallation();
 
 debugPrint('ME RESULT AFTER LOGIN: $meResult');
 

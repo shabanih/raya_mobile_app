@@ -1420,6 +1420,7 @@ return Directionality(
 textDirection: TextDirection.rtl,
 child: Scaffold(
 appBar: AppBar(
+  toolbarHeight: 88,
 backgroundColor: primaryColor,
 foregroundColor: Colors.white,
 title: const Text(

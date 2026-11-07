@@ -1056,6 +1056,7 @@ class _CivilChargeScreenState
         backgroundColor,
 
         appBar: AppBar(
+          toolbarHeight: 88,
           backgroundColor:
           backgroundColor,
           elevation: 0,
