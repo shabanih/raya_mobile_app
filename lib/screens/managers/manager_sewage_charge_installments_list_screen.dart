@@ -230,10 +230,19 @@ class _ManagerSewageChargeInstallmentsListScreenState
                           items: banks.map((bank) {
                             final id = _int(bank['id']);
 
-                            final name = bank['name'] ??
-                                bank['bank_name'] ??
-                                bank['account_number'] ??
+                            final bankName = bank['bank_name'] ??
+                                bank['name'] ??
                                 'حساب بانکی $id';
+
+                            final accountNo = (
+                                bank['account_no'] ??
+                                    bank['account_number'] ??
+                                    ''
+                            ).toString().trim();
+
+                            final name = accountNo.isNotEmpty
+                                ? '$bankName - $accountNo'
+                                : bankName;
 
                             return DropdownMenuItem<int>(
                               value: id,

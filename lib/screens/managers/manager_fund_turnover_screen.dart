@@ -724,10 +724,10 @@ class _ManagerFundTurnoverScreenState
                     bankDisplay,
                   ),
 
-                if (docNo != null)
+                if (fund['financial_document_number'] != null)
                   _info(
                     Icons.numbers_rounded,
-                    'سند ${_fa(docNo.toString())}',
+                    'سند ${_fa(fund['financial_document_number'].toString())}',
                   ),
               ],
             ),
@@ -1002,7 +1002,7 @@ class _FundDetailsSheet extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        _detail('شماره سند', fa('${fund['doc_number'] ?? '—'}')),
+                        _detail('شماره فاکتور', fa('${fund['doc_number'] ?? '—'}')),
                         _detail(
                           'شماره سند مالی',
                           fa('${fund['financial_document_number'] ?? '—'}'),

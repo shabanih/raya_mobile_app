@@ -870,7 +870,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
     (bank['account_no'] ?? '').toString();
 
     final balance =
-        bank['current_balance'] ?? 0;
+        bank['initial_fund'] ?? 0;
 
     final isDefault =
         bank['is_default'] == true;
@@ -1012,7 +1012,7 @@ class _ManagerBanksScreenState extends State<ManagerBanksScreen> {
                         CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'موجودی فعلی',
+                            'موجودی اولیه',
                             style: TextStyle(
                               fontSize: 11,
                               color:

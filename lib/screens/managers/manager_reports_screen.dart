@@ -51,6 +51,13 @@ class ManagerReportsScreen extends StatelessWidget {
       color: Color(0xFF2E7D32),
       background: Color(0xFFE8F5E9),
     ),
+    _ReportItem(
+      title: 'گردش حساب بانک ها',
+      subtitle: 'گزارش تراکنش حساب های بانکی',
+      icon: Icons.account_balance_rounded,
+      color: Color(0xFFF3C582),
+      background: Color(0xFFEDE7F6),
+    ),
   ];
 
   void _openReport(BuildContext context, _ReportItem report) {
