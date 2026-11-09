@@ -134,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> {
             bottom: 30,
 
             child: Text(
-              'نسخه 2.0.1',
+              'نسخه 2.0.2',
               textAlign: TextAlign.center,
 
               style: TextStyle(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../config/api_config.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,6 +40,25 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
   static const Color _teal = Color(0xFF00ACC1);
   static const Color _purple = Color(0xFF610DB5);
   static const Color _background = Color(0xFFF6F7FB);
+
+  String _fullDocumentUrl(dynamic value) {
+    final rawUrl = value?.toString().trim() ?? '';
+
+    if (rawUrl.isEmpty) return '';
+
+    final uri = Uri.tryParse(rawUrl);
+
+    if (uri != null && uri.hasScheme && uri.hasAuthority) {
+      return rawUrl;
+    }
+
+    final baseUrl = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+
+    return Uri.parse(baseUrl).resolve(rawUrl).toString();
+  }
 
   final ManagerExpenseService _service = ManagerExpenseService();
   final TextEditingController _searchController = TextEditingController();
@@ -366,8 +386,7 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
   }
 
   void _showExpenseDetails(Map<String, dynamic> expense) {
-    final invoiceNo = expense['doc_no'];
-    final financialDocNo = expense['financial_document_number'];
+    final docNo = expense['financial_document_number'] ?? expense['doc_no'];
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Directionality(
@@ -383,24 +402,10 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                 _detailLine('دسته‌بندی', _categoryName(expense)),
                 _detailLine('مبلغ', _money(expense['amount'])),
                 _detailLine('تاریخ', _dateText(expense['date'])),
-                _detailLine(
-                  'شماره فاکتور',
-                  invoiceNo == null || invoiceNo.toString().trim().isEmpty
-                      ? '—'
-                      : _persianDigits(invoiceNo.toString()),
-                ),
-                _detailLine(
-                  'شماره سند مالی',
-                  financialDocNo == null || financialDocNo.toString().trim().isEmpty
-                      ? '—'
-                      : _persianDigits(financialDocNo.toString()),
-                ),
+                _detailLine('شماره سند', docNo),
                 _detailLine('وضعیت', _isPaid(expense) ? 'پرداخت‌شده' : 'پرداخت‌نشده'),
                 if (_isPaid(expense)) ...[
-                  _detailLine(
-                    'بانک',
-                    '${_paymentBankName(expense) ?? 'نامشخص'} - ${expense['account_no'] == null || expense['account_no'].toString().trim().isEmpty ? '---' : _persianDigits(expense['account_no'].toString())}',
-                  ),
+                  _detailLine('بانک', _paymentBankName(expense)),
                   _detailLine('دریافت‌کننده', expense['receiver_name'] ?? expense['receiver_display_name']),
                   _detailLine('تاریخ پرداخت', _dateText(expense['payment_date'])),
                   _detailLine(
@@ -411,6 +416,69 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                   ),
                 ],
                 _detailLine('توضیحات', expense['details']),
+                if (expense['documents'] is List &&
+                    (expense['documents'] as List).isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'مدارک پیوست:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...(expense['documents'] as List).whereType<Map>().map((item) {
+                    final document = Map<String, dynamic>.from(item);
+                    final url = _fullDocumentUrl(document['url']);
+
+                    final isImage = _isImageDocument(url);
+
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isImage && url.isNotEmpty)
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: SizedBox(
+                                    width: 150,
+                                    height: 150,
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        debugPrint('IMAGE LOAD ERROR: $error');
+
+                                        return const Center(
+                                          child: Text(
+                                            'نمایش تصویر امکان‌پذیر نیست.',
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                isImage
+                                    ? Icons.image_outlined
+                                    : Icons.insert_drive_file_outlined,
+                                color: _teal,
+                              ),
+                              title: Text(
+                                _documentFileName(url),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),                ],
               ],
             ),
           ),
@@ -423,6 +491,19 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
         ),
       ),
     );
+  }
+
+  bool _isImageDocument(String url) => RegExp(
+    r'\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$',
+    caseSensitive: false,
+  ).hasMatch(url);
+
+  String _documentFileName(String url) {
+    if (url.trim().isEmpty) return 'فایل پیوست';
+    final uri = Uri.tryParse(url);
+    final path = uri?.path ?? url;
+    final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? 'فایل پیوست' : Uri.decodeComponent(parts.last);
   }
 
   dynamic _paymentBankName(Map<String, dynamic> expense) {
@@ -451,7 +532,6 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
       child: Scaffold(
         backgroundColor: _background,
         appBar: AppBar(
-          toolbarHeight: 88,
           title: const Text('مدیریت هزینه‌ها',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           centerTitle: true,
@@ -730,7 +810,7 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                   color: paid ? Colors.green : Colors.orange.shade800,
                 ),
                 if (docNo != null && docNo.toString().isNotEmpty)
-                  _info(Icons.numbers_rounded, 'فاکتور ${_persianDigits(docNo.toString())}'),
+                  _info(Icons.numbers_rounded, 'سند ${_persianDigits(docNo.toString())}'),
               ],
             ),
             if ((expense['details'] ?? '').toString().trim().isNotEmpty) ...[
@@ -751,10 +831,7 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                 IconButton(
                   tooltip: paid ? 'لغو پرداخت' : 'پرداخت',
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   onPressed: () {
                     if (paid) {
                       _cancelExpensePayment(expense);
@@ -763,11 +840,9 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                     }
                   },
                   icon: Icon(
-                    paid ? Icons.cancel_outlined : Icons.payments_outlined,
+                    paid ? Icons.undo_rounded : Icons.payments_outlined,
                     size: 20,
-                    color: paid
-                        ? Colors.red.shade700
-                        : Colors.green.shade700,
+                    color: paid ? Colors.orange.shade800 : Colors.green.shade700,
                   ),
                 ),
                 IconButton(
@@ -793,12 +868,12 @@ class _ManagerExpensesScreenState extends State<ManagerExpensesScreen> {
                     onPressed: () => _deleteExpense(expense),
                     icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
                   ),
-                // if (_isPaid(expense))
-                //   const Padding(
-                //     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                //     child: Text('ثبت‌شده در سرور',
-                //         style: TextStyle(color: Colors.black45, fontSize: 10)),
-                //   ),
+                if (_isPaid(expense))
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: Text('ثبت‌شده در سرور',
+                        style: TextStyle(color: Colors.black45, fontSize: 10)),
+                  ),
               ],
             ),
           ],
@@ -878,6 +953,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   int? _categoryId;
   DateTime _date = DateTime.now();
   final List<File> _files = [];
+  final List<Map<String, dynamic>> _existingDocuments = [];
   bool _saving = false;
 
   bool get _isEdit => widget.expense != null;
@@ -887,6 +963,15 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
     super.initState();
     final expense = widget.expense;
     if (expense == null) return;
+
+    final documents = expense['documents'];
+    if (documents is List) {
+      _existingDocuments.addAll(
+        documents.whereType<Map>().map(
+              (item) => Map<String, dynamic>.from(item),
+        ),
+      );
+    }
 
     final category = expense['category_id'] ??
         (expense['category'] is num ? expense['category'] : null);
@@ -950,38 +1035,17 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
     final selected = await showDialog<Jalali>(
       context: context,
       builder: (dialogContext) => _JalaliDatePickerDialog(
-        initialDate: initialJalali.year > nowJalali.year ||
-            (initialJalali.year == nowJalali.year &&
-                (initialJalali.month > nowJalali.month ||
-                    (initialJalali.month == nowJalali.month &&
-                        initialJalali.day > nowJalali.day)))
-            ? nowJalali
-            : initialJalali,
+        initialDate: initialJalali,
         firstDate: Jalali(1300, 1, 1),
-        lastDate: nowJalali,
+        lastDate: Jalali(nowJalali.year + 20, 12, 29),
       ),
     );
 
-    if (selected == null || !mounted) return;
-
-    final selectedDate = selected.toDateTime();
-    final today = DateTime.now();
-
-    final selectedDay = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final todayDay = DateTime(today.year, today.month, today.day);
-
-    if (selectedDay.isAfter(todayDay)) {
-      _message('تاریخ پرداخت نمی‌تواند بعد از تاریخ امروز باشد.', error: true);
-      return;
+    if (selected != null && mounted) {
+      setState(() {
+        _date = selected.toDateTime();
+      });
     }
-
-    setState(() {
-      _date = selectedDate;
-    });
   }
 
   Future<void> _pickDocuments() async {
@@ -989,21 +1053,101 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
       final pickedFiles = await _imagePicker.pickMultipleMedia();
       if (pickedFiles.isEmpty || !mounted) return;
 
-      final remaining = 2 - _files.length;
+      final remaining = 2 - _existingDocuments.length - _files.length;
       if (remaining <= 0) {
-        _message('حداکثر دو فایل قابل انتخاب است.', error: true);
+        _message('حداکثر دو پیوست مجاز است.', error: true);
         return;
       }
+
       setState(() {
         _files.addAll(
           pickedFiles.take(remaining).map((file) => File(file.path)),
         );
       });
+
       if (pickedFiles.length > remaining) {
-        _message('حداکثر دو فایل قابل انتخاب است؛ فایل‌های اضافی اضافه نشدند.');
+        _message('حداکثر دو پیوست مجاز است؛ فایل‌های اضافی اضافه نشدند.');
       }
     } catch (e) {
       if (mounted) _message('خطا در انتخاب فایل: $e', error: true);
+    }
+  }
+
+  String _documentName(Map<String, dynamic> document) {
+    final rawUrl = document['url']?.toString() ?? '';
+
+    final url = rawUrl.startsWith('http')
+        ? rawUrl
+        : '${ApiConfig.baseUrl.replaceFirst('/api', '')}$rawUrl';
+    if (url.isEmpty) return 'فایل پیوست';
+    final uri = Uri.tryParse(url);
+    final path = uri?.path ?? url;
+    final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? 'فایل پیوست' : Uri.decodeComponent(parts.last);
+  }
+
+  bool _isImageUrl(String url) => RegExp(
+    r'\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$',
+    caseSensitive: false,
+  ).hasMatch(url);
+
+  Future<void> _deleteExistingDocument(
+      Map<String, dynamic> document,
+      ) async {
+    final expenseId = int.tryParse(
+      widget.expense?['id']?.toString() ?? '',
+    );
+    final documentId = int.tryParse(document['id']?.toString() ?? '');
+
+    if (expenseId == null || documentId == null) {
+      _message('شناسه پیوست معتبر نیست.', error: true);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف پیوست'),
+        content: const Text('آیا از حذف این پیوست اطمینان دارید؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await widget.service.deleteExpenseDocument(
+        expenseId: expenseId,
+        documentId: documentId,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _existingDocuments.removeWhere(
+              (item) => item['id'].toString() == documentId.toString(),
+        );
+      });
+      _message('پیوست با موفقیت حذف شد.');
+    } catch (e) {
+      if (mounted) {
+        _message(
+          e.toString().replaceFirst('Exception: ', ''),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -1166,27 +1310,77 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                         keyboardType: TextInputType.number,
                         inputFormatters: [PersianDigitFormatter()],
                         textDirection: TextDirection.rtl,
-                        decoration: _decoration('شماره فاکتور (اختیاری)', Icons.numbers_rounded),
+                        decoration: _decoration('شماره سند (اختیاری)', Icons.numbers_rounded),
                       ),
                       const SizedBox(height: 18),
                       Row(
                         children: [
                           const Expanded(
-                            child: Text('مدارک پیوست', style: TextStyle(fontWeight: FontWeight.bold)),
+                            child: Text(
+                              'مدارک پیوست',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
-                          Text(_persianDigits('${_files.length}/2'),
-                              style: const TextStyle(color: Colors.black54)),
+                          Text(
+                            _persianDigits(
+                              '${_existingDocuments.length + _files.length}/2',
+                            ),
+                            style: const TextStyle(color: Colors.black54),
+                          ),
                           IconButton(
-                            onPressed: _saving ? null : _pickDocuments,
-                            icon: const Icon(Icons.attach_file_rounded, color: _purple),
+                            onPressed: _saving ||
+                                _existingDocuments.length + _files.length >= 2
+                                ? null
+                                : _pickDocuments,
+                            icon: const Icon(
+                              Icons.attach_file_rounded,
+                              color: _purple,
+                            ),
                           ),
                         ],
                       ),
-                      if (_files.isEmpty)
+
+                      if (_existingDocuments.isEmpty && _files.isEmpty)
                         const Text(
                           'برای افزودن تصویر یا فایل سند، روی آیکون پیوست بزنید.',
                           style: TextStyle(color: Colors.black54, fontSize: 12),
                         ),
+                      ..._existingDocuments.map((document) {
+                        final url = document['url']?.toString() ?? '';
+                        final isImage = _isImageUrl(url);
+                        return Card(
+                          child: ListTile(
+                            leading: isImage && url.isNotEmpty
+                                ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                url,
+                                width: 46,
+                                height: 46,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.broken_image_outlined),
+                              ),
+                            )
+                                : const Icon(Icons.insert_drive_file_outlined),
+                            title: Text(
+                              _documentName(document),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: const Text('پیوست ثبت‌شده'),
+                            trailing: IconButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => _deleteExistingDocument(document),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
                       ..._files.asMap().entries.map((entry) {
                         final index = entry.key;
                         final file = entry.value;
@@ -1198,8 +1392,11 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            subtitle: const Text('فایل جدید'),
                             trailing: IconButton(
-                              onPressed: _saving ? null : () => setState(() => _files.removeAt(index)),
+                              onPressed: _saving
+                                  ? null
+                                  : () => setState(() => _files.removeAt(index)),
                               icon: const Icon(Icons.close_rounded, color: Colors.red),
                             ),
                           ),
@@ -1281,7 +1478,7 @@ class _ExpensePaymentSheetState extends State<_ExpensePaymentSheet> {
   List<Map<String, dynamic>> _receivers = [];
   int? _bankId;
   int? _receiverId;
-  String? _receiverType;
+  String _receiverType = 'owner';
   DateTime _paymentDate = DateTime.now();
   bool _loading = true;
   bool _saving = false;
@@ -1352,65 +1549,39 @@ class _ExpensePaymentSheetState extends State<_ExpensePaymentSheet> {
   Future<void> _loadBanks() async {
     try {
       final banks = await widget.service.getExpenseBanks();
-
       if (!mounted) return;
-
       setState(() {
         _banks = banks;
-        _bankId = null;
+        if (banks.isNotEmpty) {
+          final defaults = banks.where((b) => b['is_default'] == true);
+          _bankId = _intValue(defaults.isNotEmpty ? defaults.first['id'] : banks.first['id']);
+        }
       });
+      await _loadReceivers();
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage =
-              e.toString().replaceFirst('Exception: ', '');
-        });
-      }
+      if (mounted) _message(e.toString().replaceFirst('Exception: ', ''), error: true);
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _loadReceivers() async {
-    if (_receiverType == null) {
-      setState(() {
-        _receiverId = null;
-        _receivers = [];
-      });
-      return;
-    }
-
     setState(() {
       _receiverId = null;
       _receivers = [];
-      _errorMessage = null;
     });
-
     try {
       final values = await widget.service.getExpenseReceivers(
-        type: _receiverType!,
+        type: _receiverType,
         search: _searchController.text.trim(),
       );
-
       if (!mounted) return;
-
       setState(() {
         _receivers = values;
-        _receiverId = null;
+        if (values.isNotEmpty) _receiverId = _intValue(values.first['id']);
       });
-
-      if (values.isEmpty) {
-        _message('برای این نوع دریافت‌کننده موردی پیدا نشد.');
-      }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage =
-              e.toString().replaceFirst('Exception: ', '');
-        });
-      }
+      if (mounted) _message(e.toString().replaceFirst('Exception: ', ''), error: true);
     }
   }
 
@@ -1447,7 +1618,7 @@ class _ExpensePaymentSheetState extends State<_ExpensePaymentSheet> {
         expenseId: _intValue(widget.expense['id']),
         bankId: _bankId!,
         paymentDate: _dateString(_paymentDate),
-        receiverType: _receiverType ?? '',
+        receiverType: _receiverType,
         transactionReference: _normalizeDigits(_referenceController.text.trim()),
         unitId: _receiverType == 'owner' ? _receiverId : null,
         renterId: _receiverType == 'renter' ? _receiverId : null,
@@ -1529,149 +1700,59 @@ class _ExpensePaymentSheetState extends State<_ExpensePaymentSheet> {
                     const SizedBox(height: 18),
                     DropdownButtonFormField<int>(
                       value: _bankId,
-                      hint: const Text('انتخاب کنید'),
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'حساب بانکی *',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _banks.map((b) {
-                        return DropdownMenuItem<int>(
-                          value: _intValue(b['id']),
-                          child: Text(
-                            '${b['bank_name'] ?? b['name'] ?? b['title'] ?? b['account_name'] ?? 'حساب بانکی'}'
-                                '${(b['account_no'] ?? '').toString().isEmpty ? '' : ' - ${_persianDigits((b['account_no'] ?? '').toString())}'}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: _saving
-                          ? null
-                          : (v) {
-                        setState(() {
-                          _bankId = v;
-                          _errorMessage = null;
-                        });
-                      },
-                      validator: (v) =>
-                      v == null ? 'لطفاً حساب بانکی را انتخاب کنید.' : null,
+                      decoration: const InputDecoration(labelText: 'حساب بانکی *', border: OutlineInputBorder()),
+                      items: _banks.map((b) => DropdownMenuItem<int>(
+                        value: _intValue(b['id']),
+                        child: Text('${b['bank_name'] ?? 'حساب بانکی'}${(b['account_no'] ?? '').toString().isEmpty ? '' : ' - ${_persianDigits((b['account_no'] ?? '').toString())}'}', overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: _saving ? null : (v) => setState(() { _bankId = v; _errorMessage = null; }),
+                      validator: (v) => v == null ? 'حساب بانکی را انتخاب کنید.' : null,
                     ),
-
                     const SizedBox(height: 14),
-
                     DropdownButtonFormField<String>(
                       value: _receiverType,
-                      decoration: const InputDecoration(
-                        labelText: 'نوع دریافت‌کننده *',
-                        border: OutlineInputBorder(),
-                      ),
-                      hint: const Text('انتخاب کنید'),
+                      decoration: const InputDecoration(labelText: 'نوع دریافت‌کننده *', border: OutlineInputBorder()),
                       items: const [
-                        DropdownMenuItem<String>(
-                          value: null,
-                          child: Text('انتخاب کنید'),
-                        ),
                         DropdownMenuItem(value: 'owner', child: Text('مالک')),
                         DropdownMenuItem(value: 'renter', child: Text('مستأجر')),
-                        DropdownMenuItem(value: 'other', child: Text('اشخاص ثالث ')),
+                        DropdownMenuItem(value: 'other', child: Text('شخص دیگر')),
                       ],
-                      onChanged: _saving
-                          ? null
-                          : (v) async {
-                        setState(() {
-                          _receiverType = v;
-                          _receiverId = null;
-                          _receivers = [];
-                          _searchController.clear();
-                          _errorMessage = null;
-                        });
-
-                        if (v != null) {
-                          await _loadReceivers();
-                        }
+                      onChanged: _saving ? null : (v) async {
+                        if (v == null) return;
+                        setState(() { _receiverType = v; _searchController.clear(); _errorMessage = null; });
+                        await _loadReceivers();
                       },
-                      validator: (v) =>
-                      v == null ? 'لطفاً نوع دریافت‌کننده را انتخاب کنید.' : null,
                     ),
-
                     const SizedBox(height: 14),
-
                     TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
                         labelText: 'جست‌وجوی دریافت‌کننده',
                         prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          onPressed: _saving ? null : _loadReceivers,
-                          icon: const Icon(Icons.search),
-                        ),
+                        suffixIcon: IconButton(onPressed: _saving ? null : _loadReceivers, icon: const Icon(Icons.search)),
                         border: const OutlineInputBorder(),
                       ),
                       onSubmitted: (_) => _loadReceivers(),
                     ),
-
                     const SizedBox(height: 14),
-
                     DropdownButtonFormField<int>(
                       value: _receiverId,
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'دریافت‌کننده *',
-                        border: OutlineInputBorder(),
-                      ),
-                      hint: const Text('انتخاب کنید'),
-                      items: [
-                        const DropdownMenuItem<int>(
-                          value: null,
-                          child: Text('انتخاب کنید'),
-                        ),
-                        ..._receivers.map((r) => DropdownMenuItem<int>(
-                          value: _intValue(r['id']),
-                          child: Text(
-                            r['label']?.toString() ??
-                                r['name']?.toString() ??
-                                'بدون نام',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        )),
-                      ],
-                      onChanged: _saving
-                          ? null
-                          : (v) => setState(() {
-                        _receiverId = v;
-                        _errorMessage = null;
-                      }),
-                      validator: (v) =>
-                      v == null ? 'لطفاً دریافت‌کننده را انتخاب کنید.' : null,
+                      decoration: const InputDecoration(labelText: 'دریافت‌کننده *', border: OutlineInputBorder()),
+                      items: _receivers.map((r) => DropdownMenuItem<int>(
+                        value: _intValue(r['id']),
+                        child: Text(r['label']?.toString() ?? r['name']?.toString() ?? 'بدون نام', overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: _saving ? null : (v) => setState(() { _receiverId = v; _errorMessage = null; }),
+                      validator: (v) => v == null ? 'دریافت‌کننده را انتخاب کنید.' : null,
                     ),
                     const SizedBox(height: 14),
                     InkWell(
                       onTap: _saving ? null : _chooseDate,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'تاریخ پرداخت *',
-                          prefixIcon: Icon(
-                            Icons.calendar_month,
-                            color: _teal,
-                          ),
-                          border: OutlineInputBorder(),
-                        ),
-                        child: Directionality(
-                          textDirection: TextDirection.rtl,
-                          child: Text(
-                            _jalaliText(_paymentDate)
-                                .replaceAll('0', '۰')
-                                .replaceAll('1', '۱')
-                                .replaceAll('2', '۲')
-                                .replaceAll('3', '۳')
-                                .replaceAll('4', '۴')
-                                .replaceAll('5', '۵')
-                                .replaceAll('6', '۶')
-                                .replaceAll('7', '۷')
-                                .replaceAll('8', '۸')
-                                .replaceAll('9', '۹'),
-                          ),
-                        ),
+                        decoration: const InputDecoration(labelText: 'تاریخ پرداخت *', prefixIcon: Icon(Icons.calendar_month, color: _teal), border: OutlineInputBorder()),
+                        child: Text(_jalaliText(_paymentDate)),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1950,102 +2031,58 @@ class _ManagerExpenseCategoriesScreenState extends State<ManagerExpenseCategorie
   }
 
   Future<void> _editCategory([Map<String, dynamic>? category]) async {
-    if (!mounted) return;
-
-    final controller = TextEditingController(
-      text: category?['title']?.toString() ?? '',
-    );
-
-    String? title;
-
-    try {
-      title = await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return Directionality(
-            textDirection: TextDirection.rtl,
-            child: AlertDialog(
-              title: Text(
-                category == null
-                    ? 'دسته‌بندی جدید'
-                    : 'ویرایش دسته‌بندی',
-              ),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                maxLength: 100,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'عنوان دسته‌بندی',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('انصراف'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _purple,
-                  ),
-                  onPressed: () {
-                    final value = controller.text.trim();
-
-                    if (value.isEmpty) {
-                      return;
-                    }
-
-                    Navigator.of(dialogContext).pop(value);
-                  },
-                  child: const Text('ذخیره'),
-                ),
-              ],
+    final controller = TextEditingController(text: category?['title']?.toString() ?? '');
+    final title = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: Text(category == null ? 'دسته‌بندی جدید' : 'ویرایش دسته‌بندی'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 100,
+            decoration: const InputDecoration(
+              labelText: 'عنوان دسته‌بندی',
+              border: OutlineInputBorder(),
             ),
-          );
-        },
-      );
-    } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller.dispose();
-      });
-    }
-
-    if (!mounted || title == null || title.trim().isEmpty) {
-      return;
-    }
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _purple),
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+              },
+              child: const Text('ذخیره'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (title == null || title.trim().isEmpty) return;
 
     try {
-      final id = int.tryParse(
-        category?['id']?.toString() ?? '',
-      );
-
+      final id = int.tryParse(category?['id']?.toString() ?? '');
       if (id == null) {
-        await widget.service.createCategory(title: title.trim());
+        await widget.service.createCategory(title: title);
       } else {
-        await widget.service.updateCategory(
-          categoryId: id,
-          title: title.trim(),
-        );
+        if (category?['is_default'] == true) {
+          _message('دسته‌بندی پیش‌فرض قابل ویرایش نیست.', error: true);
+          return;
+        }
+        await widget.service.updateCategory(categoryId: id, title: title);
       }
-
       if (!mounted) return;
-
       await _loadCategories();
-
-      if (mounted) {
-        _message('دسته‌بندی ذخیره شد.');
-      }
+      if (mounted) _message('دسته‌بندی ذخیره شد.');
     } catch (e) {
-      if (mounted) {
-        _message(
-          e.toString().replaceFirst('Exception: ', ''),
-          error: true,
-        );
-      }
+      if (mounted) _message(e.toString().replaceFirst('Exception: ', ''), error: true);
     }
   }
 
@@ -2094,7 +2131,6 @@ class _ManagerExpenseCategoriesScreenState extends State<ManagerExpenseCategorie
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F7FB),
         appBar: AppBar(
-          toolbarHeight: 88,
           title: const Text('مدیریت دسته‌بندی هزینه‌ها'),
           centerTitle: true,
           backgroundColor: _teal,

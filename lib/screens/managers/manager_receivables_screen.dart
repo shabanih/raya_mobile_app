@@ -1,3 +1,4 @@
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -40,7 +41,6 @@ class _ManagerReceivablesScreenState
     _searchController.dispose();
     super.dispose();
   }
-
 
   String _cleanError(Object e) =>
       e.toString().replaceFirst('Exception: ', '');
@@ -311,6 +311,14 @@ class _ManagerReceivablesScreenState
   void _showDetails(Map<String, dynamic> item) {
     final docs = item['documents'];
 
+    final documents = docs is List
+        ? docs
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => (e['url'] ?? '').toString().isNotEmpty)
+        .toList()
+        : <Map<String, dynamic>>[];
+
     showDialog<void>(
       context: context,
       builder: (ctx) => Directionality(
@@ -344,14 +352,57 @@ class _ManagerReceivablesScreenState
                   _fa('${item['transaction_reference'] ?? '—'}'),
                 ),
                 _detail('توضیحات', item['details']),
-                if (docs is List)
-                  ...docs.asMap().entries.map((entry) {
-                    final doc = entry.value;
-                    return _detail(
-                      'مدرک ${entry.key + 1}',
-                      doc is Map ? doc['url'] : doc,
-                    );
-                  }),
+                if (documents.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const Text(
+                    'تصاویر پیوست‌شده',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: documents.map((doc) {
+                      final url = doc['url'].toString();
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _showDocumentImage(context, url),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            url,
+                            width: 105,
+                            height: 105,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 105,
+                              height: 105,
+                              color: Colors.grey.shade100,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                size: 35,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'برای مشاهده تصویر در اندازه بزرگ‌تر، آن را لمس کنید.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -359,6 +410,47 @@ class _ManagerReceivablesScreenState
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('بستن'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDocumentImage(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white,
+                    size: 60,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
@@ -676,9 +768,8 @@ class _ManagerReceivablesScreenState
               children: [
                 IconButton(
                   tooltip: received ? 'لغو دریافت' : 'ثبت دریافت وجه',
-                  onPressed: () => received
-                      ? _cancelReceive(item)
-                      : _receive(item),
+                  onPressed: () =>
+                  received ? _cancelReceive(item) : _receive(item),
                   icon: Icon(
                     received
                         ? Icons.cancel_outlined
@@ -739,11 +830,9 @@ class _ManagerReceivablesScreenState
   }
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // فرم ایجاد و ویرایش سند دریافتنی
-// بانک و پرداخت‌کننده در این فرم انتخاب نمی‌شوند.
-// ------------------------------------------------------------
-
+// ============================================================
 
 class _ReceivableFormSheet extends StatefulWidget {
   final ManagerReceivableService service;
@@ -770,12 +859,19 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
   final _docNo = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
+
   final List<File> _selectedFiles = [];
+  List<Map<String, dynamic>> _existingDocuments = [];
+
+  final Set<int> _deletedDocumentIds = {};
 
   DateTime _date = DateTime.now();
   bool _saving = false;
 
   bool get _editing => widget.item != null;
+
+  int get _totalDocuments =>
+      _existingDocuments.length + _selectedFiles.length;
 
   @override
   void initState() {
@@ -792,6 +888,20 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
       final parsed = DateTime.tryParse('${item['doc_date'] ?? ''}');
       if (parsed != null) {
         _date = parsed;
+      }
+
+      final docs = item['documents'];
+
+      if (docs is List) {
+        _existingDocuments = docs
+            .whereType<Map>()
+            .map((doc) => Map<String, dynamic>.from(doc))
+            .where(
+              (doc) =>
+          doc['id'] != null &&
+              (doc['url'] ?? '').toString().isNotEmpty,
+        )
+            .toList();
       }
     }
   }
@@ -820,6 +930,15 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
         .trim();
   }
 
+  String _fa(String value) {
+    const digits = '۰۱۲۳۴۵۶۷۸۹';
+
+    return value.replaceAllMapped(
+      RegExp(r'[0-9]'),
+          (m) => digits[int.parse(m.group(0)!)],
+    );
+  }
+
   String _dateString(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
           '${d.month.toString().padLeft(2, '0')}-'
@@ -828,9 +947,11 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
   String _dateText(DateTime d) {
     final j = Gregorian.fromDateTime(d).toJalali();
 
-    return '${j.year}/'
-        '${j.month.toString().padLeft(2, '0')}/'
-        '${j.day.toString().padLeft(2, '0')}';
+    return _fa(
+      '${j.year}/'
+          '${j.month.toString().padLeft(2, '0')}/'
+          '${j.day.toString().padLeft(2, '0')}',
+    );
   }
 
   void _message(String text, {bool error = false}) {
@@ -850,6 +971,13 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
   Future<void> _pickImages() async {
     if (_saving) return;
 
+    final capacity = 2 - _totalDocuments;
+
+    if (capacity <= 0) {
+      _message('حداکثر دو تصویر قابل پیوست است.', error: true);
+      return;
+    }
+
     try {
       final images = await _picker.pickMultiImage(
         imageQuality: 85,
@@ -865,7 +993,7 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
             continue;
           }
 
-          if (_selectedFiles.length >= 2) {
+          if (_totalDocuments >= 2) {
             limitReached = true;
             break;
           }
@@ -875,7 +1003,10 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
       });
 
       if (limitReached) {
-        _message('حداکثر دو تصویر قابل پیوست است.', error: true);
+        _message(
+          'مجموع تصاویر پیوست نمی‌تواند بیشتر از دو عدد باشد.',
+          error: true,
+        );
       }
     } catch (e) {
       _message('انتخاب تصویر ناموفق بود: $e', error: true);
@@ -888,6 +1019,100 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
     setState(() {
       _selectedFiles.removeAt(index);
     });
+  }
+
+  void _removeExistingDocument(Map<String, dynamic> doc) {
+    if (_saving) return;
+
+    final id = int.tryParse('${doc['id'] ?? ''}');
+
+    if (id == null) return;
+
+    setState(() {
+      _deletedDocumentIds.add(id);
+
+      _existingDocuments.removeWhere(
+            (item) => '${item['id']}' == '$id',
+      );
+    });
+  }
+
+  void _showNetworkImage(String url) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => const SizedBox(
+                  height: 250,
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 50,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLocalImage(File file) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.file(
+                file,
+                fit: BoxFit.contain,
+                width: double.infinity,
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _chooseDate() async {
@@ -908,6 +1133,138 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
     }
   }
 
+  Widget _buildExistingDocuments() {
+    if (_existingDocuments.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'تصاویر پیوست‌شده قبلی',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ..._existingDocuments.map((doc) {
+          final url = doc['url'].toString();
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 9),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  InkWell(
+                    onTap: () => _showNetworkImage(url),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: Image.network(
+                        url,
+                        width: 65,
+                        height: 65,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 65,
+                          height: 65,
+                          color: Colors.grey.shade100,
+                          child: const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'تصویر پیوست‌شده',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'حذف این پیوست',
+                    onPressed: _saving
+                        ? null
+                        : () => _removeExistingDocument(doc),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildSelectedFiles() {
+    if (_selectedFiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'تصاویر جدید انتخاب‌شده',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ..._selectedFiles.asMap().entries.map((entry) {
+          final index = entry.key;
+          final file = entry.value;
+
+          final fileName =
+              file.path.split(Platform.pathSeparator).last;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: InkWell(
+                onTap: () => _showLocalImage(file),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    file,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              title: Text(
+                fileName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                tooltip: 'حذف تصویر',
+                onPressed: _saving ? null : () => _removeFile(index),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   Future<void> _save() async {
     if (_saving || !_formKey.currentState!.validate()) return;
 
@@ -919,8 +1276,11 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
       return;
     }
 
-    if (_selectedFiles.length > 2) {
-      _message('حداکثر دو تصویر قابل پیوست است.', error: true);
+    if (_totalDocuments > 2) {
+      _message(
+        'مجموع تصاویر پیوست نمی‌تواند بیشتر از دو عدد باشد.',
+        error: true,
+      );
       return;
     }
 
@@ -937,6 +1297,7 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
         details: _details.text.trim(),
         docNo: _normal(_docNo.text),
         files: _selectedFiles,
+        deletedDocumentIds: _deletedDocumentIds.toList(),
       );
 
       if (!mounted) return;
@@ -1082,61 +1443,31 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
                     ),
                     const SizedBox(height: 18),
 
-                    // پیوست تصاویر
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
-                        onPressed: _saving ? null : _pickImages,
+                        onPressed:
+                        _saving || _totalDocuments >= 2
+                            ? null
+                            : _pickImages,
                         icon: const Icon(
                           Icons.add_photo_alternate_outlined,
                         ),
                         label: const Text('افزودن تصویر پیوست'),
                       ),
                     ),
+
                     const SizedBox(height: 6),
                     Text(
-                      'حداکثر دو تصویر قابل انتخاب است.',
+                      'مجموع تصاویر قبلی و جدید حداکثر دو تصویر است.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
                     ),
 
-                    if (_selectedFiles.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      ..._selectedFiles.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final file = entry.value;
-                        final fileName =
-                            file.path.split(Platform.pathSeparator).last;
-
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.image_outlined,
-                              color: _teal,
-                              size: 30,
-                            ),
-                            title: Text(
-                              fileName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: IconButton(
-                              tooltip: 'حذف تصویر',
-                              onPressed: _saving
-                                  ? null
-                                  : () => _removeFile(index),
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
+                    _buildExistingDocuments(),
+                    _buildSelectedFiles(),
 
                     const SizedBox(height: 24),
                     SizedBox(
@@ -1176,12 +1507,9 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
   }
 }
 
-
-// ------------------------------------------------------------
+// ============================================================
 // ثبت دریافت واقعی وجه
-// انتخاب حساب بانکی فقط در این فرم انجام می‌شود.
-// ------------------------------------------------------------
-
+// ============================================================
 
 class _ReceiveMoneySheet extends StatefulWidget {
   final ManagerReceivableService service;
@@ -1217,6 +1545,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
   bool _loadingPayers = false;
   bool _saving = false;
 
+  int _searchRequestId = 0;
 
   @override
   void initState() {
@@ -1260,10 +1589,12 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
 
   String _money(dynamic value) {
     final amount = double.tryParse(_normal('$value')) ?? 0;
+
     final text = amount.round().toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
           (_) => ',',
     );
+
     return '${_fa(text)} تومان';
   }
 
@@ -1274,6 +1605,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
 
   String _dateText(DateTime d) {
     final j = Gregorian.fromDateTime(d).toJalali();
+
     return '${_fa('${j.year}')}/'
         '${_fa(j.month.toString().padLeft(2, '0'))}/'
         '${_fa(j.day.toString().padLeft(2, '0'))}';
@@ -1290,9 +1622,11 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
 
       setState(() {
         _banks = banks;
+
         if (banks.length == 1) {
           _bankId = _int(banks.first['id']);
         }
+
         _loading = false;
       });
 
@@ -1306,6 +1640,8 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
   }
 
   Future<void> _loadPayers({String search = ''}) async {
+    final requestId = ++_searchRequestId;
+
     setState(() {
       _loadingPayers = true;
       _payerId = null;
@@ -1318,7 +1654,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
         search: search.trim(),
       );
 
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
 
       setState(() {
         _payers = results;
@@ -1330,7 +1666,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
         _loadingPayers = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
 
       setState(() => _loadingPayers = false);
       _message(_errorText(e), error: true);
@@ -1351,9 +1687,9 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
   }
 
   Future<void> _searchPayers(String value) async {
-    // جست‌وجو هنگام تایپ با درخواست مستقل انجام می‌شود.
-    // برای جلوگیری از نمایش نتیجه قدیمی، شناسه انتخابی پاک می‌شود.
     if (_saving) return;
+
+    final requestId = ++_searchRequestId;
 
     setState(() {
       _payerId = null;
@@ -1366,18 +1702,17 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
         search: value.trim(),
       );
 
-      if (!mounted) return;
-
-      // فقط نتیجه جست‌وجوی جاری را نمایش بده.
-      if (_payerSearch.text.trim() != value.trim()) return;
+      if (!mounted || requestId != _searchRequestId) return;
 
       setState(() {
         _payers = results;
-        _payerId = results.length == 1 ? _int(results.first['id']) : null;
+        _payerId = results.length == 1
+            ? _int(results.first['id'])
+            : null;
         _loadingPayers = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
 
       setState(() => _loadingPayers = false);
       _message(_errorText(e), error: true);
@@ -1570,8 +1905,11 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       Icons.account_balance,
                     ),
                     items: _banks.map((bank) {
-                      final name = bank['bank_name'] ?? bank['name'] ?? 'بانک';
-                      final account = (bank['account_no'] ?? '').toString().trim();
+                      final name =
+                          bank['bank_name'] ?? bank['name'] ?? 'بانک';
+
+                      final account =
+                      (bank['account_no'] ?? '').toString().trim();
 
                       return DropdownMenuItem<int>(
                         value: _int(bank['id']),
@@ -1586,9 +1924,11 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                     onChanged: _saving
                         ? null
                         : (value) => setState(() => _bankId = value),
-                    validator: (_) =>
-                    _bankId == null ? 'حساب بانکی را انتخاب کنید.' : null,
+                    validator: (_) => _bankId == null
+                        ? 'حساب بانکی را انتخاب کنید.'
+                        : null,
                   ),
+
                   const SizedBox(height: 14),
 
                   DropdownButtonFormField<String>(
@@ -1614,6 +1954,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                     ],
                     onChanged: _saving ? null : _changePayerType,
                   ),
+
                   const SizedBox(height: 14),
 
                   TextField(
@@ -1625,6 +1966,7 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       Icons.search,
                     ),
                   ),
+
                   const SizedBox(height: 10),
 
                   if (_loadingPayers)
@@ -1662,13 +2004,15 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       }).toList(),
                       onChanged: _saving
                           ? null
-                          : (value) => setState(() => _payerId = value),
+                          : (value) =>
+                          setState(() => _payerId = value),
                       validator: (_) => _payerId == null
                           ? 'پرداخت‌کننده را انتخاب کنید.'
                           : null,
                     ),
 
                   const SizedBox(height: 14),
+
                   InkWell(
                     onTap: _saving ? null : _chooseDate,
                     child: InputDecorator(
@@ -1679,7 +2023,9 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       child: Text(_dateText(_date)),
                     ),
                   ),
+
                   const SizedBox(height: 14),
+
                   TextFormField(
                     controller: _reference,
                     enabled: !_saving,
@@ -1689,7 +2035,9 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       Icons.confirmation_number_outlined,
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   SizedBox(
                     height: 50,
                     child: FilledButton.icon(
@@ -1708,7 +2056,9 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
                       )
                           : const Icon(Icons.check_circle_outline),
                       label: Text(
-                        _saving ? 'در حال ثبت...' : 'تأیید دریافت وجه',
+                        _saving
+                            ? 'در حال ثبت...'
+                            : 'تأیید دریافت وجه',
                       ),
                     ),
                   ),
@@ -1722,10 +2072,9 @@ class _ReceiveMoneySheetState extends State<_ReceiveMoneySheet> {
   }
 }
 
-
-// ------------------------------------------------------------
+// ============================================================
 // انتخابگر تاریخ شمسی
-// ------------------------------------------------------------
+// ============================================================
 
 class _ReceivableJalaliPicker extends StatefulWidget {
   final Jalali initial;
@@ -1767,16 +2116,6 @@ class _ReceivableJalaliPickerState
         date.compareTo(widget.last) <= 0;
   }
 
-  void _changeMonth(int delta) {
-    final next = _month.addMonths(delta);
-
-    if (next.year < widget.first.year ||
-        next.year > widget.last.year) {
-      return;
-    }
-
-    setState(() => _month = next);
-  }
   String _fa(String value) {
     const english = '0123456789';
     const persian = '۰۱۲۳۴۵۶۷۸۹';
@@ -1787,6 +2126,18 @@ class _ReceivableJalaliPickerState
 
     return value;
   }
+
+  void _changeMonth(int delta) {
+    final next = _month.addMonths(delta);
+
+    if (next.year < widget.first.year ||
+        next.year > widget.last.year) {
+      return;
+    }
+
+    setState(() => _month = next);
+  }
+
   @override
   Widget build(BuildContext context) {
     final firstDay = _month.weekDay;
@@ -1822,7 +2173,9 @@ class _ReceivableJalaliPickerState
                   ),
                 ],
               ),
+
               const SizedBox(height: 8),
+
               const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -1835,7 +2188,9 @@ class _ReceivableJalaliPickerState
                   Text('ج'),
                 ],
               ),
+
               const SizedBox(height: 8),
+
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -1852,6 +2207,7 @@ class _ReceivableJalaliPickerState
                   }
 
                   final day = index - firstDay + 2;
+
                   final date = Jalali(
                     _month.year,
                     _month.month,
@@ -1886,11 +2242,12 @@ class _ReceivableJalaliPickerState
                         ),
                       ),
                     ),
-
                   );
                 },
               ),
+
               const SizedBox(height: 12),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

@@ -183,6 +183,21 @@ class ManagerExpenseService {
     return _extractObject(_decode(response), 'expense');
   }
 
+  // حذف فایل پیوست هزینه
+
+  Future<void> deleteExpenseDocument({
+    required int expenseId,
+    required int documentId,
+  }) async {
+    final response = await _api.delete(
+      _url(
+        '/manager/expenses/$expenseId/documents/$documentId/',
+      ),
+    );
+
+    _decode(response);
+  }
+
   // ویرایش هزینه
 
   Future<Map<String, dynamic>> updateExpense({

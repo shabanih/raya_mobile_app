@@ -184,7 +184,7 @@ class _ManagerBankReportScreenState
             ),
           ),
           const Icon(
-            Icons.chevron_left,
+            Icons.chevron_right,
             color: Colors.white,
             size: 28,
           ),
