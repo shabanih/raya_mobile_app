@@ -1,11 +1,15 @@
 
 import 'package:flutter/material.dart';
 
+import '../../services/api_service.dart';
+import '../../services/manager_bank_service.dart';
+
 import 'manager_fund_turnover_screen.dart';
 import 'manager_debtor_units_screen.dart';
 import 'manager_creditor_units_screen.dart';
 import 'manager_sewage_charges_list_screen.dart';
 import 'manager_user_help_money_screen.dart';
+import 'manager_bank_report_screen.dart';
 
 const Color _primaryColor = Color(0xFF00ACC1);
 const Color _secondaryColor = Color(0xFF610DB5);
@@ -102,6 +106,19 @@ class ManagerReportsScreen extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (context) => const ManagerUserHelpMoneyScreen(),
+        ),
+      );
+      return;
+    }
+    if (report.title == 'گردش حساب بانک ها') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ManagerBankReportScreen(
+            bankService: ManagerBankService(
+              apiService: ApiService(),
+            ),
+          ),
         ),
       );
       return;

@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'api_service.dart';
@@ -28,18 +29,16 @@ class ManagerBankService {
       if (data is List) {
         items = data;
       } else if (data is Map) {
-        items =
-            data['results'] ??
-                data['banks'] ??
-                [];
+        items = data['results'] ??
+            data['banks'] ??
+            [];
       }
 
       if (items is List) {
         return items
             .whereType<Map>()
             .map(
-              (item) =>
-          Map<String, dynamic>.from(item),
+              (item) => Map<String, dynamic>.from(item),
         )
             .toList();
       }
@@ -82,6 +81,50 @@ class ManagerBankService {
   }
 
   // =====================================================
+  // دریافت گزارش گردش حساب بانکی
+  // =====================================================
+
+  Future<Map<String, dynamic>> getBankReportTransactions({
+    required int bankId,
+    int limit = 20,
+  }) async {
+    if (![10, 20, 30].contains(limit)) {
+      throw Exception(
+        'تعداد تراکنش‌ها باید ۱۰، ۲۰ یا ۳۰ باشد.',
+      );
+    }
+
+    final response = await apiService.get(
+      '${ApiConfig.managerBankReportTransactions(bankId)}?limit=$limit',
+    );
+
+    final data = _decodeResponse(response);
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is Map) {
+        final result =
+        Map<String, dynamic>.from(data);
+
+        // اطمینان از اینکه نتایج همیشه List هستند.
+        if (result['results'] is! List) {
+          result['results'] = [];
+        }
+
+        return result;
+      }
+
+      throw Exception(
+        'اطلاعات گزارش گردش حساب نامعتبر است.',
+      );
+    }
+
+    throw Exception(
+      _extractErrorMessage(data),
+    );
+  }
+
+  // =====================================================
   // ایجاد حساب بانکی
   // =====================================================
 
@@ -101,8 +144,7 @@ class ManagerBankService {
     final body = <String, dynamic>{
       'house': houseId,
       'bank_name': bankName,
-      'account_holder_name':
-      accountHolderName,
+      'account_holder_name': accountHolderName,
       'account_no': accountNo,
       'sheba_number': shebaNumber,
       'cart_number': cartNumber,
@@ -157,8 +199,7 @@ class ManagerBankService {
     final body = <String, dynamic>{
       'house': houseId,
       'bank_name': bankName,
-      'account_holder_name':
-      accountHolderName,
+      'account_holder_name': accountHolderName,
       'account_no': accountNo,
       'sheba_number': shebaNumber,
       'cart_number': cartNumber,
@@ -225,8 +266,7 @@ class ManagerBankService {
   // دریافت لیست انتقال‌های بین بانکی
   // =====================================================
 
-  Future<List<Map<String, dynamic>>>
-  getBankTransfers() async {
+  Future<List<Map<String, dynamic>>> getBankTransfers() async {
     final response = await apiService.get(
       ApiConfig.managerBankTransfers,
     );
@@ -240,18 +280,16 @@ class ManagerBankService {
       if (data is List) {
         items = data;
       } else if (data is Map) {
-        items =
-            data['results'] ??
-                data['transfers'] ??
-                [];
+        items = data['results'] ??
+            data['transfers'] ??
+            [];
       }
 
       if (items is List) {
         return items
             .whereType<Map>()
             .map(
-              (item) =>
-          Map<String, dynamic>.from(item),
+              (item) => Map<String, dynamic>.from(item),
         )
             .toList();
       }
@@ -268,8 +306,7 @@ class ManagerBankService {
   // ایجاد انتقال بین بانکی
   // =====================================================
 
-  Future<Map<String, dynamic>>
-  createBankTransfer({
+  Future<Map<String, dynamic>> createBankTransfer({
     required int fromBankId,
     required int toBankId,
     required int amount,
@@ -359,7 +396,28 @@ class ManagerBankService {
       _extractErrorMessage(data),
     );
   }
+// دریافت فهرست بانک‌ها برای گزارش
+  Future<List<Map<String, dynamic>>> getBankReportBanks() async {
+    final response = await apiService.get(
+      ApiConfig.managerBankReportList,
+    );
 
+    final data = _decodeResponse(response);
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      if (data is List) {
+        return data
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+
+      throw Exception('اطلاعات فهرست بانک‌ها نامعتبر است.');
+    }
+
+    throw Exception(_extractErrorMessage(data));
+  }
   // =====================================================
   // Decode پاسخ سرور
   // =====================================================
@@ -373,8 +431,7 @@ class ManagerBankService {
       return null;
     }
 
-    final body =
-    utf8.decode(
+    final body = utf8.decode(
       bodyBytes,
       allowMalformed: true,
     ).trim();
@@ -407,24 +464,19 @@ class ManagerBankService {
     }
 
     if (data is Map) {
-      final message =
-          data['message'] ??
-              data['detail'] ??
-              data['error'];
+      final message = data['message'] ??
+          data['detail'] ??
+          data['error'];
 
       if (message != null) {
         if (message is List) {
           return message
-              .map(
-                (item) => item.toString(),
-          )
+              .map((item) => item.toString())
               .join('\n');
         }
 
         if (message is Map) {
-          return _formatMapErrors(
-            message,
-          );
+          return _formatMapErrors(message);
         }
 
         return message.toString();
@@ -432,30 +484,25 @@ class ManagerBankService {
 
       final errors = <String>[];
 
-      data.forEach(
-            (key, value) {
-          final field =
-          _fieldTitle(
-            key.toString(),
-          );
+      data.forEach((key, value) {
+        final field = _fieldTitle(
+          key.toString(),
+        );
 
-          if (value is List) {
-            errors.add(
-              '$field: '
-                  '${value.map((e) => e.toString()).join('، ')}',
-            );
-          } else if (value is Map) {
-            errors.add(
-              '$field: '
-                  '${_formatMapErrors(value)}',
-            );
-          } else {
-            errors.add(
-              '$field: $value',
-            );
-          }
-        },
-      );
+        if (value is List) {
+          errors.add(
+            '$field: ${value.map((e) => e.toString()).join('، ')}',
+          );
+        } else if (value is Map) {
+          errors.add(
+            '$field: ${_formatMapErrors(value)}',
+          );
+        } else {
+          errors.add(
+            '$field: $value',
+          );
+        }
+      });
 
       if (errors.isNotEmpty) {
         return errors.join('\n');
@@ -474,20 +521,18 @@ class ManagerBankService {
       ) {
     final messages = <String>[];
 
-    data.forEach(
-          (key, value) {
-        if (value is List) {
-          messages.add(
-            '${_fieldTitle(key.toString())}: '
-                '${value.map((e) => e.toString()).join('، ')}',
-          );
-        } else {
-          messages.add(
-            '${_fieldTitle(key.toString())}: $value',
-          );
-        }
-      },
-    );
+    data.forEach((key, value) {
+      if (value is List) {
+        messages.add(
+          '${_fieldTitle(key.toString())}: '
+              '${value.map((e) => e.toString()).join('، ')}',
+        );
+      } else {
+        messages.add(
+          '${_fieldTitle(key.toString())}: $value',
+        );
+      }
+    });
 
     return messages.join('\n');
   }
@@ -506,59 +551,41 @@ class ManagerBankService {
 
       'bank_name': 'نام بانک',
 
-      'account_holder_name':
-      'نام صاحب حساب',
+      'account_holder_name': 'نام صاحب حساب',
 
-      'account_no':
-      'شماره حساب',
+      'account_no': 'شماره حساب',
 
-      'sheba_number':
-      'شماره شبا',
+      'sheba_number': 'شماره شبا',
 
-      'cart_number':
-      'شماره کارت',
+      'cart_number': 'شماره کارت',
 
-      'create_at':
-      'تاریخ افتتاح حساب',
+      'create_at': 'تاریخ افتتاح حساب',
 
-      'initial_fund':
-      'موجودی اولیه',
+      'initial_fund': 'موجودی اولیه',
 
-      'current_balance':
-      'موجودی فعلی',
+      'current_balance': 'موجودی فعلی',
 
-      'is_active':
-      'وضعیت حساب',
+      'is_active': 'وضعیت حساب',
 
-      'is_default':
-      'حساب پیش‌فرض',
+      'is_default': 'حساب پیش‌فرض',
 
-      'is_gateway':
-      'حساب درگاه',
+      'is_gateway': 'حساب درگاه',
 
-      'from_bank':
-      'حساب مبدأ',
+      'from_bank': 'حساب مبدأ',
 
-      'to_bank':
-      'حساب مقصد',
+      'to_bank': 'حساب مقصد',
 
-      'amount':
-      'مبلغ',
+      'amount': 'مبلغ',
 
-      'transaction_reference':
-      'شماره تراکنش',
+      'transaction_reference': 'شماره تراکنش',
 
-      'payment_date':
-      'تاریخ انتقال',
+      'payment_date': 'تاریخ انتقال',
 
-      'payment_description':
-      'شرح انتقال',
+      'payment_description': 'شرح انتقال',
 
-      'detail':
-      'توضیحات',
+      'detail': 'توضیحات',
 
-      'non_field_errors':
-      'خطا',
+      'non_field_errors': 'خطا',
     };
 
     return titles[field] ?? field;

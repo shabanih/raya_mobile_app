@@ -495,4 +495,10 @@ class ApiConfig {
   static const String managerApprovePayment =
       '$baseUrl/manager/approve-payment/';
 
+  static const String managerBankReportList =
+      '$baseUrl/manager/bank-reports/';
+
+  static String managerBankReportTransactions(int id) =>
+      '$baseUrl/manager/bank-reports/$id/transactions/';
+
 }
