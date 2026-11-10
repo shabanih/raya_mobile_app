@@ -302,6 +302,7 @@ class ManagerPayableService {
     int? receiverRenterId,
     int? receiverThirdPartyId,
     List<String> filePaths = const [],
+    List<int> deletedDocumentIds = const [],
   }) async {
     final fields = _buildFields(
       amount: amount,
@@ -313,6 +314,11 @@ class ManagerPayableService {
       unitId: unitId,
       receiverRenterId: receiverRenterId,
       receiverThirdPartyId: receiverThirdPartyId,
+    );
+
+    // شناسه پیوست‌هایی که باید از سرور حذف شوند
+    fields['deleted_document_ids'] = jsonEncode(
+      deletedDocumentIds,
     );
 
     final response = await _multipartRequest(

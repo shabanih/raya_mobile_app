@@ -47,7 +47,7 @@ class ManagerOperationsScreen extends StatelessWidget {
     ),
     _OperationItem(
       title: 'ثبت هزینه تعمیر و نگهداری',
-      subtitle: 'ثبت تعمیرات و هزینه‌های نگهداری ساختمان',
+      subtitle: 'ثبت تعمیرات و هزینه‌های نگهداری',
       icon: Icons.home_repair_service_rounded,
       color: Color(0xFFAD1457),
       background: Color(0xFFFCE4EC),

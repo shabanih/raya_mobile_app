@@ -209,7 +209,7 @@ class ManagerPropertyService {
   }
 
   // ---------------------------------------------------------
-  // درخواست Multipart برای ثبت و ویرایش و ارسال مدارک
+  // درخواست Multipart
   // ---------------------------------------------------------
 
   Future<dynamic> _multipartRequest({
@@ -299,7 +299,6 @@ class ManagerPropertyService {
   // ---------------------------------------------------------
 
   Map<String, String> _buildFields({
-    // required String receiverName,
     required String documentNumber,
     required String count,
     required String propertyName,
@@ -312,7 +311,6 @@ class ManagerPropertyService {
     String details = '',
   }) {
     return <String, String>{
-      // 'receiver_name': receiverName.trim(),
       'company_name': companyName.trim(),
       'document_number': _normalizeDigits(documentNumber),
       'count': _normalizeDigits(count),
@@ -332,7 +330,6 @@ class ManagerPropertyService {
   // ---------------------------------------------------------
 
   Future<Map<String, dynamic>> createProperty({
-    // required String receiverName,
     required String documentNumber,
     required String count,
     required String propertyName,
@@ -346,7 +343,6 @@ class ManagerPropertyService {
     List<String> filePaths = const [],
   }) async {
     final fields = _buildFields(
-      // receiverName: receiverName,
       companyName: companyName,
       documentNumber: documentNumber,
       count: count,
@@ -375,7 +371,6 @@ class ManagerPropertyService {
 
   Future<Map<String, dynamic>> updateProperty({
     required int id,
-    // required String receiverName,
     required String documentNumber,
     required String count,
     required String propertyName,
@@ -387,9 +382,9 @@ class ManagerPropertyService {
     String propertyPurchaseDate = '',
     String details = '',
     List<String> filePaths = const [],
+    List<int> deletedDocumentIds = const [],
   }) async {
     final fields = _buildFields(
-      // receiverName: receiverName,
       companyName: companyName,
       documentNumber: documentNumber,
       count: count,
@@ -401,6 +396,10 @@ class ManagerPropertyService {
       propertyPurchaseDate: propertyPurchaseDate,
       details: details,
     );
+
+    // ارسال شناسه مدارک حذف‌شده به بک‌اند
+    fields['deleted_document_ids'] =
+        jsonEncode(deletedDocumentIds);
 
     final response = await _multipartRequest(
       path: '/manager/properties/$id/',
@@ -437,7 +436,8 @@ class ManagerPropertyService {
     final body = <String, dynamic>{
       'bank_id': bankId,
       'payment_date': _normalizeDigits(paymentDate),
-      'transaction_reference': _normalizeDigits(transactionReference),
+      'transaction_reference':
+      _normalizeDigits(transactionReference),
       'receiver_name': receiverName.trim(),
     };
 
@@ -454,9 +454,7 @@ class ManagerPropertyService {
   // لغو پرداخت مال
   // ---------------------------------------------------------
 
-  Future<Map<String, dynamic>> cancelPropertyPayment(
-      int id,
-      ) async {
+  Future<Map<String, dynamic>> cancelPropertyPayment(int id) async {
     final response = await _request(
       'POST',
       '/manager/properties/$id/cancel-pay/',

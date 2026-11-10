@@ -1,8 +1,101 @@
+import 'dart:io';
+import '../../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shamsi_date/shamsi_date.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../services/manager_income_service.dart';
+
+
+// تبدیل آدرس نسبی فایل‌های رسانه‌ای به آدرس کامل سرور
+String _incomeDocumentUrl(dynamic value) {
+  if (value is Map) {
+    value = value['url'] ?? value['document'] ?? value['file'] ?? value['image'];
+  }
+
+  final raw = (value ?? '').toString().trim();
+  if (raw.isEmpty) return '';
+
+  final parsed = Uri.tryParse(raw);
+  if (parsed != null && parsed.hasScheme) return raw;
+
+  final base = Uri.parse(ApiConfig.baseUrl);
+  final origin = Uri(
+    scheme: base.scheme,
+    host: base.host,
+    port: base.hasPort ? base.port : null,
+  );
+
+  return origin.resolve(raw.startsWith('/') ? raw : '/$raw').toString();
+}
+
+// نمایش بزرگ تصویر همراه با امکان بزرگ‌نمایی و جابه‌جایی
+void _showIncomeDocument(
+    BuildContext context,
+    String url, {
+      String title = 'تصویر پیوست درآمد',
+    }) {
+  if (url.trim().isEmpty) return;
+
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => Directionality(
+      textDirection: TextDirection.rtl,
+      child: Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * .78,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: InteractiveViewer(
+                  minScale: 0.7,
+                  maxScale: 5,
+                  child: Center(
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text('نمایش تصویر امکان‌پذیر نیست.'),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 class ManagerIncomesScreen extends StatefulWidget {
   const ManagerIncomesScreen({super.key});
@@ -341,6 +434,9 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
   }
 
   void _details(Map<String, dynamic> income) {
+    final rawDocuments = income['documents'];
+    final documents = rawDocuments is List ? rawDocuments : const [];
+
     showDialog<void>(
       context: context,
       builder: (ctx) => Directionality(
@@ -367,15 +463,51 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
                   _detail('شماره پیگیری', income['transaction_reference']),
                 ],
                 _detail('توضیحات', income['details']),
-                if (income['documents'] is List)
-                  ...((income['documents'] as List).asMap().entries.map(
-                        (entry) => _detail(
-                      'مدرک ${entry.key + 1}',
-                      entry.value is Map
-                          ? entry.value['url']
-                          : entry.value,
-                    ),
-                  )),
+                if (documents.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'تصاویر پیوست:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: documents.asMap().entries.map((entry) {
+                      final url = _incomeDocumentUrl(entry.value);
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: url.isEmpty
+                            ? null
+                            : () => _showIncomeDocument(
+                          context,
+                          url,
+                          title: 'تصویر پیوست ${entry.key + 1}',
+                        ),
+                        child: Container(
+                          width: 92,
+                          height: 92,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F1F5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E4EA)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: url.isEmpty
+                              ? const Icon(Icons.broken_image_outlined, color: Colors.grey)
+                              : Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -793,6 +925,7 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
 // فرم ایجاد و ویرایش درآمد
 // ------------------------------------------------------------
 
+
 class _IncomeFormSheet extends StatefulWidget {
   final ManagerIncomeService service;
   final List<Map<String, dynamic>> categories;
@@ -808,7 +941,6 @@ class _IncomeFormSheet extends StatefulWidget {
   State<_IncomeFormSheet> createState() => _IncomeFormSheetState();
 }
 
-
 class _IncomeFormSheetState extends State<_IncomeFormSheet> {
   static const Color _teal = Color(0xFF00ACC1);
   static const Color _purple = Color(0xFF610DB5);
@@ -819,11 +951,49 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
   final _details = TextEditingController();
   final _docNo = TextEditingController();
 
+  final ImagePicker _imagePicker = ImagePicker();
+
+  final List<File> _selectedImages = [];
+  final List<int> _deletedDocumentIds = [];
+
   DateTime _date = DateTime.now();
   int? _categoryId;
   bool _saving = false;
 
   bool get _editing => widget.income != null;
+
+  List<Map<String, dynamic>> get _existingDocuments {
+    final documents = widget.income?['documents'];
+    if (documents is! List) return [];
+
+    return documents.map<Map<String, dynamic>?>((document) {
+      if (document is Map) {
+        final item = Map<String, dynamic>.from(document);
+        final url = _incomeDocumentUrl(item);
+        if (url.isEmpty) return null;
+        return {
+          ...item,
+          'url': url,
+        };
+      }
+
+      if (document is String) {
+        final url = _incomeDocumentUrl(document);
+        if (url.isEmpty) return null;
+        return {'url': url};
+      }
+
+      return null;
+    }).whereType<Map<String, dynamic>>().where((item) {
+      final id = int.tryParse('${item['id'] ?? ''}');
+      return id == null || !_deletedDocumentIds.contains(id);
+    }).toList();
+  }
+
+  int get _remainingSlots {
+    final used = _existingDocuments.length + _selectedImages.length;
+    return (2 - used).clamp(0, 2);
+  }
 
   @override
   void initState() {
@@ -879,8 +1049,7 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
   int _int(dynamic value) {
     return int.tryParse(
       _normal((value ?? '').toString()),
-    ) ??
-        0;
+    ) ?? 0;
   }
 
   String _dateString(DateTime d) =>
@@ -933,6 +1102,242 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
     }
   }
 
+  Future<void> _pickImages() async {
+    if (_saving) return;
+
+    if (_remainingSlots <= 0) {
+      _message(
+        'حداکثر دو عکس برای هر درآمد مجاز است.',
+        error: true,
+      );
+      return;
+    }
+
+    try {
+      final images = await _imagePicker.pickMultiImage(
+        imageQuality: 85,
+      );
+
+      if (!mounted || images.isEmpty) return;
+
+      final selected = images
+          .take(_remainingSlots)
+          .map((image) => File(image.path))
+          .toList();
+
+      setState(() {
+        _selectedImages.addAll(selected);
+      });
+
+      if (images.length > selected.length) {
+        _message('حداکثر دو عکس قابل ثبت است.');
+      }
+    } catch (e) {
+      _message(
+        'انتخاب عکس انجام نشد: ${e.toString()}',
+        error: true,
+      );
+    }
+  }
+
+  void _removeNewImage(int index) {
+    if (_saving) return;
+
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
+  void _removeExistingImage(Map<String, dynamic> document) {
+    if (_saving) return;
+
+    final id = _int(document['id']);
+
+    if (id <= 0) return;
+
+    setState(() {
+      if (!_deletedDocumentIds.contains(id)) {
+        _deletedDocumentIds.add(id);
+      }
+    });
+  }
+
+  Widget _buildDocuments() {
+    final existing = _existingDocuments;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: const Color(0xFFE8E8F0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.image_outlined,
+                color: _teal,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'تصاویر پیوست درآمد',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Text(
+                '${existing.length + _selectedImages.length}/۲',
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'حداکثر دو تصویر قابل ثبت است.',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.black54,
+            ),
+          ),
+          if (existing.isNotEmpty || _selectedImages.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ...existing.map((document) {
+                  final url = _incomeDocumentUrl(document['url']);
+                  final id = _int(document['id']);
+
+                  return _documentThumbnail(
+                    image: url.isEmpty
+                        ? null
+                        : Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    onTap: url.isEmpty
+                        ? null
+                        : () => _showIncomeDocument(context, url),
+                    onRemove: id > 0
+                        ? () => _removeExistingImage(document)
+                        : null,
+                  );
+                }),
+                ...List.generate(
+                  _selectedImages.length,
+                      (index) {
+                    return _documentThumbnail(
+                      image: Image.file(
+                        _selectedImages[index],
+                        fit: BoxFit.cover,
+                      ),
+                      onRemove: () => _removeNewImage(index),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+          if (_remainingSlots > 0) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _pickImages,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: const Text('انتخاب عکس'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _teal,
+                side: const BorderSide(color: _teal),
+                minimumSize: const Size(double.infinity, 45),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            const Text(
+              'ظرفیت پیوست تکمیل شده است.',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+
+  Widget _documentThumbnail({
+    required Widget? image,
+    required VoidCallback? onRemove,
+    VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      width: 100,
+      height: 100,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Material(
+              color: const Color(0xFFF0F1F5),
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: image == null
+                    ? const Icon(
+                  Icons.image_not_supported_outlined,
+                  color: Colors.grey,
+                  size: 32,
+                )
+                    : SizedBox.expand(child: image),
+              ),
+            ),
+          ),
+          if (onRemove != null)
+            Positioned(
+              top: 4,
+              left: 4,
+              child: Material(
+                color: Colors.red,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _saving ? null : onRemove,
+                  child: const Padding(
+                    padding: EdgeInsets.all(5),
+                    child: Icon(
+                      Icons.close,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (_saving || !_formKey.currentState!.validate()) {
       return;
@@ -969,8 +1374,7 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
         date: _dateString(_date),
         description: _description.text.trim(),
 
-        // فرم ثبت درآمد دیگر پرداخت‌کننده ندارد.
-        // پارامترها برای سازگاری با امضای فعلی سرویس null هستند.
+        // پارامترهای سازگاری با سرویس فعلی
         payerType: 'owner',
         unitId: null,
         renterId: null,
@@ -978,6 +1382,9 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
 
         details: _details.text.trim(),
         docNo: _normal(_docNo.text),
+
+        files: _selectedImages,
+        deletedDocumentIds: _deletedDocumentIds,
       );
 
       if (mounted) {
@@ -1194,6 +1601,11 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
                           Icons.notes,
                         ),
                       ),
+                      const SizedBox(height: 18),
+
+                      // پیوست تصاویر
+                      _buildDocuments(),
+
                       const SizedBox(height: 24),
 
                       SizedBox(
@@ -1233,6 +1645,7 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
     );
   }
 }
+
 
 
 // ------------------------------------------------------------

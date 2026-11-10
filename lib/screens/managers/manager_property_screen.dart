@@ -5,6 +5,57 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_property_service.dart';
+import '../../config/api_config.dart';
+
+String _propertyDocumentUrl(dynamic value) {
+  final raw = (value ?? '').toString().trim();
+  if (raw.isEmpty) return '';
+  final uri = Uri.tryParse(raw);
+  if (uri != null && uri.hasScheme) return raw;
+  final base = Uri.parse(ApiConfig.baseUrl);
+  final origin = Uri(
+    scheme: base.scheme,
+    host: base.host,
+    port: base.hasPort ? base.port : null,
+  );
+  return origin.resolve(raw.startsWith('/') ? raw : '/$raw').toString();
+}
+
+void _showPropertyDocument(BuildContext context, String url, {String title = 'مدرک اموال'}) {
+  if (url.isEmpty) return;
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              Expanded(child: Text(title, textDirection: TextDirection.rtl, style: const TextStyle(fontWeight: FontWeight.bold))),
+              IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+            ]),
+          ),
+          Flexible(
+            child: InteractiveViewer(
+              minScale: .7,
+              maxScale: 5,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Text('نمایش تصویر ممکن نیست.'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class ManagerPropertyScreen extends StatefulWidget {
   const ManagerPropertyScreen({super.key});
@@ -334,14 +385,36 @@ class _ManagerPropertyScreenState extends State<ManagerPropertyScreen> {
                   fa('${item['transaction_reference'] ?? '—'}'),
                 ),
                 detail('توضیحات', item['details']),
-                if (docs is List)
-                  ...docs.asMap().entries.map((entry) {
-                    final doc = entry.value;
-                    return detail(
-                      'مدرک ${entry.key + 1}',
-                      doc is Map ? doc['url'] : doc,
-                    );
-                  }),
+                if (docs is List && docs.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text('مدارک پیوست‌شده', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: docs.asMap().entries.map((entry) {
+                      final doc = entry.value;
+                      final url = _propertyDocumentUrl(doc is Map ? doc['url'] : doc);
+                      return InkWell(
+                        onTap: () => _showPropertyDocument(context, url, title: 'مدرک ${entry.key + 1}'),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 92,
+                          height: 92,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                          child: url.isEmpty
+                              ? const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)
+                              : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text('برای بزرگ‌نمایی روی تصویر بزنید.', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                  ),
+                ],
               ],
             ),
           ),
@@ -551,7 +624,6 @@ class _ManagerPropertyScreenState extends State<ManagerPropertyScreen> {
       child: Scaffold(
         backgroundColor: background,
         appBar: AppBar(
-          toolbarHeight: 88,
           title: const Text(
             'مدیریت اموال',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -745,7 +817,7 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
   final formKey = GlobalKey<FormState>();
 
-  final receiverName = TextEditingController();
+  // final receiverName = TextEditingController();
   final companyName = TextEditingController();
   final documentNumber = TextEditingController();
   final count = TextEditingController();
@@ -758,6 +830,8 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
   final picker = ImagePicker();
   final List<File> files = [];
+  final List<Map<String, dynamic>> existingDocuments = [];
+  final Set<int> deletedDocumentIds = {};
 
   DateTime purchaseDate = DateTime.now();
   bool purchaseDateSelected = false;
@@ -786,17 +860,26 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
     final item = widget.item;
     if (item == null) return;
+    final docs = item['documents'];
+    if (docs is List) {
+      for (final doc in docs) {
+        if (doc is Map) {
+          existingDocuments.add(Map<String, dynamic>.from(doc));
+        } else if (doc != null) {
+          existingDocuments.add({'url': doc.toString()});
+        }
+      }
+    }
 
     // receiverName.text = '${item['receiver_name'] ?? ''}';
     companyName.text = '${item['company_name'] ?? ''}';
-    documentNumber.text = toPersianDigits(item['document_number']);
-    propertyPrice.text = toPersianDigits(item['property_price']);
+    documentNumber.text = '${item['document_number'] ?? ''}';
     count.text = '${item['count'] ?? ''}';
     propertyName.text = '${item['property_name'] ?? ''}';
     propertyUnit.text = '${item['property_unit'] ?? ''}';
     propertyLocation.text = '${item['property_location'] ?? ''}';
     propertyCode.text = '${item['property_code'] ?? ''}';
-    // propertyPrice.text = '${item['property_price'] ?? ''}';
+    propertyPrice.text = '${item['property_price'] ?? ''}';
     details.text = '${item['details'] ?? ''}';
 
     final date = DateTime.tryParse(
@@ -843,19 +926,6 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
       RegExp(r'[0-9]'),
           (m) => persian[int.parse(m.group(0)!)],
     );
-  }
-  String toPersianDigits(dynamic value) {
-    if (value == null) return '';
-
-    String result;
-
-    if (value is List) {
-      result = value.isEmpty ? '' : value.first.toString();
-    } else {
-      result = value.toString();
-    }
-
-    return fa(result);
   }
   final List<DropdownMenuItem<String>> propertyUnitItems = const [
     DropdownMenuItem(value: '', child: Text('--- انتخاب کنید ---')),
@@ -933,33 +1003,42 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
     }
   }
 
+  int get remainingDocumentSlots => 2 - existingDocuments.length - files.length;
+
+  void removeExistingDocument(Map<String, dynamic> doc) {
+    final id = int.tryParse('${doc['id'] ?? ''}');
+    if (id == null) {
+      showMessage('شناسه مدرک از سرور دریافت نشده است؛ حذف این مدرک ممکن نیست.', error: true);
+      return;
+    }
+    setState(() {
+      existingDocuments.remove(doc);
+      deletedDocumentIds.add(id);
+    });
+  }
+
   Future<void> pickImages() async {
     if (saving) return;
-
+    if (remainingDocumentSlots <= 0) {
+      showMessage('حداکثر دو مدرک برای هر مال مجاز است.', error: true);
+      return;
+    }
     try {
       final selected = await picker.pickMultiImage(imageQuality: 85);
       if (!mounted || selected.isEmpty) return;
-
       var limitReached = false;
-
       setState(() {
         for (final image in selected) {
           if (files.any((f) => f.path == image.path)) continue;
-
-          if (files.length >= 2) {
+          if (remainingDocumentSlots <= 0) {
             limitReached = true;
             break;
           }
-
           files.add(File(image.path));
         }
       });
-
       if (limitReached) {
-        showMessage(
-          'حداکثر دو تصویر جدید قابل پیوست است.',
-          error: true,
-        );
+        showMessage('حداکثر دو مدرک در مجموع قابل نگهداری است.', error: true);
       }
     } catch (e) {
       showMessage('انتخاب تصویر ناموفق بود: $e', error: true);
@@ -985,6 +1064,11 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
     if (documentValue == null) {
       showMessage('شماره سند باید عدد صحیح باشد.', error: true);
+      return;
+    }
+
+    if (existingDocuments.length + files.length > 2) {
+      showMessage('حداکثر دو مدرک برای هر مال مجاز است.', error: true);
       return;
     }
 
@@ -1024,6 +1108,7 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
           params['propertyPurchaseDate']!.toString(),
           details: params['details']!.toString(),
           filePaths: params['filePaths'] as List<String>,
+          deletedDocumentIds: deletedDocumentIds.toList(),
         );
       } else {
         await widget.service.createProperty(
@@ -1110,8 +1195,6 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final existingDocs = widget.item?['documents'];
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -1276,76 +1359,82 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
                       minLines: 2,
                       maxLines: 4,
                     ),
-                    if (existingDocs is List && existingDocs.isNotEmpty) ...[
+                    if (existingDocuments.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      const Text(
-                        'مدارک ثبت‌شده',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      ...existingDocs.map(
-                            (doc) => ListTile(
-                          dense: true,
-                          leading: const Icon(
-                            Icons.attach_file,
-                            color: teal,
-                          ),
-                          title: Text(
-                            doc is Map ? '${doc['url'] ?? 'مدرک'}' : '$doc',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        'مدارک قبلی حذف نمی‌شوند؛ فایل‌های جدید به آن‌ها اضافه خواهند شد.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
+                      const Text('مدارک ثبت‌شده', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: existingDocuments.map((doc) {
+                          final url = _propertyDocumentUrl(doc['url']);
+                          return SizedBox(
+                            width: 112,
+                            child: Column(
+                              children: [
+                                InkWell(
+                                  onTap: () => _showPropertyDocument(context, url),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    width: 104,
+                                    height: 88,
+                                    clipBehavior: Clip.antiAlias,
+                                    decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                                    child: url.isEmpty
+                                        ? const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)
+                                        : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: saving ? null : () => removeExistingDocument(doc),
+                                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                  label: const Text('حذف', style: TextStyle(color: Colors.red, fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                     const SizedBox(height: 18),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
-                        onPressed: saving || files.length >= 2
-                            ? null
-                            : pickImages,
+                        onPressed: saving || remainingDocumentSlots <= 0 ? null : pickImages,
                         icon: const Icon(Icons.add_photo_alternate_outlined),
                         label: const Text('افزودن تصویر پیوست'),
                       ),
                     ),
                     Text(
-                      'حداکثر دو مدرک جدید قابل پیوست است.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                      'مدارک باقی‌مانده قابل افزودن: ${remainingDocumentSlots < 0 ? 0 : remainingDocumentSlots} از ۲',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
-                    ...files.asMap().entries.map(
-                          (entry) => ListTile(
-                        leading: const Icon(
-                          Icons.image_outlined,
-                          color: teal,
-                        ),
-                        title: Text(
-                          entry.value.path.split(Platform.pathSeparator).last,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          onPressed: saving
-                              ? null
-                              : () => setState(
-                                () => files.removeAt(entry.key),
-                          ),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                        ),
+                    if (files.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: files.asMap().entries.map((entry) {
+                          return SizedBox(
+                            width: 112,
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(entry.value, width: 104, height: 88, fit: BoxFit.cover),
+                                ),
+                                Text(entry.value.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)),
+                                TextButton.icon(
+                                  onPressed: saving ? null : () => setState(() => files.removeAt(entry.key)),
+                                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                  label: const Text('حذف', style: TextStyle(color: Colors.red, fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 52,
@@ -1408,7 +1497,6 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
 
   final formKey = GlobalKey<FormState>();
   final reference = TextEditingController();
-  final receiverName = TextEditingController();
 
   List<Map<String, dynamic>> banks = [];
 
@@ -1423,16 +1511,11 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
   @override
   void initState() {
     super.initState();
-
-    receiverName.text =
-        (widget.item['receiver_name'] ?? '').toString();
-
     loadInitialData();
   }
 
   @override
   void dispose() {
-    receiverName.dispose();
     reference.dispose();
     super.dispose();
   }
@@ -1567,18 +1650,11 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
     });
 
     try {
-      // await widget.service.payProperty(
-      //   id: intValue(widget.item['id']),
-      //   bankId: bankId!,
-      //   paymentDate: dateString(date),
-      //   transactionReference: normal(reference.text),
-      // );
       await widget.service.payProperty(
         id: intValue(widget.item['id']),
         bankId: bankId!,
         paymentDate: dateString(date),
         transactionReference: normal(reference.text),
-        receiverName: receiverName.text.trim(),
       );
 
       if (mounted) Navigator.pop(context, true);
@@ -1724,7 +1800,6 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
                         : null,
                   ),
                   const SizedBox(height: 14),
-
                   InkWell(
                     onTap: saving ? null : chooseDate,
                     child: InputDecorator(
@@ -1734,23 +1809,6 @@ class _PropertyPaymentSheetState extends State<_PropertyPaymentSheet> {
                       ),
                       child: Text(dateText(date)),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: receiverName,
-                    enabled: !saving,
-                    maxLength: 200,
-                    textDirection: TextDirection.rtl,
-                    decoration: decoration(
-                      'نام دریافت‌کننده *',
-                      Icons.person_outline,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'نام دریافت‌کننده را وارد کنید.';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 14),
                   TextFormField(

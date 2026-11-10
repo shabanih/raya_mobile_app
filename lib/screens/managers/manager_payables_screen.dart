@@ -2,6 +2,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
@@ -293,7 +295,44 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
       message(cleanError(e), error: true);
     }
   }
-
+  void _showDocumentImage(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'تصویر قابل نمایش نیست',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 5,
+              left: 5,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   void showDetails(Map<String, dynamic> item) {
     final docs = item['documents'];
 
@@ -328,14 +367,57 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
                   fa('${item['transaction_reference'] ?? '—'}'),
                 ),
                 detail('توضیحات', item['details']),
-                if (docs is List)
-                  ...docs.asMap().entries.map((entry) {
-                    final doc = entry.value;
-                    return detail(
-                      'مدرک ${entry.key + 1}',
-                      doc is Map ? doc['url'] : doc,
-                    );
-                  }),
+                if (docs.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Text(
+                    'مدارک پیوست‌شده',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: docs.map<Widget>((doc) {
+                      final url = doc is Map
+                          ? (doc['url'] ?? '').toString()
+                          : doc.toString();
+
+                      if (url.isEmpty) return const SizedBox.shrink();
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _showDocumentImage(ctx, url),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            url,
+                            width: 105,
+                            height: 105,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 105,
+                              height: 105,
+                              color: Colors.grey.shade100,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                size: 35,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  const Text('مدرکی پیوست نشده است'),
+                ],
               ],
             ),
           ),
@@ -705,6 +787,7 @@ class _PayableFormSheet extends StatefulWidget {
 }
 
 
+
 class _PayableFormSheetState extends State<_PayableFormSheet> {
   static const Color teal = Color(0xFF00ACC1);
   static const Color purple = Color(0xFF610DB5);
@@ -715,13 +798,18 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
   final details = TextEditingController();
   final documentNumber = TextEditingController();
   final picker = ImagePicker();
+
   final List<File> files = [];
+  final List<Map<String, dynamic>> existingDocs = [];
+  final List<int> deletedDocumentIds = [];
 
   DateTime date = DateTime.now();
   bool dateSelected = false;
   bool saving = false;
 
   bool get editing => widget.item != null;
+
+  int get totalDocuments => existingDocs.length + files.length;
 
   @override
   void initState() {
@@ -735,13 +823,23 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     details.text = '${item['details'] ?? ''}';
     documentNumber.text = '${item['document_number'] ?? ''}';
 
-    final parsed = DateTime.tryParse(
-      '${item['document_date'] ?? ''}',
-    );
-
+    final parsed = DateTime.tryParse('${item['document_date'] ?? ''}');
     if (parsed != null) {
       date = parsed;
       dateSelected = true;
+    }
+
+    final docs = item['documents'];
+    if (docs is List) {
+      for (final doc in docs) {
+        if (doc is Map) {
+          existingDocs.add(
+            Map<String, dynamic>.from(
+              doc.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -843,6 +941,16 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
   Future<void> pickImages() async {
     if (saving) return;
 
+    final available = 2 - totalDocuments;
+
+    if (available <= 0) {
+      showMessage(
+        'حداکثر دو مدرک برای هر سند مجاز است.',
+        error: true,
+      );
+      return;
+    }
+
     try {
       final selected = await picker.pickMultiImage(
         imageQuality: 85,
@@ -850,26 +958,30 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
 
       if (!mounted || selected.isEmpty) return;
 
+      var added = 0;
       var limitReached = false;
 
       setState(() {
         for (final image in selected) {
           if (files.any((f) => f.path == image.path)) continue;
 
-          if (files.length >= 2) {
+          if (totalDocuments >= 2) {
             limitReached = true;
             break;
           }
 
           files.add(File(image.path));
+          added++;
         }
       });
 
       if (limitReached) {
         showMessage(
-          'حداکثر دو تصویر جدید قابل پیوست است.',
+          'حداکثر دو مدرک در مجموع قابل ثبت است.',
           error: true,
         );
+      } else if (added == 0) {
+        showMessage('تصویر جدیدی اضافه نشد.');
       }
     } catch (e) {
       showMessage(
@@ -877,6 +989,211 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
         error: true,
       );
     }
+  }
+
+  void removeExistingDocument(int index) {
+    if (saving || index < 0 || index >= existingDocs.length) return;
+
+    final doc = existingDocs[index];
+    final id = int.tryParse('${doc['id'] ?? ''}');
+
+    if (id == null || id <= 0) {
+      showMessage(
+        'شناسه پیوست معتبر نیست.',
+        error: true,
+      );
+      return;
+    }
+
+    setState(() {
+      deletedDocumentIds.add(id);
+      existingDocs.removeAt(index);
+    });
+  }
+
+  void showImage(String url) {
+    if (url.trim().isEmpty) return;
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.7,
+              maxScale: 5,
+              child: Center(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white,
+                          size: 55,
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          'نمایش تصویر امکان‌پذیر نیست.',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget existingDocumentTile(
+      Map<String, dynamic> doc,
+      int index,
+      ) {
+    final url = (doc['url'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: url.isEmpty ? null : () => showImage(url),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                color: teal.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: url.isEmpty
+                  ? const Icon(Icons.insert_drive_file_outlined, color: teal)
+                  : Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.grey,
+                  size: 28,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'مدرک قبلی ${fa('${index + 1}')}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  url.isEmpty ? 'آدرس مدرک موجود نیست' : 'برای مشاهده لمس کنید',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف پیوست',
+            onPressed: saving ? null : () => removeExistingDocument(index),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget newFileTile(File file, int index) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              file,
+              width: 62,
+              height: 62,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(
+                width: 62,
+                height: 62,
+                child: Icon(Icons.image_outlined, color: teal),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              file.path.split(Platform.pathSeparator).last,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف تصویر جدید',
+            onPressed: saving
+                ? null
+                : () => setState(() => files.removeAt(index)),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> save() async {
@@ -889,6 +1206,14 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
         amountValue % 1 != 0) {
       showMessage(
         'مبلغ باید عدد صحیح و بیشتر از صفر باشد.',
+        error: true,
+      );
+      return;
+    }
+
+    if (totalDocuments > 2) {
+      showMessage(
+        'حداکثر دو مدرک برای هر سند مجاز است.',
         error: true,
       );
       return;
@@ -913,6 +1238,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
           documentNumber: documentNumberText,
           details: detailsText,
           filePaths: filePaths,
+          deletedDocumentIds: List<int>.from(deletedDocumentIds),
         );
       } else {
         await widget.service.createPayable(
@@ -938,8 +1264,6 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final existingDocs = widget.item?['documents'];
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -958,9 +1282,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      editing
-                          ? 'ویرایش سند پرداختنی'
-                          : 'ثبت سند پرداختنی',
+                      editing ? 'ویرایش سند پرداختنی' : 'ثبت سند پرداختنی',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -968,9 +1290,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                     ),
                   ),
                   IconButton(
-                    onPressed: saving
-                        ? null
-                        : () => Navigator.pop(context),
+                    onPressed: saving ? null : () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -986,10 +1306,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                     TextFormField(
                       controller: amount,
                       keyboardType: TextInputType.number,
-                      decoration: decoration(
-                        'مبلغ به تومان *',
-                        Icons.payments,
-                      ),
+                      decoration: decoration('مبلغ به تومان *', Icons.payments),
                       validator: (v) {
                         final n = double.tryParse(normal(v ?? ''));
 
@@ -1001,39 +1318,27 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                       },
                     ),
                     const SizedBox(height: 14),
-
                     FormField<DateTime>(
                       initialValue: dateSelected ? date : null,
-                      validator: (_) {
-                        if (!dateSelected) {
-                          return 'انتخاب تاریخ سند الزامی است.';
-                        }
-                        return null;
-                      },
+                      validator: (_) => !dateSelected
+                          ? 'انتخاب تاریخ سند الزامی است.'
+                          : null,
                       builder: (field) {
                         return InkWell(
                           onTap: saving
                               ? null
                               : () async {
                             await chooseDate();
-
-                            field.didChange(
-                              dateSelected ? date : null,
-                            );
-
+                            field.didChange(dateSelected ? date : null);
                             field.validate();
                           },
                           child: InputDecorator(
                             decoration: decoration(
                               'تاریخ سند *',
                               Icons.calendar_month,
-                            ).copyWith(
-                              errorText: field.errorText,
-                            ),
+                            ).copyWith(errorText: field.errorText),
                             child: Text(
-                              dateSelected
-                                  ? dateText(date)
-                                  : 'انتخاب تاریخ سند',
+                              dateSelected ? dateText(date) : 'انتخاب تاریخ سند',
                               textDirection: TextDirection.rtl,
                               textAlign: TextAlign.right,
                             ),
@@ -1041,31 +1346,22 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                         );
                       },
                     ),
-
                     const SizedBox(height: 14),
-
                     TextFormField(
                       controller: description,
                       maxLength: 4000,
-                      decoration: decoration(
-                        'شرح سند *',
-                        Icons.short_text,
-                      ),
+                      decoration: decoration('شرح سند *', Icons.short_text),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
                           return 'شرح سند را وارد کنید.';
                         }
-
                         if (v.length > 4000) {
                           return 'حداکثر ۴۰۰۰ کاراکتر مجاز است.';
                         }
-
                         return null;
                       },
                     ),
-
                     const SizedBox(height: 8),
-
                     TextFormField(
                       controller: documentNumber,
                       keyboardType: TextInputType.number,
@@ -1075,18 +1371,13 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                       ),
                       validator: (v) {
                         final text = normal(v ?? '');
-
-                        if (text.isNotEmpty &&
-                            int.tryParse(text) == null) {
+                        if (text.isNotEmpty && int.tryParse(text) == null) {
                           return 'شماره سند معتبر نیست.';
                         }
-
                         return null;
                       },
                     ),
-
                     const SizedBox(height: 14),
-
                     TextFormField(
                       controller: details,
                       minLines: 2,
@@ -1097,89 +1388,72 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                       ),
                     ),
 
-                    if (existingDocs is List &&
-                        existingDocs.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                    if (editing) ...[
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'مدارک پیوست',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Text(
+                            '${fa('$totalDocuments')}/۲',
+                            style: const TextStyle(
+                              color: teal,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (existingDocs.isEmpty && files.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'مدرکی برای این سند ثبت نشده است.',
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ...existingDocs.asMap().entries.map(
+                            (entry) => existingDocumentTile(
+                          entry.value,
+                          entry.key,
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 18),
                       const Text(
-                        'مدارک ثبت‌شده',
+                        'مدارک پیوست',
                         style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      ...existingDocs.map(
-                            (doc) => ListTile(
-                          dense: true,
-                          leading: const Icon(
-                            Icons.attach_file,
-                            color: teal,
-                          ),
-                          title: Text(
-                            doc is Map
-                                ? '${doc['url'] ?? 'مدرک'}'
-                                : '$doc',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        'مدارک قبلی حذف نمی‌شوند؛ فایل‌های جدید به آن‌ها اضافه خواهند شد.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
                       ),
                     ],
 
-                    const SizedBox(height: 18),
-
+                    const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
-                        onPressed:
-                        saving || files.length >= 2 ? null : pickImages,
-                        icon: const Icon(
-                          Icons.add_photo_alternate_outlined,
-                        ),
+                        onPressed: saving || totalDocuments >= 2
+                            ? null
+                            : pickImages,
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
                         label: const Text('افزودن تصویر پیوست'),
                       ),
                     ),
-
                     Text(
-                      'حداکثر دو مدرک جدید در هر سند قابل ثبت است.',
+                      'حداکثر دو مدرک در مجموع برای هر سند مجاز است.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
                     ),
-
                     ...files.asMap().entries.map(
-                          (entry) => ListTile(
-                        leading: const Icon(
-                          Icons.image_outlined,
-                          color: teal,
-                        ),
-                        title: Text(
-                          entry.value.path
-                              .split(Platform.pathSeparator)
-                              .last,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          onPressed: saving
-                              ? null
-                              : () => setState(
-                                () => files.removeAt(entry.key),
-                          ),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ),
+                          (entry) => newFileTile(entry.value, entry.key),
                     ),
-
                     const SizedBox(height: 24),
-
                     SizedBox(
                       height: 52,
                       child: FilledButton.icon(
@@ -1216,6 +1490,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     );
   }
 }
+
 
 
 // ------------------------------------------------------------------

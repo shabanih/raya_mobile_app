@@ -1,10 +1,10 @@
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
+import '../../config/api_config.dart';
 import '../../services/manager_maintenance_service.dart';
 
 class ManagerMaintenanceScreen extends StatefulWidget {
@@ -289,8 +289,64 @@ class _ManagerMaintenanceScreenState
     }
   }
 
+  String _resolveDocumentUrl(dynamic document) {
+    final raw = document is Map
+        ? (document['url'] ?? '').toString().trim()
+        : (document ?? '').toString().trim();
+
+    if (raw.isEmpty) return '';
+    final uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) return raw;
+
+    final base = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+    return '$base${raw.startsWith('/') ? '' : '/'}$raw';
+  }
+
+  void _showDocumentImage(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5,
+              child: Center(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'نمایش تصویر امکان‌پذیر نیست',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void showDetails(Map<String, dynamic> item) {
-    final docs = item['documents'];
+    final rawDocs = item['documents'];
+    final docs = rawDocs is List ? rawDocs : <dynamic>[];
 
     showDialog<void>(
       context: context,
@@ -298,44 +354,88 @@ class _ManagerMaintenanceScreenState
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           title: const Text('جزئیات تعمیر و نگهداری'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                detail('کارشناس', item['expert_name']),
-                detail('شرح تعمیر', item['maintenance_description']),
-                detail('مبلغ', money(item['maintenance_price'])),
-                detail('شرکت خدماتی', item['service_company']),
-                detail('وضعیت تعمیر', item['maintenance_status']),
-                detail('تاریخ شروع', dateText(item['maintenance_start_date'])),
-                detail('تاریخ پایان', dateText(item['maintenance_end_date'])),
-                detail(
-                  'شماره سند مالی',
-                  fa('${item['financial_document_number'] ?? '—'}'),
-                ),
-                detail(
-                  'شماره فاکتور',
-                  fa('${item['maintenance_document_no'] ?? '—'}'),
-                ),
-                detail('دریافت‌کننده', item['receiver_name']),
-                detail('وضعیت پرداخت', isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده'),
-                detail('حساب بانکی', item['bank_name']),
-                detail('تاریخ پرداخت', dateText(item['payment_date'])),
-                detail(
-                  'شماره پیگیری',
-                  fa('${item['transaction_reference'] ?? '—'}'),
-                ),
-                detail('توضیحات', item['details']),
-                if (docs is List)
-                  ...docs.asMap().entries.map((entry) {
-                    final doc = entry.value;
-                    return detail(
-                      'مدرک ${entry.key + 1}',
-                      doc is Map ? doc['url'] : doc,
-                    );
-                  }),
-              ],
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  detail('کارشناس', item['expert_name']),
+                  detail('شرح تعمیر', item['maintenance_description']),
+                  detail('مبلغ', money(item['maintenance_price'])),
+                  detail('شرکت خدماتی', item['service_company']),
+                  detail('وضعیت تعمیر', item['maintenance_status']),
+                  detail('تاریخ شروع', dateText(item['maintenance_start_date'])),
+                  detail('تاریخ پایان', dateText(item['maintenance_end_date'])),
+                  detail(
+                    'شماره سند مالی',
+                    fa('${item['financial_document_number'] ?? '—'}'),
+                  ),
+                  detail(
+                    'شماره فاکتور',
+                    fa('${item['maintenance_document_no'] ?? '—'}'),
+                  ),
+                  detail('دریافت‌کننده', item['receiver_name']),
+                  detail(
+                    'وضعیت پرداخت',
+                    isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده',
+                  ),
+                  detail('حساب بانکی', item['bank_name']),
+                  detail('تاریخ پرداخت', dateText(item['payment_date'])),
+                  detail(
+                    'شماره پیگیری',
+                    fa('${item['transaction_reference'] ?? '—'}'),
+                  ),
+                  detail('توضیحات', item['details']),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const Text(
+                    'مدارک پیوست‌شده',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  if (docs.isEmpty)
+                    const Text(
+                      'مدرکی پیوست نشده است.',
+                      style: TextStyle(color: Colors.black54),
+                    )
+                  else
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: docs.map<Widget>((doc) {
+                        final url = _resolveDocumentUrl(doc);
+                        if (url.isEmpty) return const SizedBox.shrink();
+
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _showDocumentImage(ctx, url),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              url,
+                              width: 105,
+                              height: 105,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 105,
+                                height: 105,
+                                color: Colors.grey.shade100,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 35,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -736,6 +836,8 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
 
   final picker = ImagePicker();
   final List<File> files = [];
+  final List<Map<String, dynamic>> existingDocuments = [];
+  final Set<int> deletedDocumentIds = {};
 
   DateTime startDate = DateTime.now();
   DateTime endDate = DateTime.now();
@@ -752,6 +854,16 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
 
     final item = widget.item;
     if (item == null) return;
+    final rawDocuments = item['documents'];
+    if (rawDocuments is List) {
+      for (final document in rawDocuments) {
+        if (document is Map) {
+          existingDocuments.add(
+            Map<String, dynamic>.from(document),
+          );
+        }
+      }
+    }
     description.text = '${item['maintenance_description'] ?? ''}';
     amount.text = '${item['maintenance_price'] ?? ''}';
     maintenanceStatus.text = '${item['maintenance_status'] ?? ''}';
@@ -886,6 +998,12 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
   Future<void> pickImages() async {
     if (saving) return;
 
+    final remaining = 2 - existingDocuments.length - files.length;
+    if (remaining <= 0) {
+      showMessage('مجموع مدارک هر تعمیر حداکثر دو عدد است.', error: true);
+      return;
+    }
+
     try {
       final selected = await picker.pickMultiImage(imageQuality: 85);
       if (!mounted || selected.isEmpty) return;
@@ -896,7 +1014,7 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
         for (final image in selected) {
           if (files.any((f) => f.path == image.path)) continue;
 
-          if (files.length >= 2) {
+          if (files.length >= remaining) {
             limitReached = true;
             break;
           }
@@ -907,13 +1025,180 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
 
       if (limitReached) {
         showMessage(
-          'حداکثر دو تصویر جدید قابل پیوست است.',
+          'با توجه به مدارک باقی‌مانده، امکان افزودن تصویر بیشتری وجود ندارد.',
           error: true,
         );
       }
     } catch (e) {
       showMessage('انتخاب تصویر ناموفق بود: $e', error: true);
     }
+  }
+
+  String _resolveFormDocumentUrl(dynamic document) {
+    final raw = document is Map
+        ? (document['url'] ?? '').toString().trim()
+        : (document ?? '').toString().trim();
+
+    if (raw.isEmpty) return '';
+    final uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) return raw;
+
+    final base = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+    return '$base${raw.startsWith('/') ? '' : '/'}$raw';
+  }
+
+  void _previewFormDocument(String url) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5,
+              child: Center(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'نمایش تصویر امکان‌پذیر نیست',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 4,
+              child: IconButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _existingDocumentTile(Map<String, dynamic> document) {
+    final url = _resolveFormDocumentUrl(document);
+    final documentId = int.tryParse('${document['id'] ?? ''}');
+
+    return Stack(
+      children: [
+        InkWell(
+          onTap: url.isEmpty ? null : () => _previewFormDocument(url),
+          borderRadius: BorderRadius.circular(12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: url.isEmpty
+                ? Container(
+              width: 105,
+              height: 105,
+              color: Colors.grey.shade100,
+              child: const Icon(Icons.insert_drive_file_outlined),
+            )
+                : Image.network(
+              url,
+              width: 105,
+              height: 105,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 105,
+                height: 105,
+                color: Colors.grey.shade100,
+                child: const Icon(
+                  Icons.broken_image_outlined,
+                  size: 32,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (documentId != null)
+          Positioned(
+            top: 3,
+            left: 3,
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: saving
+                    ? null
+                    : () {
+                  setState(() {
+                    deletedDocumentIds.add(documentId);
+                    existingDocuments.remove(document);
+                  });
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(5),
+                  child: Icon(
+                    Icons.close,
+                    size: 18,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _newFileTile(File file, int index) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            file,
+            width: 105,
+            height: 105,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              width: 105,
+              height: 105,
+              color: Colors.grey.shade100,
+              child: const Icon(Icons.broken_image_outlined),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 3,
+          left: 3,
+          child: Material(
+            color: Colors.white,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: saving
+                  ? null
+                  : () => setState(() => files.removeAt(index)),
+              child: const Padding(
+                padding: EdgeInsets.all(5),
+                child: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> save() async {
@@ -967,6 +1252,7 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
           maintenanceDocumentNo: params['maintenanceDocumentNo']!.toString(),
           details: params['details']!.toString(),
           filePaths: params['filePaths'] as List<String>,
+          deletedDocumentIds: deletedDocumentIds.toList(),
         );
       } else {
         await widget.service.createMaintenance(
@@ -1181,36 +1467,36 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
                         Icons.notes,
                       ),
                     ),
-                    if (existingDocs is List && existingDocs.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                    if (editing) ...[
+                      const SizedBox(height: 14),
                       const Text(
                         'مدارک ثبت‌شده',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      ...existingDocs.map(
-                            (doc) => ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.attach_file, color: teal),
-                          title: Text(
-                            doc is Map ? '${doc['url'] ?? 'مدرک'}' : '$doc',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 10),
+                      if (existingDocuments.isEmpty)
+                        const Text(
+                          'مدرک قبلی باقی نمانده است.',
+                          style: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 12,
                           ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: existingDocuments
+                              .map(_existingDocumentTile)
+                              .toList(),
                         ),
-                      ),
-                      const Text(
-                        'مدارک قبلی حذف نمی‌شوند؛ فایل‌های جدید به آن‌ها اضافه خواهند شد.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
                     ],
                     const SizedBox(height: 18),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
-                        onPressed: saving || files.length >= 2
+                        onPressed: saving ||
+                            (existingDocuments.length + files.length) >= 2
                             ? null
                             : pickImages,
                         icon: const Icon(Icons.add_photo_alternate_outlined),
@@ -1218,33 +1504,33 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
                       ),
                     ),
                     Text(
-                      'حداکثر دو مدرک جدید قابل پیوست است.',
+                      'مجموع مدارک ثبت‌شده و جدید حداکثر دو عدد باشد '
+                          '(${fa('${existingDocuments.length + files.length}')}/۲).',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
                     ),
-                    ...files.asMap().entries.map(
-                          (entry) => ListTile(
-                        leading: const Icon(Icons.image_outlined, color: teal),
-                        title: Text(
-                          entry.value.path.split(Platform.pathSeparator).last,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          onPressed: saving
-                              ? null
-                              : () => setState(
-                                () => files.removeAt(entry.key),
-                          ),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                        ),
+                    if (files.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'تصاویر جدید',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: files
+                            .asMap()
+                            .entries
+                            .map((entry) => _newFileTile(
+                          entry.value,
+                          entry.key,
+                        ))
+                            .toList(),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 52,

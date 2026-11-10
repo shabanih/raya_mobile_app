@@ -5,9 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shamsi_date/shamsi_date.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/api_config.dart';
 import '../../services/manager_sewage_service.dart';
 import 'manager_sewage_charge_units_screen.dart';
+
+// =====================================================
+// ابزارهای مشترک مدارک
+// =====================================================
 
 // تبدیل اعداد انگلیسی و عربی به فارسی
 String _faDigits(dynamic value) {
@@ -48,6 +54,205 @@ String _enDigits(String value) {
   );
 }
 
+// تبدیل آدرس نسبی مدرک به آدرس کامل
+String _resolveDocumentUrl(dynamic value) {
+  final raw = value?.toString().trim() ?? '';
+
+  if (raw.isEmpty) return '';
+
+  final parsed = Uri.tryParse(raw);
+
+  if (parsed != null && parsed.hasScheme) {
+    return raw;
+  }
+
+  final base = Uri.parse(ApiConfig.baseUrl);
+  final path = raw.startsWith('/') ? raw : '/$raw';
+
+  return base.replace(
+    path: path,
+    query: null,
+    fragment: null,
+  ).toString();
+}
+
+// تشخیص تصویر بودن فایل
+bool _isImageDocument(String url) {
+  if (url.trim().isEmpty) return false;
+
+  final uri = Uri.tryParse(url);
+  final path = (uri?.path ?? url).toLowerCase();
+
+  return path.endsWith('.jpg') ||
+      path.endsWith('.jpeg') ||
+      path.endsWith('.png') ||
+      path.endsWith('.webp') ||
+      path.endsWith('.gif') ||
+      path.endsWith('.bmp');
+}
+
+// نمایش بزرگ تصویر اینترنتی
+void _showNetworkImagePreview(
+    BuildContext context,
+    String url,
+    ) {
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (dialogContext) {
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) {
+                    return const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 65,
+                    );
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              top: 5,
+              left: 5,
+              child: IconButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// نمایش بزرگ تصویر محلی
+void _showLocalImagePreview(
+    BuildContext context,
+    File file,
+    ) {
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (dialogContext) {
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4,
+                child: Image.file(
+                  file,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 5,
+              left: 5,
+              child: IconButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// باز کردن مدرک قبلی
+Future<void> _openExistingDocument(
+    BuildContext context,
+    String url,
+    ) async {
+  if (url.trim().isEmpty) return;
+
+  if (_isImageDocument(url)) {
+    _showNetworkImagePreview(context, url);
+    return;
+  }
+
+  try {
+    final uri = Uri.parse(url);
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('باز کردن فایل امکان‌پذیر نیست.'),
+        ),
+      );
+    }
+  } catch (e) {
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('خطا در باز کردن فایل: $e'),
+      ),
+    );
+  }
+}
+
+// نام نمایشی مدرک
+String _documentName(Map<String, dynamic> document) {
+  final value = document['name'] ??
+      document['filename'] ??
+      document['url'] ??
+      document['document'] ??
+      'مدرک پیوست‌شده';
+
+  return value.toString().split('/').last;
+}
+
+// آدرس مدرک
+String _documentUrl(Map<String, dynamic> document) {
+  return _resolveDocumentUrl(
+    document['url'] ?? document['document'],
+  );
+}
+
+// =====================================================
+// فرمت اعداد فارسی
+// =====================================================
+
 class _PersianDigitsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -63,6 +268,10 @@ class _PersianDigitsFormatter extends TextInputFormatter {
     );
   }
 }
+
+// =====================================================
+// صفحه اصلی مدیریت هزینه فاضلاب
+// =====================================================
 
 class ManagerSewageChargesScreen extends StatefulWidget {
   const ManagerSewageChargesScreen({super.key});
@@ -278,6 +487,10 @@ class _ManagerSewageChargesScreenState
     }
   }
 
+  // =====================================================
+  // جزئیات هزینه و پیش‌نمایش مدارک
+  // =====================================================
+
   void _showDetails(Map<String, dynamic> charge) {
     final documents = ManagerSewageService.getDocuments(charge);
 
@@ -339,30 +552,74 @@ class _ManagerSewageChargesScreenState
                     'مدارک ثبت‌شده',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+
                   if (documents.isEmpty)
                     const Text('مدرکی ثبت نشده است.')
                   else
-                    ...documents.map((document) {
-                      final name = document['name'] ??
-                          document['filename'] ??
-                          document['document'] ??
-                          'مدرک پیوست‌شده';
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: documents.map((document) {
+                        final url = _documentUrl(document);
+                        final name = _documentName(document);
+                        final isImage = _isImageDocument(url);
 
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.attach_file,
-                          color: _purple,
-                        ),
-                        title: Text(
-                          _faDigits(name.toString().split('/').last),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 12),
+                        return InkWell(
+                          onTap: () => _openExistingDocument(
+                            sheetContext,
+                            url,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            width: 105,
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 90,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: isImage
+                                      ? Image.network(
+                                    url,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.grey,
+                                        size: 35,
+                                      );
+                                    },
+                                  )
+                                      : const Icon(
+                                    Icons.insert_drive_file_outlined,
+                                    color: _purple,
+                                    size: 38,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _faDigits(name),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                  const SizedBox(height: 20),
                   FilledButton(
                     onPressed: () => Navigator.pop(sheetContext),
                     child: const Text('بستن'),
@@ -462,8 +719,7 @@ class _ManagerSewageChargesScreenState
                   ? RefreshIndicator(
                 onRefresh: _loadCharges,
                 child: ListView(
-                  physics:
-                  const AlwaysScrollableScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
                     SizedBox(height: 140),
                     Icon(
@@ -492,12 +748,10 @@ class _ManagerSewageChargesScreenState
                     final charge = items[index];
 
                     return Card(
-                      margin:
-                      const EdgeInsets.only(bottom: 12),
+                      margin: const EdgeInsets.only(bottom: 12),
                       elevation: 2,
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                        BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
@@ -523,8 +777,7 @@ class _ManagerSewageChargesScreenState
                                           'هزینه فاضلاب',
                                     ),
                                     style: const TextStyle(
-                                      fontWeight:
-                                      FontWeight.bold,
+                                      fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                     ),
                                   ),
@@ -532,30 +785,23 @@ class _ManagerSewageChargesScreenState
                                 PopupMenuButton<String>(
                                   onSelected: (action) {
                                     if (action == 'send') {
-                                      _openSewageChargeUnits(
-                                          charge);
-                                    } else if (action ==
-                                        'details') {
+                                      _openSewageChargeUnits(charge);
+                                    } else if (action == 'details') {
                                       _showDetails(charge);
-                                    } else if (action ==
-                                        'edit') {
+                                    } else if (action == 'edit') {
                                       _openForm(charge: charge);
-                                    } else if (action ==
-                                        'delete') {
+                                    } else if (action == 'delete') {
                                       _deleteCharge(charge);
                                     }
                                   },
                                   itemBuilder: (_) {
                                     final sentCount =
-                                    ManagerSewageService
-                                        .toInt(
-                                      charge[
-                                      'sent_units_count'],
+                                    ManagerSewageService.toInt(
+                                      charge['sent_units_count'],
                                     );
 
                                     final isSent =
-                                        charge['is_sent'] ==
-                                            true ||
+                                        charge['is_sent'] == true ||
                                             sentCount > 0;
 
                                     return [
@@ -566,8 +812,7 @@ class _ManagerSewageChargesScreenState
                                           EdgeInsets.zero,
                                           leading: Icon(
                                             Icons.send_rounded,
-                                            color:
-                                            Color(0xFF00ACC1),
+                                            color: Color(0xFF00ACC1),
                                           ),
                                           title: Text(
                                             'ارسال هزینه به واحدها',
@@ -596,9 +841,7 @@ class _ManagerSewageChargesScreenState
                                             leading: Icon(
                                               Icons.edit_outlined,
                                             ),
-                                            title: Text(
-                                              'ویرایش',
-                                            ),
+                                            title: Text('ویرایش'),
                                           ),
                                         ),
                                         const PopupMenuItem(
@@ -626,9 +869,7 @@ class _ManagerSewageChargesScreenState
                             ),
                             _detailRow(
                               'اولین سررسید',
-                              _dateText(
-                                charge['first_due_date'],
-                              ),
+                              _dateText(charge['first_due_date']),
                             ),
                             if ((charge['details'] ?? '')
                                 .toString()
@@ -640,8 +881,7 @@ class _ManagerSewageChargesScreenState
                                 child: Text(
                                   _faDigits(charge['details']),
                                   maxLines: 2,
-                                  overflow:
-                                  TextOverflow.ellipsis,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.black54,
                                   ),
@@ -677,8 +917,7 @@ class _ManagerSewageChargesScreenState
                                     Text(
                                       'ارسال‌شده: ${_faDigits(sentCount)} از ${_faDigits(totalCount)} واحد',
                                       style: TextStyle(
-                                        fontWeight:
-                                        FontWeight.w600,
+                                        fontWeight: FontWeight.w600,
                                         color: sentCount > 0
                                             ? Colors.green.shade700
                                             : Colors.black54,
@@ -702,6 +941,10 @@ class _ManagerSewageChargesScreenState
     );
   }
 }
+
+// =====================================================
+// فرم ایجاد و ویرایش هزینه فاضلاب
+// =====================================================
 
 class _SewageChargeFormSheet extends StatefulWidget {
   final Map<String, dynamic>? charge;
@@ -728,10 +971,24 @@ class _SewageChargeFormSheetState
   late final TextEditingController _detailsController;
 
   Jalali? _firstDueDate;
+
+  // فایل‌های جدید انتخاب‌شده
   final List<XFile> _newFiles = [];
+
+  // مدارک قبلی که هنوز حذف نشده‌اند
+  final List<Map<String, dynamic>> _existingDocuments = [];
+
+  // شناسه مدارک قبلی حذف‌شده
+  final List<int> _deletedDocumentIds = [];
+
   bool _saving = false;
 
   bool get _isEditing => widget.charge != null;
+
+  int get _totalDocuments =>
+      _existingDocuments.length + _newFiles.length;
+
+  int get _remainingDocumentCapacity => 2 - _totalDocuments;
 
   @override
   void initState() {
@@ -742,20 +999,30 @@ class _SewageChargeFormSheetState
     _nameController = TextEditingController(
       text: (charge?['name'] ?? '').toString(),
     );
+
     _amountController = TextEditingController(
       text: _faDigits(charge?['amount'] ?? ''),
     );
+
     _prepaymentController = TextEditingController(
       text: _faDigits(charge?['prepayment'] ?? 0),
     );
+
     _installmentsController = TextEditingController(
       text: _faDigits(charge?['installment_count'] ?? 0),
     );
+
     _detailsController = TextEditingController(
       text: _faDigits(charge?['details'] ?? ''),
     );
 
     _firstDueDate = _parseJalali(charge?['first_due_date']);
+
+    if (charge != null) {
+      _existingDocuments.addAll(
+        ManagerSewageService.getDocuments(charge),
+      );
+    }
   }
 
   @override
@@ -834,11 +1101,15 @@ class _SewageChargeFormSheetState
     return int.tryParse(normalized) ?? 0;
   }
 
+  // =====================================================
+  // انتخاب تصویر با محدودیت مجموع مدارک
+  // =====================================================
+
   Future<void> _pickFiles() async {
-    final remaining = 2 - _newFiles.length;
+    final remaining = _remainingDocumentCapacity;
 
     if (remaining <= 0) {
-      _showMessage('حداکثر دو تصویر جدید می‌توانید انتخاب کنید.');
+      _showMessage('حداکثر دو مدرک برای هر هزینه مجاز است.');
       return;
     }
 
@@ -857,13 +1128,48 @@ class _SewageChargeFormSheetState
 
       if (images.length > remaining) {
         _showMessage(
-          'به دلیل محدودیت، فقط ${_faDigits(remaining)} تصویر اضافه شد.',
+          'فقط ${_faDigits(remaining)} تصویر به دلیل محدودیت اضافه شد.',
         );
       }
     } catch (e) {
       _showMessage('انتخاب تصویر ناموفق بود: $e');
     }
   }
+
+  // =====================================================
+  // حذف تصویر جدید
+  // =====================================================
+
+  void _removeNewFile(int index) {
+    setState(() {
+      _newFiles.removeAt(index);
+    });
+  }
+
+  // =====================================================
+  // حذف مدرک قبلی و نگهداری شناسه آن
+  // =====================================================
+
+  void _removeExistingDocument(int index) {
+    final document = _existingDocuments[index];
+    final id = ManagerSewageService.toInt(document['id']);
+
+    if (id <= 0) {
+      _showMessage(
+        'شناسه مدرک معتبر نیست و امکان حذف آن وجود ندارد.',
+      );
+      return;
+    }
+
+    setState(() {
+      _deletedDocumentIds.add(id);
+      _existingDocuments.removeAt(index);
+    });
+  }
+
+  // =====================================================
+  // انتخاب تاریخ
+  // =====================================================
 
   Future<void> _selectDueDate() async {
     final selected = await showModalBottomSheet<Jalali>(
@@ -881,16 +1187,22 @@ class _SewageChargeFormSheetState
     setState(() => _firstDueDate = selected);
   }
 
+  // =====================================================
+  // ذخیره اطلاعات
+  // =====================================================
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     final name = _nameController.text.trim();
     final amount = _parseAmount(_amountController.text);
+
     final prepayment = _prepaymentController.text.trim().isEmpty
         ? amount
         : _parseAmount(_prepaymentController.text);
 
-    final installments = _installmentsController.text.trim().isEmpty
+    final installments =
+    _installmentsController.text.trim().isEmpty
         ? 0
         : _parseAmount(_installmentsController.text);
 
@@ -925,11 +1237,17 @@ class _SewageChargeFormSheetState
       return;
     }
 
+    if (_totalDocuments > 2) {
+      _showMessage('حداکثر دو مدرک مجاز است.');
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
-      final files =
-      _newFiles.map((image) => File(image.path)).toList();
+      final files = _newFiles
+          .map((image) => File(image.path))
+          .toList();
 
       final date = _formatApiDate(_firstDueDate!);
 
@@ -943,6 +1261,12 @@ class _SewageChargeFormSheetState
           firstDueDate: date,
           details: details,
           files: files,
+
+          // تعداد مدارک قدیمی باقی‌مانده پس از حذف
+          existingDocumentCount: _existingDocuments.length,
+
+          // شناسه مدارک حذف‌شده
+          deletedDocumentIds: List<int>.from(_deletedDocumentIds),
         );
       } else {
         await ManagerSewageService.createCharge(
@@ -957,15 +1281,22 @@ class _SewageChargeFormSheetState
       }
 
       if (!mounted) return;
+
       Navigator.of(context).pop(true);
     } catch (e) {
-      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      _showMessage(
+        e.toString().replaceFirst('Exception: ', ''),
+      );
     } finally {
       if (mounted) {
         setState(() => _saving = false);
       }
     }
   }
+
+  // =====================================================
+  // فیلدهای فرم
+  // =====================================================
 
   Widget _field({
     required String label,
@@ -1003,7 +1334,9 @@ class _SewageChargeFormSheetState
           if (isNumeric && text.isNotEmpty) {
             final parsed = _parseAmount(text);
 
-            if (parsed < 0) return 'مقدار معتبر وارد کنید.';
+            if (parsed < 0) {
+              return 'مقدار معتبر وارد کنید.';
+            }
           }
 
           return null;
@@ -1012,13 +1345,184 @@ class _SewageChargeFormSheetState
     );
   }
 
+  // =====================================================
+  // نمایش مدرک قبلی
+  // =====================================================
+
+  Widget _buildExistingDocumentTile(
+      Map<String, dynamic> document,
+      int index,
+      ) {
+    final url = _documentUrl(document);
+    final name = _documentName(document);
+    final isImage = _isImageDocument(url);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => _openExistingDocument(context, url),
+            borderRadius: BorderRadius.circular(9),
+            child: Container(
+              width: 65,
+              height: 65,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: isImage
+                  ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.grey,
+                    size: 30,
+                  );
+                },
+              )
+                  : const Icon(
+                Icons.insert_drive_file_outlined,
+                color: _purple,
+                size: 32,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: InkWell(
+              onTap: () => _openExistingDocument(context, url),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _faDigits(name),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    isImage ? 'لمس برای مشاهده تصویر' : 'لمس برای باز کردن فایل',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف مدرک',
+            onPressed: _saving
+                ? null
+                : () => _removeExistingDocument(index),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // نمایش تصویر جدید انتخاب‌شده
+  // =====================================================
+
+  Widget _buildNewFileTile(XFile image, int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () {
+              _showLocalImagePreview(
+                context,
+                File(image.path),
+              );
+            },
+            borderRadius: BorderRadius.circular(9),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.file(
+                File(image.path),
+                width: 65,
+                height: 65,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return Container(
+                    width: 65,
+                    height: 65,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.image_not_supported),
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _faDigits(image.name),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'تصویر جدید',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف تصویر',
+            onPressed: _saving ? null : () => _removeNewFile(index),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // ساخت فرم
+  // =====================================================
+
   @override
   Widget build(BuildContext context) {
-    final existingDocuments =
-    ManagerSewageService.getDocuments(
-      widget.charge ?? <String, dynamic>{},
-    );
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
@@ -1105,6 +1609,8 @@ class _SewageChargeFormSheetState
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 14),
+
+                      // تاریخ
                       InkWell(
                         onTap: _saving ? null : _selectDueDate,
                         borderRadius: BorderRadius.circular(12),
@@ -1142,89 +1648,110 @@ class _SewageChargeFormSheetState
                         ),
                       ),
                       const SizedBox(height: 14),
+
                       _field(
                         label: 'توضیحات',
                         controller: _detailsController,
                         icon: Icons.notes,
                         maxLines: 3,
                       ),
+
                       const SizedBox(height: 8),
-                      const Text(
-                        'مدارک قبلی',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+
+                      // مدارک قبلی
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'مدارک قبلی',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_faDigits(_existingDocuments.length)} مدرک',
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (existingDocuments.isEmpty)
+                      const SizedBox(height: 10),
+
+                      if (_existingDocuments.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('مدرکی ثبت نشده است.'),
+                          child: Text('مدرک قبلی باقی نمانده است.'),
                         )
                       else
-                        ...existingDocuments.map((document) {
-                          final name = document['name'] ??
-                              document['filename'] ??
-                              document['document'] ??
-                              'مدرک ثبت‌شده';
+                        ..._existingDocuments.asMap().entries.map(
+                              (entry) => _buildExistingDocumentTile(
+                            entry.value,
+                            entry.key,
+                          ),
+                        ),
 
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
-                              Icons.attach_file,
-                              color: _purple,
-                            ),
-                            title: Text(
-                              _faDigits(name.toString().split('/').last),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }),
                       const Divider(height: 28),
-                      const Text(
-                        'پیوست تصاویر (حداکثر ۲ تصویر جدید)',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+
+                      // مدارک جدید
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'افزودن مدرک جدید',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_faDigits(_totalDocuments)} از ۲',
+                            style: TextStyle(
+                              color: _totalDocuments >= 2
+                                  ? Colors.red
+                                  : Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _saving ? null : _pickFiles,
-                        icon: const Icon(Icons.add_photo_alternate),
-                        label: Text(
-                          _newFiles.length >= 2
-                              ? 'ظرفیت انتخاب تصویر تکمیل شده'
-                              : 'انتخاب تصویر',
+                      const SizedBox(height: 5),
+                      Text(
+                        'حداکثر دو مدرک برای هر هزینه (مدارک قبلی و جدید با هم)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                      ..._newFiles.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final image = entry.value;
+                      const SizedBox(height: 8),
 
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(
-                            Icons.image_outlined,
-                            color: _teal,
+                      OutlinedButton.icon(
+                        onPressed: _saving ||
+                            _remainingDocumentCapacity <= 0
+                            ? null
+                            : _pickFiles,
+                        icon: const Icon(Icons.add_photo_alternate),
+                        label: Text(
+                          _remainingDocumentCapacity <= 0
+                              ? 'ظرفیت مدارک تکمیل شده'
+                              : 'انتخاب تصویر (${_faDigits(_remainingDocumentCapacity)} جای خالی)',
+                        ),
+                      ),
+
+                      if (_newFiles.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ..._newFiles.asMap().entries.map(
+                              (entry) => _buildNewFileTile(
+                            entry.value,
+                            entry.key,
                           ),
-                          title: Text(
-                            _faDigits(image.name),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: IconButton(
-                            tooltip: 'حذف تصویر انتخاب‌شده',
-                            onPressed: _saving
-                                ? null
-                                : () {
-                              setState(() {
-                                _newFiles.removeAt(index);
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                          ),
-                        );
-                      }),
+                        ),
+                      ],
+
                       const SizedBox(height: 20),
+
                       SizedBox(
                         height: 50,
                         child: FilledButton.icon(
@@ -1263,7 +1790,10 @@ class _SewageChargeFormSheetState
   }
 }
 
+// =====================================================
 // تقویم شمسی
+// =====================================================
+
 class _PersianCalendarSheet extends StatefulWidget {
   final Jalali initialDate;
 
@@ -1589,4 +2119,3 @@ class _PersianCalendarSheetState
     );
   }
 }
-

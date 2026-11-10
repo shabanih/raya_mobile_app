@@ -364,6 +364,8 @@ class ManagerIncomeService {
 
   // ثبت یا ویرایش درآمد همراه مدارک
 
+
+
   Future<Map<String, dynamic>> saveIncomeWithFiles({
     int? incomeId,
     required int categoryId,
@@ -378,9 +380,10 @@ class ManagerIncomeService {
     String details = '',
     String docNo = '',
     List<File> files = const [],
+    List<int> deletedDocumentIds = const [],
   }) async {
     if (files.length > 2) {
-      throw Exception('حداکثر دو مدرک مجاز است.');
+      throw Exception('حداکثر دو تصویر جدید مجاز است.');
     }
 
     final fields = <String, String>{
@@ -389,14 +392,31 @@ class ManagerIncomeService {
       'doc_date': _normalizeDigits(date),
       'description': description.trim(),
       'details': details.trim(),
+      // 'payer_type': payerType,
     };
 
     final normalizedDocNo = _normalizeDigits(docNo.trim());
+
     if (normalizedDocNo.isNotEmpty) {
       fields['doc_number'] = normalizedDocNo;
     }
 
+    // _addPayerFields(
+    //   body: fields,
+    //   payerType: payerType,
+    //   unitId: unitId,
+    //   renterId: renterId,
+    //   thirdPartyId: thirdPartyId,
+    // );
+
+    if (deletedDocumentIds.isNotEmpty) {
+      fields['deleted_document_ids'] = jsonEncode(
+        deletedDocumentIds,
+      );
+    }
+
     final isEdit = incomeId != null;
+
     final path = isEdit
         ? '/manager/incomes/$incomeId/'
         : '/manager/incomes/';
@@ -410,6 +430,8 @@ class ManagerIncomeService {
 
     return _extractObject(_decode(response), 'income');
   }
+
+
 
   // Multipart با تمدید خودکار توکن
 

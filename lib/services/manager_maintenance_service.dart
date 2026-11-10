@@ -347,6 +347,7 @@ class ManagerMaintenanceService {
     int? receiverRenterId,
     int? receiverThirdPartyId,
     List<String> filePaths = const [],
+    List<int> deletedDocumentIds = const [],
   }) async {
     final fields = _buildFields(
       expertName: expertName,
@@ -363,12 +364,17 @@ class ManagerMaintenanceService {
       receiverRenterId: receiverRenterId,
       receiverThirdPartyId: receiverThirdPartyId,
     );
+    if (deletedDocumentIds.isNotEmpty) {
+      fields['deleted_document_ids'] =
+          jsonEncode(deletedDocumentIds);
+    }
 
     final response = await _multipartRequest(
       path: '/manager/maintenances/$id/',
       method: 'PATCH',
       fields: fields,
       filePaths: filePaths,
+
     );
 
     return _extractObject(response);

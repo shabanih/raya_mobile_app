@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,8 +8,7 @@ import '../config/api_config.dart';
 import '../storage/token_storage.dart';
 
 class ManagerSewageService {
-  static String get _baseUrl =>
-      ApiConfig.managerSewageCharges;
+  static String get _baseUrl => ApiConfig.managerSewageCharges;
 
   // =====================================================
   // دریافت توکن
@@ -47,9 +47,7 @@ class ManagerSewageService {
     print('======================================');
     print('MANAGER SEWAGE API');
     print('STATUS: ${response.statusCode}');
-    print(
-      'CONTENT-TYPE: ${response.headers['content-type']}',
-    );
+    print('CONTENT-TYPE: ${response.headers['content-type']}');
     print('BODY: $body');
     print('======================================');
 
@@ -86,8 +84,7 @@ class ManagerSewageService {
       return {
         'success': false,
         'message':
-        'پاسخ سرور قابل پردازش نیست. '
-            'HTTP ${response.statusCode}',
+        'پاسخ سرور قابل پردازش نیست. HTTP ${response.statusCode}',
         'debug_body': body,
       };
     }
@@ -103,9 +100,7 @@ class ManagerSewageService {
         required List<int> successCodes,
         required String fallbackMessage,
       }) {
-    final statusOk = successCodes.contains(
-      response.statusCode,
-    );
+    final statusOk = successCodes.contains(response.statusCode);
 
     if (statusOk && data['success'] != false) {
       return;
@@ -148,15 +143,8 @@ class ManagerSewageService {
     const arabic = '٠١٢٣٤٥٦٧٨٩';
 
     for (var i = 0; i < 10; i++) {
-      value = value.replaceAll(
-        persian[i],
-        '$i',
-      );
-
-      value = value.replaceAll(
-        arabic[i],
-        '$i',
-      );
+      value = value.replaceAll(persian[i], '$i');
+      value = value.replaceAll(arabic[i], '$i');
     }
 
     return value.trim();
@@ -167,8 +155,7 @@ class ManagerSewageService {
   // GET manager/sewage/
   // =====================================================
 
-  static Future<List<Map<String, dynamic>>>
-  getCharges() async {
+  static Future<List<Map<String, dynamic>>> getCharges() async {
     final response = await http.get(
       Uri.parse(_baseUrl),
       headers: await _headers(),
@@ -180,21 +167,16 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200],
-      fallbackMessage:
-      'دریافت فهرست هزینه‌های فاضلاب ناموفق بود.',
+      fallbackMessage: 'دریافت فهرست هزینه‌های فاضلاب ناموفق بود.',
     );
 
     final items = data['results'];
 
-    if (items is! List) {
-      return [];
-    }
+    if (items is! List) return [];
 
     return items
         .whereType<Map>()
-        .map(
-          (item) => Map<String, dynamic>.from(item),
-    )
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 
@@ -202,9 +184,7 @@ class ManagerSewageService {
   // دریافت یک هزینه فاضلاب از فهرست
   // =====================================================
 
-  static Future<Map<String, dynamic>?> getCharge(
-      int id,
-      ) async {
+  static Future<Map<String, dynamic>?> getCharge(int id) async {
     final charges = await getCharges();
 
     for (final charge in charges) {
@@ -227,17 +207,14 @@ class ManagerSewageService {
     required int installmentCount,
     required String firstDueDate,
     required List<File> files,
+    int existingDocumentCount = 0,
   }) {
     if (name.trim().isEmpty) {
-      throw Exception(
-        'عنوان هزینه فاضلاب را وارد کنید.',
-      );
+      throw Exception('عنوان هزینه فاضلاب را وارد کنید.');
     }
 
     if (amount <= 0) {
-      throw Exception(
-        'مبلغ هزینه فاضلاب باید بیشتر از صفر باشد.',
-      );
+      throw Exception('مبلغ هزینه فاضلاب باید بیشتر از صفر باشد.');
     }
 
     if (prepayment < 0 || prepayment > amount) {
@@ -247,9 +224,7 @@ class ManagerSewageService {
     }
 
     if (installmentCount < 0) {
-      throw Exception(
-        'تعداد اقساط نمی‌تواند منفی باشد.',
-      );
+      throw Exception('تعداد اقساط نمی‌تواند منفی باشد.');
     }
 
     if (prepayment < amount &&
@@ -261,14 +236,18 @@ class ManagerSewageService {
     }
 
     if (firstDueDate.trim().isEmpty) {
-      throw Exception(
-        'تاریخ اولین سررسید را وارد کنید.',
-      );
+      throw Exception('تاریخ اولین سررسید را وارد کنید.');
     }
 
-    if (files.length > 2) {
+    if (existingDocumentCount < 0) {
+      throw Exception('تعداد مدارک قبلی نامعتبر است.');
+    }
+
+    final totalDocuments = existingDocumentCount + files.length;
+
+    if (totalDocuments > 2) {
       throw Exception(
-        'حداکثر دو فایل جدید مجاز است.',
+        'حداکثر دو مدرک برای هر هزینه فاضلاب مجاز است.',
       );
     }
   }
@@ -277,8 +256,7 @@ class ManagerSewageService {
   // ایجاد درخواست Multipart
   // =====================================================
 
-  static Future<http.MultipartRequest>
-  _buildMultipartRequest({
+  static Future<http.MultipartRequest> _buildMultipartRequest({
     required String method,
     required Uri uri,
     required String name,
@@ -288,29 +266,31 @@ class ManagerSewageService {
     required String firstDueDate,
     required String details,
     required List<File> files,
+    List<int> deletedDocumentIds = const [],
   }) async {
-    final request = http.MultipartRequest(
-      method,
-      uri,
-    );
+    final request = http.MultipartRequest(method, uri);
 
     request.headers.addAll(await _headers());
 
     request.fields['name'] = name.trim();
     request.fields['amount'] = amount.toString();
-    request.fields['prepayment'] =
-        prepayment.toString();
+    request.fields['prepayment'] = prepayment.toString();
     request.fields['installment_count'] =
         installmentCount.toString();
-    request.fields['first_due_date'] =
-        firstDueDate.trim();
+    request.fields['first_due_date'] = firstDueDate.trim();
     request.fields['details'] = details;
 
+    // شناسه مدارک قدیمی که کاربر حذف کرده است.
+    // بک‌اند این مقدار را به صورت JSON دریافت می‌کند.
+    if (deletedDocumentIds.isNotEmpty) {
+      request.fields['deleted_document_ids'] =
+          jsonEncode(deletedDocumentIds);
+    }
+
+    // فایل‌های جدید
     for (final file in files) {
       if (!await file.exists()) {
-        throw Exception(
-          'فایل انتخاب‌شده پیدا نشد.',
-        );
+        throw Exception('فایل انتخاب‌شده پیدا نشد.');
       }
 
       request.files.add(
@@ -361,18 +341,14 @@ class ManagerSewageService {
 
     final streamed = await request.send();
 
-    final response = await http.Response.fromStream(
-      streamed,
-    );
-
+    final response = await http.Response.fromStream(streamed);
     final data = _decodeResponse(response);
 
     _checkResponse(
       response,
       data,
       successCodes: [201],
-      fallbackMessage:
-      'ثبت هزینه فاضلاب انجام نشد.',
+      fallbackMessage: 'ثبت هزینه فاضلاب انجام نشد.',
     );
 
     final result = data['result'];
@@ -398,6 +374,12 @@ class ManagerSewageService {
     required String firstDueDate,
     String details = '',
     List<File> files = const [],
+
+    // تعداد مدارک قدیمی که بعد از حذف‌ها باقی مانده‌اند
+    int existingDocumentCount = 0,
+
+    // شناسه مدارک قدیمی حذف‌شده
+    List<int> deletedDocumentIds = const [],
   }) async {
     _validateCharge(
       name: name,
@@ -406,6 +388,7 @@ class ManagerSewageService {
       installmentCount: installmentCount,
       firstDueDate: firstDueDate,
       files: files,
+      existingDocumentCount: existingDocumentCount,
     );
 
     final request = await _buildMultipartRequest(
@@ -418,22 +401,19 @@ class ManagerSewageService {
       firstDueDate: firstDueDate,
       details: details,
       files: files,
+      deletedDocumentIds: deletedDocumentIds,
     );
 
     final streamed = await request.send();
 
-    final response = await http.Response.fromStream(
-      streamed,
-    );
-
+    final response = await http.Response.fromStream(streamed);
     final data = _decodeResponse(response);
 
     _checkResponse(
       response,
       data,
       successCodes: [200],
-      fallbackMessage:
-      'ویرایش هزینه فاضلاب انجام نشد.',
+      fallbackMessage: 'ویرایش هزینه فاضلاب انجام نشد.',
     );
 
     final result = data['result'];
@@ -462,8 +442,7 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200, 204],
-      fallbackMessage:
-      'حذف هزینه فاضلاب انجام نشد.',
+      fallbackMessage: 'حذف هزینه فاضلاب انجام نشد.',
     );
   }
 
@@ -472,8 +451,9 @@ class ManagerSewageService {
   // GET manager/sewage/{id}/units/
   // =====================================================
 
-  static Future<List<Map<String, dynamic>>>
-  getChargeUnits(int sewageId) async {
+  static Future<List<Map<String, dynamic>>> getChargeUnits(
+      int sewageId,
+      ) async {
     final response = await http.get(
       Uri.parse('$_baseUrl$sewageId/units/'),
       headers: await _headers(),
@@ -485,21 +465,16 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200],
-      fallbackMessage:
-      'دریافت واحدهای هزینه فاضلاب ناموفق بود.',
+      fallbackMessage: 'دریافت واحدهای هزینه فاضلاب ناموفق بود.',
     );
 
     final items = data['results'];
 
-    if (items is! List) {
-      return [];
-    }
+    if (items is! List) return [];
 
     return items
         .whereType<Map>()
-        .map(
-          (item) => Map<String, dynamic>.from(item),
-    )
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 
@@ -507,8 +482,9 @@ class ManagerSewageService {
   // دریافت اطلاعات کامل پاسخ واحدها
   // =====================================================
 
-  static Future<Map<String, dynamic>>
-  getChargeUnitsData(int sewageId) async {
+  static Future<Map<String, dynamic>> getChargeUnitsData(
+      int sewageId,
+      ) async {
     final response = await http.get(
       Uri.parse('$_baseUrl$sewageId/units/'),
       headers: await _headers(),
@@ -520,8 +496,7 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200],
-      fallbackMessage:
-      'دریافت اطلاعات واحدها ناموفق بود.',
+      fallbackMessage: 'دریافت اطلاعات واحدها ناموفق بود.',
     );
 
     return data;
@@ -538,13 +513,10 @@ class ManagerSewageService {
     bool allUnits = false,
   }) async {
     if (!allUnits && unitIds.isEmpty) {
-      throw Exception(
-        'حداقل یک واحد را برای ارسال انتخاب کنید.',
-      );
+      throw Exception('حداقل یک واحد را برای ارسال انتخاب کنید.');
     }
 
     final headers = await _headers();
-
     headers['Content-Type'] = 'application/json';
 
     final response = await http.post(
@@ -562,8 +534,7 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200, 201],
-      fallbackMessage:
-      'ارسال هزینه فاضلاب انجام نشد.',
+      fallbackMessage: 'ارسال هزینه فاضلاب انجام نشد.',
     );
 
     return data;
@@ -574,20 +545,16 @@ class ManagerSewageService {
   // POST manager/sewage/{id}/cancel/
   // =====================================================
 
-  static Future<Map<String, dynamic>>
-  cancelChargeForUnits({
+  static Future<Map<String, dynamic>> cancelChargeForUnits({
     required int sewageId,
     List<int> unitIds = const [],
     bool allUnits = false,
   }) async {
     if (!allUnits && unitIds.isEmpty) {
-      throw Exception(
-        'حداقل یک واحد را برای لغو اعلان انتخاب کنید.',
-      );
+      throw Exception('حداقل یک واحد را برای لغو اعلان انتخاب کنید.');
     }
 
     final headers = await _headers();
-
     headers['Content-Type'] = 'application/json';
 
     final response = await http.post(
@@ -605,8 +572,7 @@ class ManagerSewageService {
       response,
       data,
       successCodes: [200, 201],
-      fallbackMessage:
-      'لغو اعلان هزینه فاضلاب انجام نشد.',
+      fallbackMessage: 'لغو اعلان هزینه فاضلاب انجام نشد.',
     );
 
     return data;
@@ -621,15 +587,11 @@ class ManagerSewageService {
       ) {
     final documents = charge['documents'];
 
-    if (documents is! List) {
-      return [];
-    }
+    if (documents is! List) return [];
 
     return documents
         .whereType<Map>()
-        .map(
-          (item) => Map<String, dynamic>.from(item),
-    )
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 
@@ -637,9 +599,7 @@ class ManagerSewageService {
   // وضعیت ارسال و پرداخت واحد
   // =====================================================
 
-  static bool isUnitSent(
-      Map<String, dynamic> unit,
-      ) {
+  static bool isUnitSent(Map<String, dynamic> unit) {
     return unit['sent'] == true;
   }
 
