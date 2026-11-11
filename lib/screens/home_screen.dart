@@ -20,12 +20,13 @@ import 'user_support_tickets_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> data;
+  final bool openedFromManager;
 
   const HomeScreen({
     super.key,
     required this.data,
+    this.openedFromManager = false,
   });
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -42,6 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int unreadSupportCount = 0;
   bool showNewMessageBanner = false;
   bool isLoadingMessageStatus = false;
+
+
 
   Map<String, dynamic>? dashboardData;
   bool isDashboardLoading = true;
@@ -1899,6 +1902,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontSize: 15,
               ),
             ),
+
+            if (widget.openedFromManager) ...[
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  icon: const Icon(
+                    Icons.admin_panel_settings_rounded,
+                    color: Color(0xff610DB5),
+                  ),
+                  label: const Text(
+                    'بازگشت به پنل مدیریت',
+                    style: TextStyle(
+                      color: Color(0xff610DB5),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    side: BorderSide(
+                      color: const Color(0xff610DB5).withOpacity(0.25),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+            ],
 
             const SizedBox(height: 30),
 

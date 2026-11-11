@@ -161,7 +161,7 @@ class _ChargeTypeCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_back_ios_new_rounded, color: color, size: 18),
+              Icon(Icons.arrow_forward_ios, color: color, size: 18),
             ],
           ),
         ),

@@ -16,6 +16,9 @@ class ManagerProfileScreen extends StatefulWidget {
   final Future<void> Function() onRefresh;
   final Future<void> Function() onLogout;
 
+  final bool canOpenResidentPanel;
+  final VoidCallback? onOpenResidentPanel;
+
   const ManagerProfileScreen({
     super.key,
     required this.user,
@@ -26,6 +29,9 @@ class ManagerProfileScreen extends StatefulWidget {
     required this.subscriptionError,
     required this.onRefresh,
     required this.onLogout,
+
+    this.canOpenResidentPanel = false,
+    this.onOpenResidentPanel,
   });
 
   @override
@@ -39,6 +45,8 @@ class _ManagerProfileScreenState
 
   Map<String, dynamic>? _versionInfo;
   bool _checkingVersion = true;
+
+
 
   static const Color primaryColor = Color(0xFF00ACC1);
   static const Color secondaryColor = Color(0xFF610DB5);
@@ -1055,6 +1063,7 @@ class _ManagerProfileScreenState
                     const SizedBox(height: 14),
 
                     // نام ساختمان
+                    // نام ساختمان
                     Row(
                       textDirection: TextDirection.rtl,
                       children: [
@@ -1102,6 +1111,19 @@ class _ManagerProfileScreenState
                         ),
                       ],
                     ),
+
+// ورود به پنل ساکنین
+                    if (widget.canOpenResidentPanel &&
+                        widget.onOpenResidentPanel != null) ...[
+                      const SizedBox(height: 14),
+
+                      _profileCard(
+                        icon: Icons.home_work_outlined,
+                        title: 'ورود به پنل ساکنین',
+                        subtitle: 'مشاهده امکانات و اطلاعات واحد مسکونی',
+                        onTap: widget.onOpenResidentPanel!,
+                      ),
+                    ],
                   ],
                 ),
               ),

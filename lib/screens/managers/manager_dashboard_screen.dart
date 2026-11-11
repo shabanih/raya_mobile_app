@@ -29,6 +29,8 @@ import 'manager_admin_fund_screen.dart';
 import 'manager_pending_payments_screen.dart';
 import 'manager_profile_screen.dart';
 
+import '../home_screen.dart';
+
 
 // =====================================================
 // صفحه اصلی مدیران
@@ -386,6 +388,7 @@ class _ManagerDashboardScreenState
         dashboardData = Map<String, dynamic>.from(result);
         isDashboardLoading = false;
       });
+      debugPrint('FULL DASHBOARD DATA: ${dashboardData.toString()}');
 
       debugPrint('MANAGER DASHBOARD LOADED');
       debugPrint('HOUSE: $houseName');
@@ -407,6 +410,42 @@ class _ManagerDashboardScreenState
         isDashboardLoading = false;
       });
     }
+  }
+
+  bool get canOpenResidentPanel {
+    final data = dashboardData;
+
+    if (data == null) return false;
+
+    final userData = data['user'];
+
+    if (userData is! Map) return false;
+
+    return userData['is_unit'] == true;
+  }
+
+  void _openResidentPanel() {
+    final data = dashboardData;
+
+    if (data == null) return;
+
+    if (!canOpenResidentPanel) return;
+
+    final residentData = <String, dynamic>{
+      'user': data['user'],
+      'house': data['house'],
+      'units': data['units'] ?? [],
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HomeScreen(
+          data: residentData,
+          openedFromManager: true,
+        ),
+      ),
+    );
   }
 
   // =====================================================
@@ -1929,6 +1968,9 @@ class _ManagerDashboardScreenState
       subscriptionError: subscriptionError,
       onRefresh: loadManagerSubscription,
       onLogout: _showLogoutDialog,
+
+      canOpenResidentPanel: canOpenResidentPanel,
+      onOpenResidentPanel: _openResidentPanel,
     );
   }
 

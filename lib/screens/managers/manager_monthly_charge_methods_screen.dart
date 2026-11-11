@@ -361,7 +361,7 @@ class _ManagerMonthlyChargeMethodsScreenState
             crossAxisCount: 2,
             crossAxisSpacing: 11,
             mainAxisSpacing: 11,
-            mainAxisExtent: 158,
+            mainAxisExtent: 135,
           ),
           itemBuilder: (context, index) {
             final method = visibleMethods[index];
