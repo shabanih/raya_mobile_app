@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/manager_income_service.dart';
 
@@ -146,6 +148,61 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
           backgroundColor: error ? Colors.red.shade700 : _teal,
         ),
       );
+  }
+  Future<void> _openIncomeAttachment(String url, String fileName) async {
+    if (url.trim().isEmpty) {
+      _message('آدرس فایل معتبر نیست.', error: true);
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(url);
+
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened && mounted) {
+        _message('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        _message('خطا در باز کردن فایل $fileName', error: true);
+      }
+    }
+  }
+  bool _isIncomeImage(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+
+    return [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.webp',
+      '.bmp',
+    ].any(path.endsWith);
+  }
+
+  IconData _incomeFileIcon(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+
+    if (path.endsWith('.pdf')) {
+      return Icons.picture_as_pdf_rounded;
+    }
+
+    if (path.endsWith('.doc') || path.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+
+    if (path.endsWith('.xls') ||
+        path.endsWith('.xlsx') ||
+        path.endsWith('.csv')) {
+      return Icons.table_chart_rounded;
+    }
+
+    return Icons.insert_drive_file_rounded;
   }
 
   String _normalizeDigits(String value) {
@@ -464,49 +521,172 @@ class _ManagerIncomesScreenState extends State<ManagerIncomesScreen> {
                 ],
                 _detail('توضیحات', income['details']),
                 if (documents.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 14),
+
                   const Text(
-                    'تصاویر پیوست:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'مدارک پیوست:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
+
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: documents.asMap().entries.map((entry) {
-                      final url = _incomeDocumentUrl(entry.value);
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: url.isEmpty
-                            ? null
-                            : () => _showIncomeDocument(
-                          context,
-                          url,
-                          title: 'تصویر پیوست ${entry.key + 1}',
-                        ),
-                        child: Container(
-                          width: 92,
-                          height: 92,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0F1F5),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE2E4EA)),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: url.isEmpty
-                              ? const Icon(Icons.broken_image_outlined, color: Colors.grey)
-                              : Image.network(
+
+                  ...documents.asMap().entries.map((entry) {
+                    final document = entry.value;
+
+                    final url = _incomeDocumentUrl(document);
+
+                    String fileName = '';
+
+                    if (document is Map) {
+                      fileName = (
+                          document['file_name'] ??
+                              document['name'] ??
+                              document['original_name'] ??
+                              document['document_name'] ??
+                              ''
+                      ).toString();
+                    }
+
+                    if (fileName.trim().isEmpty && url.isNotEmpty) {
+                      fileName = Uri.decodeComponent(
+                        Uri.tryParse(url)?.pathSegments.last ?? '',
+                      );
+                    }
+
+                    if (fileName.trim().isEmpty) {
+                      fileName = 'پیوست ${entry.key + 1}';
+                    }
+
+                    final isImage = _isIncomeImage(url);
+
+                    if (isImage) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: url.isEmpty
+                              ? null
+                              : () => _showIncomeDocument(
+                            context,
                             url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.broken_image_outlined,
-                              color: Colors.grey,
+                            title: fileName,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F6FA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE2E4EA),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 65,
+                                    height: 65,
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.grey,
+                                        size: 30,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    fileName,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.zoom_in_rounded,
+                                  color: Color(0xFF00ACC1),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       );
-                    }).toList(),
-                  ),
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Material(
+                        color: const Color(0xFFF5F6FA),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: url.isEmpty
+                              ? null
+                              : () => _openIncomeAttachment(url, fileName),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE2E4EA),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _incomeFileIcon(url),
+                                  color: const Color(0xFF610DB5),
+                                  size: 32,
+                                ),
+                                const SizedBox(width: 12),
+
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        fileName,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'برای باز کردن یا دریافت فایل لمس کنید',
+                                        style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const Icon(
+                                  Icons.download_rounded,
+                                  color: Color(0xFF00ACC1),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               ],
             ),
@@ -953,7 +1133,7 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
 
   final ImagePicker _imagePicker = ImagePicker();
 
-  final List<File> _selectedImages = [];
+  final List<File> _selectedFiles = [];
   final List<int> _deletedDocumentIds = [];
 
   DateTime _date = DateTime.now();
@@ -961,6 +1141,47 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
   bool _saving = false;
 
   bool get _editing => widget.income != null;
+
+  bool _isImageFile(String path) {
+    final extension = path.split('.').last.toLowerCase();
+
+    return [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+    ].contains(extension);
+  }
+
+  IconData _fileIcon(String path) {
+    final extension = path.split('.').last.toLowerCase();
+
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return Icons.table_chart_rounded;
+
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image_rounded;
+
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
 
   List<Map<String, dynamic>> get _existingDocuments {
     final documents = widget.income?['documents'];
@@ -991,8 +1212,8 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
   }
 
   int get _remainingSlots {
-    final used = _existingDocuments.length + _selectedImages.length;
-    return (2 - used).clamp(0, 2);
+    final used = _existingDocuments.length + _selectedFiles.length;
+    return (2 - used).clamp(0, 2).toInt();
   }
 
   @override
@@ -1102,14 +1323,12 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
     }
   }
 
+// انتخاب عکس از گالری
   Future<void> _pickImages() async {
     if (_saving) return;
 
     if (_remainingSlots <= 0) {
-      _message(
-        'حداکثر دو عکس برای هر درآمد مجاز است.',
-        error: true,
-      );
+      _message('حداکثر دو پیوست برای هر درآمد مجاز است.', error: true);
       return;
     }
 
@@ -1120,31 +1339,81 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
 
       if (!mounted || images.isEmpty) return;
 
-      final selected = images
-          .take(_remainingSlots)
+      final files = images
           .map((image) => File(image.path))
           .toList();
 
-      setState(() {
-        _selectedImages.addAll(selected);
-      });
-
-      if (images.length > selected.length) {
-        _message('حداکثر دو عکس قابل ثبت است.');
-      }
+      _addSelectedFiles(files);
     } catch (e) {
-      _message(
-        'انتخاب عکس انجام نشد: ${e.toString()}',
-        error: true,
-      );
+      if (mounted) {
+        _message('انتخاب تصویر انجام نشد: $e', error: true);
+      }
     }
   }
 
-  void _removeNewImage(int index) {
+// انتخاب فایل از حافظه گوشی
+  Future<void> _pickFiles() async {
+    if (_saving) return;
+
+    if (_remainingSlots <= 0) {
+      _message('حداکثر دو پیوست برای هر درآمد مجاز است.', error: true);
+      return;
+    }
+
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.any,
+      );
+
+      if (!mounted || result.isEmpty) return;
+
+      final files = result
+          .where((file) => file.path != null)
+          .map((file) => File(file.path!))
+          .toList();
+
+      if (files.isEmpty) {
+        _message('دسترسی به فایل انتخاب‌شده امکان‌پذیر نیست.', error: true);
+        return;
+      }
+
+      _addSelectedFiles(files);
+    } catch (e) {
+      if (mounted) {
+        _message('انتخاب فایل انجام نشد: $e', error: true);
+      }
+    }
+  }
+
+// افزودن فایل با رعایت محدودیت دو پیوست
+  void _addSelectedFiles(List<File> files) {
+    if (!mounted || files.isEmpty) return;
+
+    final remaining = _remainingSlots;
+
+    if (remaining <= 0) {
+      _message('حداکثر دو پیوست مجاز است.', error: true);
+      return;
+    }
+
+    final accepted = files.take(remaining).toList();
+
+    setState(() {
+      _selectedFiles.addAll(accepted);
+    });
+
+    if (files.length > remaining) {
+      _message('حداکثر دو پیوست مجاز است؛ فایل‌های اضافی اضافه نشدند.');
+    }
+  }
+
+
+
+  void _removeNewFile(int index) {
     if (_saving) return;
 
     setState(() {
-      _selectedImages.removeAt(index);
+      _selectedFiles.removeAt(index);
     });
   }
 
@@ -1180,20 +1449,18 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
           Row(
             children: [
               const Icon(
-                Icons.image_outlined,
+                Icons.attach_file_rounded,
                 color: _teal,
               ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'تصاویر پیوست درآمد',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'مدارک پیوست درآمد',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               Text(
-                '${existing.length + _selectedImages.length}/۲',
+                '${existing.length + _selectedFiles.length}/۲',
                 style: const TextStyle(
                   color: Colors.black54,
                   fontWeight: FontWeight.bold,
@@ -1201,16 +1468,20 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 5),
+
+          const SizedBox(height: 6),
+
           const Text(
-            'حداکثر دو تصویر قابل ثبت است.',
+            'حداکثر دو پیوست شامل تصویر و فایل قابل ثبت است.',
             style: TextStyle(
               fontSize: 11,
               color: Colors.black54,
             ),
           ),
-          if (existing.isNotEmpty || _selectedImages.isNotEmpty) ...[
+
+          if (existing.isNotEmpty || _selectedFiles.isNotEmpty) ...[
             const SizedBox(height: 14),
+
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -1219,54 +1490,107 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
                   final url = _incomeDocumentUrl(document['url']);
                   final id = _int(document['id']);
 
+                  final isImage = _isImageFile(url);
+
                   return _documentThumbnail(
-                    image: url.isEmpty
-                        ? null
-                        : Image.network(
+                    image: isImage && url.isNotEmpty
+                        ? Image.network(
                       url,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const Icon(
                         Icons.broken_image_outlined,
                         color: Colors.grey,
                       ),
+                    )
+                        : Icon(
+                      _fileIcon(url),
+                      size: 38,
+                      color: _purple,
                     ),
-                    onTap: url.isEmpty
-                        ? null
-                        : () => _showIncomeDocument(context, url),
+                    onTap: isImage && url.isNotEmpty
+                        ? () => _showIncomeDocument(context, url)
+                        : null,
                     onRemove: id > 0
                         ? () => _removeExistingImage(document)
                         : null,
                   );
                 }),
-                ...List.generate(
-                  _selectedImages.length,
-                      (index) {
-                    return _documentThumbnail(
-                      image: Image.file(
-                        _selectedImages[index],
-                        fit: BoxFit.cover,
-                      ),
-                      onRemove: () => _removeNewImage(index),
-                    );
-                  },
-                ),
+
+                ...List.generate(_selectedFiles.length, (index) {
+                  final file = _selectedFiles[index];
+                  final isImage = _isImageFile(file.path);
+
+                  return SizedBox(
+                    width: 100,
+                    child: Column(
+                      children: [
+                        _documentThumbnail(
+                          image: isImage
+                              ? Image.file(
+                            file,
+                            fit: BoxFit.cover,
+                          )
+                              : Icon(
+                            _fileIcon(file.path),
+                            size: 38,
+                            color: _purple,
+                          ),
+                          onRemove: () => _removeNewFile(index),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          file.path.split(Platform.pathSeparator).last,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ],
+
           if (_remainingSlots > 0) ...[
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _saving ? null : _pickImages,
-              icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: const Text('انتخاب عکس'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _teal,
-                side: const BorderSide(color: _teal),
-                minimumSize: const Size(double.infinity, 45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickImages,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    label: const Text('انتخاب عکس'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _teal,
+                      side: const BorderSide(color: _teal),
+                      minimumSize: const Size(0, 45),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickFiles,
+                    icon: const Icon(Icons.attach_file_rounded),
+                    label: const Text('انتخاب فایل'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _purple,
+                      side: const BorderSide(color: _purple),
+                      minimumSize: const Size(0, 45),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -1369,21 +1693,25 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
         incomeId: _editing
             ? _int(widget.income!['id'])
             : null,
+
         categoryId: _categoryId!,
         amount: amount,
         date: _dateString(_date),
         description: _description.text.trim(),
 
-        // پارامترهای سازگاری با سرویس فعلی
         payerType: 'owner',
         unitId: null,
         renterId: null,
         thirdPartyId: null,
 
         details: _details.text.trim(),
-        docNo: _normal(_docNo.text),
 
-        files: _selectedImages,
+        // شماره فاکتور اختیاری
+        docNo: _docNo.text.trim().isEmpty
+            ? ''
+            : _normal(_docNo.text),
+
+        files: _selectedFiles,
         deletedDocumentIds: _deletedDocumentIds,
       );
 

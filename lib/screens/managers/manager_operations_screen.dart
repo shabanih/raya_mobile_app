@@ -68,7 +68,7 @@ class ManagerOperationsScreen extends StatelessWidget {
     ),
     _OperationItem(
       title: 'ثبت اشخاص ثالث',
-      subtitle: 'ثبت و مدیریت اشخاص و طرف‌حساب‌ها',
+      subtitle: 'ثبت و مدیریت اشخاص',
       icon: Icons.people_alt_rounded,
       color: Color(0xFFF3C582),
       background: Color(0xFFEDE7F6),

@@ -211,20 +211,38 @@ class ManagerExpenseService {
   }) async {
     final body = <String, dynamic>{};
 
-    if (categoryId != null) body['category_id'] = categoryId;
-    if (amount != null) body['amount'] = _normalizeDigits(amount);
-    if (date != null) body['date'] = _normalizeDigits(date);
-    if (description != null) body['description'] = description.trim();
-    if (details != null) body['details'] = details.trim();
-    if (docNo != null) body['doc_no'] = docNo.trim();
+    if (categoryId != null) {
+      body['category_id'] = categoryId;
+    }
+
+    if (amount != null) {
+      body['amount'] = _normalizeDigits(amount);
+    }
+
+    if (date != null) {
+      body['date'] = _normalizeDigits(date);
+    }
+
+    if (description != null) {
+      body['description'] = description.trim();
+    }
+
+    if (details != null) {
+      body['details'] = details.trim();
+    }
+
+    // شماره فاکتور اختیاری است
+    body['doc_no'] = (docNo == null || docNo.trim().isEmpty)
+        ? null
+        : _normalizeDigits(docNo.trim());
 
     final response = await _api.patch(
       _url('/manager/expenses/$expenseId/'),
       body: body,
     );
+
     return _extractObject(_decode(response), 'expense');
   }
-
   // حذف هزینه
 
   Future<void> deleteExpense(int expenseId) async {
