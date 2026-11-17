@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../services/manager_property_service.dart';
@@ -55,6 +56,54 @@ void _showPropertyDocument(BuildContext context, String url, {String title = 'م
       ),
     ),
   );
+}
+
+bool _isPropertyImage(String value) {
+  final path = value.toLowerCase().split('?').first;
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+      .any(path.endsWith);
+}
+
+String _propertyDocumentName(dynamic document, String url) {
+  if (document is Map) {
+    final name = (document['file_name'] ??
+        document['original_name'] ??
+        document['document_name'] ??
+        document['name'] ??
+        '')
+        .toString()
+        .trim();
+    if (name.isNotEmpty) return name;
+  }
+  final path = Uri.tryParse(url)?.path ?? url;
+  return path.split('/').last.isEmpty ? 'فایل پیوست' : path.split('/').last;
+}
+
+IconData _propertyDocumentIcon(String value) {
+  final path = value.toLowerCase().split('?').first;
+  if (path.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+  if (path.endsWith('.doc') || path.endsWith('.docx')) return Icons.description_rounded;
+  if (path.endsWith('.xls') || path.endsWith('.xlsx')) return Icons.table_chart_rounded;
+  if (path.endsWith('.ppt') || path.endsWith('.pptx')) return Icons.slideshow_rounded;
+  if (path.endsWith('.zip') || path.endsWith('.rar') || path.endsWith('.7z')) return Icons.folder_zip_rounded;
+  return Icons.insert_drive_file_rounded;
+}
+
+Future<void> _openPropertyDocument(String url, BuildContext context) async {
+  try {
+    final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('باز کردن فایل امکان‌پذیر نیست.')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا در باز کردن فایل: $e')),
+      );
+    }
+  }
 }
 
 class ManagerPropertyScreen extends StatefulWidget {
@@ -385,36 +434,44 @@ class _ManagerPropertyScreenState extends State<ManagerPropertyScreen> {
                   fa('${item['transaction_reference'] ?? '—'}'),
                 ),
                 detail('توضیحات', item['details']),
-                if (docs is List && docs.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  const Text('مدارک پیوست‌شده', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: docs.asMap().entries.map((entry) {
-                      final doc = entry.value;
-                      final url = _propertyDocumentUrl(doc is Map ? doc['url'] : doc);
-                      return InkWell(
-                        onTap: () => _showPropertyDocument(context, url, title: 'مدرک ${entry.key + 1}'),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 92,
-                          height: 92,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
-                          child: url.isEmpty
-                              ? const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)
-                              : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)),
+                const SizedBox(height: 10),
+                const Divider(),
+                const Text('مدارک پیوست‌شده', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                if (docs is! List || docs.isEmpty)
+                  const Text('مدرکی پیوست نشده است.', style: TextStyle(color: Colors.black54))
+                else
+                  ...docs.map<Widget>((doc) {
+                    final url = _propertyDocumentUrl(doc is Map ? doc['url'] : doc);
+                    if (url.isEmpty) return const SizedBox.shrink();
+                    final name = _propertyDocumentName(doc, url);
+                    final isImage = _isPropertyImage(name.isNotEmpty ? name : url);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      elevation: 0,
+                      color: const Color(0xFFF7F8FC),
+                      child: ListTile(
+                        leading: SizedBox(
+                          width: 52, height: 52,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: isImage
+                                ? Image.network(url, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                                : Container(
+                              color: teal.withValues(alpha: .08),
+                              child: Icon(_propertyDocumentIcon(name), color: teal),
+                            ),
+                          ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Text('برای بزرگ‌نمایی روی تصویر بزنید.', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                  ),
-                ],
+                        title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(isImage ? 'برای مشاهده تصویر لمس کنید' : 'برای باز کردن فایل لمس کنید'),
+                        onTap: () => isImage
+                            ? _showPropertyDocument(ctx, url, title: name)
+                            : _openPropertyDocument(url, context),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -828,7 +885,6 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
   final propertyPrice = TextEditingController();
   final details = TextEditingController();
 
-  final picker = ImagePicker();
   final List<File> files = [];
   final List<Map<String, dynamic>> existingDocuments = [];
   final Set<int> deletedDocumentIds = {};
@@ -1017,32 +1073,138 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
     });
   }
 
-  Future<void> pickImages() async {
+  Future<void> pickFiles() async {
     if (saving) return;
-    if (remainingDocumentSlots <= 0) {
+    final remaining = remainingDocumentSlots;
+    if (remaining <= 0) {
       showMessage('حداکثر دو مدرک برای هر مال مجاز است.', error: true);
       return;
     }
     try {
-      final selected = await picker.pickMultiImage(imageQuality: 85);
+      // در نسخه فعلی file_picker پروژه، خروجی مستقیماً List<PlatformFile> است.
+      final selected = await FilePicker.pickFiles(type: FileType.any);
       if (!mounted || selected.isEmpty) return;
       var limitReached = false;
       setState(() {
-        for (final image in selected) {
-          if (files.any((f) => f.path == image.path)) continue;
-          if (remainingDocumentSlots <= 0) {
+        for (final picked in selected) {
+          final path = picked.path;
+          if (path == null || path.isEmpty || files.any((f) => f.path == path)) continue;
+          if (files.length >= remaining) {
             limitReached = true;
             break;
           }
-          files.add(File(image.path));
+          files.add(File(path));
         }
       });
       if (limitReached) {
-        showMessage('حداکثر دو مدرک در مجموع قابل نگهداری است.', error: true);
+        showMessage('با توجه به مدارک باقی‌مانده، امکان افزودن فایل بیشتری وجود ندارد.', error: true);
       }
     } catch (e) {
-      showMessage('انتخاب تصویر ناموفق بود: $e', error: true);
+      showMessage('انتخاب فایل ناموفق بود: $e', error: true);
     }
+  }
+
+  bool _isImageFile(String path) => _isPropertyImage(path);
+
+  String _fileName(String path) => path.split(Platform.pathSeparator).last;
+
+  IconData _fileIcon(String path) => _propertyDocumentIcon(path);
+
+  Future<void> _openFormDocument(String url) async {
+    await _openPropertyDocument(url, context);
+  }
+
+  String _resolveFormDocumentUrl(dynamic document) {
+    final raw = document is Map
+        ? (document['url'] ?? '').toString().trim()
+        : (document ?? '').toString().trim();
+    return _propertyDocumentUrl(raw);
+  }
+
+  void _previewFormDocument(String url, {String title = 'مدرک اموال'}) {
+    _showPropertyDocument(context, url, title: title);
+  }
+
+  Widget _existingDocumentTile(Map<String, dynamic> document) {
+    final url = _resolveFormDocumentUrl(document);
+    final id = int.tryParse('${document['id'] ?? ''}');
+    final name = _propertyDocumentName(document, url);
+    final isImage = _isImageFile(name.isNotEmpty ? name : url);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(children: [
+        InkWell(
+          onTap: url.isEmpty ? null : () => isImage
+              ? _previewFormDocument(url, title: name)
+              : _openFormDocument(url),
+          child: Container(
+            width: 62, height: 62,
+            decoration: BoxDecoration(color: teal.withValues(alpha: .08), borderRadius: BorderRadius.circular(10)),
+            child: isImage && url.isNotEmpty
+                ? ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(url, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.grey)))
+                : Icon(_fileIcon(name), color: teal, size: 30),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: InkWell(
+          onTap: url.isEmpty ? null : () => isImage
+              ? _previewFormDocument(url, title: name)
+              : _openFormDocument(url),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 5),
+            Text(isImage ? 'برای مشاهده تصویر لمس کنید' : 'برای باز کردن فایل لمس کنید',
+                style: const TextStyle(fontSize: 11, color: Colors.black54)),
+          ]),
+        )),
+        IconButton(
+          tooltip: 'حذف پیوست',
+          onPressed: saving || id == null ? null : () => removeExistingDocument(document),
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+        ),
+      ]),
+    );
+  }
+
+  Widget _newFileTile(File file, int index) {
+    final name = _fileName(file.path);
+    final isImage = _isImageFile(name);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 62, height: 62,
+          decoration: BoxDecoration(color: teal.withValues(alpha: .08), borderRadius: BorderRadius.circular(10)),
+          clipBehavior: Clip.antiAlias,
+          child: isImage
+              ? Image.file(file, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.grey))
+              : Icon(_fileIcon(name), color: teal, size: 30),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+        IconButton(
+          tooltip: 'حذف فایل',
+          onPressed: saving ? null : () => setState(() => files.removeAt(index)),
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+        ),
+      ]),
+    );
   }
 
   Future<void> save() async {
@@ -1359,81 +1521,33 @@ class _PropertyFormSheetState extends State<_PropertyFormSheet> {
                       minLines: 2,
                       maxLines: 4,
                     ),
-                    if (existingDocuments.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                    if (editing) ...[
+                      const SizedBox(height: 14),
                       const Text('مدارک ثبت‌شده', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: existingDocuments.map((doc) {
-                          final url = _propertyDocumentUrl(doc['url']);
-                          return SizedBox(
-                            width: 112,
-                            child: Column(
-                              children: [
-                                InkWell(
-                                  onTap: () => _showPropertyDocument(context, url),
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    width: 104,
-                                    height: 88,
-                                    clipBehavior: Clip.antiAlias,
-                                    decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
-                                    child: url.isEmpty
-                                        ? const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)
-                                        : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.insert_drive_file_outlined, color: teal, size: 34)),
-                                  ),
-                                ),
-                                TextButton.icon(
-                                  onPressed: saving ? null : () => removeExistingDocument(doc),
-                                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                  label: const Text('حذف', style: TextStyle(color: Colors.red, fontSize: 12)),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                      if (existingDocuments.isEmpty)
+                        const Text('مدرک قبلی باقی نمانده است.', style: TextStyle(color: Colors.black54, fontSize: 12))
+                      else
+                        ...existingDocuments.map(_existingDocumentTile),
                     ],
                     const SizedBox(height: 18),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
-                        onPressed: saving || remainingDocumentSlots <= 0 ? null : pickImages,
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                        label: const Text('افزودن تصویر پیوست'),
+                        onPressed: saving || remainingDocumentSlots <= 0 ? null : pickFiles,
+                        icon: const Icon(Icons.attach_file_rounded),
+                        label: const Text('افزودن تصویر یا فایل'),
                       ),
                     ),
                     Text(
-                      'مدارک باقی‌مانده قابل افزودن: ${remainingDocumentSlots < 0 ? 0 : remainingDocumentSlots} از ۲',
+                      'مجموع مدارک ثبت‌شده و جدید حداکثر دو عدد باشد (${fa('${existingDocuments.length + files.length}')}/۲).',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
                     if (files.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Text('فایل‌های جدید', style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: files.asMap().entries.map((entry) {
-                          return SizedBox(
-                            width: 112,
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.file(entry.value, width: 104, height: 88, fit: BoxFit.cover),
-                                ),
-                                Text(entry.value.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)),
-                                TextButton.icon(
-                                  onPressed: saving ? null : () => setState(() => files.removeAt(entry.key)),
-                                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                  label: const Text('حذف', style: TextStyle(color: Colors.red, fontSize: 12)),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                      ...files.asMap().entries.map((entry) => _newFileTile(entry.value, entry.key)),
                     ],
                     const SizedBox(height: 24),
                     SizedBox(

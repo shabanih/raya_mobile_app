@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../config/api_config.dart';
@@ -344,6 +345,59 @@ class _ManagerMaintenanceScreenState
     );
   }
 
+  bool _isImageDocument(String value) {
+    final path = value.split('?').first.toLowerCase();
+    return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+        .any(path.endsWith);
+  }
+
+  String _documentName(dynamic document, String url) {
+    if (document is Map) {
+      final name = (document['file_name'] ??
+          document['original_name'] ??
+          document['document_name'] ??
+          document['name'] ??
+          '')
+          .toString()
+          .trim();
+      if (name.isNotEmpty) return name;
+    }
+    final path = Uri.tryParse(url)?.path ?? url;
+    return path.split('/').last.isEmpty ? 'فایل پیوست' : path.split('/').last;
+  }
+
+  IconData _documentIcon(String value) {
+    final path = value.toLowerCase().split('?').first;
+    if (path.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+    if (path.endsWith('.doc') || path.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+    if (path.endsWith('.xls') || path.endsWith('.xlsx')) {
+      return Icons.table_chart_rounded;
+    }
+    if (path.endsWith('.ppt') || path.endsWith('.pptx')) {
+      return Icons.slideshow_rounded;
+    }
+    if (path.endsWith('.zip') || path.endsWith('.rar') || path.endsWith('.7z')) {
+      return Icons.folder_zip_rounded;
+    }
+    return Icons.insert_drive_file_rounded;
+  }
+
+  Future<void> _openDocument(String url) async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        message('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      message('خطا در باز کردن فایل: $e', error: true);
+    }
+  }
+
   void showDetails(Map<String, dynamic> item) {
     final rawDocs = item['documents'];
     final docs = rawDocs is List ? rawDocs : <dynamic>[];
@@ -368,72 +422,122 @@ class _ManagerMaintenanceScreenState
                   detail('وضعیت تعمیر', item['maintenance_status']),
                   detail('تاریخ شروع', dateText(item['maintenance_start_date'])),
                   detail('تاریخ پایان', dateText(item['maintenance_end_date'])),
-                  detail(
-                    'شماره سند مالی',
-                    fa('${item['financial_document_number'] ?? '—'}'),
-                  ),
-                  detail(
-                    'شماره فاکتور',
-                    fa('${item['maintenance_document_no'] ?? '—'}'),
-                  ),
+                  detail('شماره سند مالی',
+                      fa('${item['financial_document_number'] ?? '—'}')),
+                  detail('شماره فاکتور',
+                      fa('${item['maintenance_document_no'] ?? '—'}')),
                   detail('دریافت‌کننده', item['receiver_name']),
-                  detail(
-                    'وضعیت پرداخت',
-                    isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده',
-                  ),
+                  detail('وضعیت پرداخت',
+                      isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده'),
                   detail('حساب بانکی', item['bank_name']),
                   detail('تاریخ پرداخت', dateText(item['payment_date'])),
-                  detail(
-                    'شماره پیگیری',
-                    fa('${item['transaction_reference'] ?? '—'}'),
-                  ),
+                  detail('شماره پیگیری',
+                      fa('${item['transaction_reference'] ?? '—'}')),
                   detail('توضیحات', item['details']),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const Text(
-                    'مدارک پیوست‌شده',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  if (docs.isEmpty)
+                  if (docs.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
                     const Text(
-                      'مدرکی پیوست نشده است.',
-                      style: TextStyle(color: Colors.black54),
-                    )
-                  else
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: docs.map<Widget>((doc) {
-                        final url = _resolveDocumentUrl(doc);
-                        if (url.isEmpty) return const SizedBox.shrink();
-
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => _showDocumentImage(ctx, url),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              url,
-                              width: 105,
-                              height: 105,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                width: 105,
-                                height: 105,
-                                color: Colors.grey.shade100,
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 35,
-                                  color: Colors.grey,
+                      'مدارک پیوست‌شده',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...docs.map<Widget>((doc) {
+                      final url = _resolveDocumentUrl(doc);
+                      if (url.isEmpty) return const SizedBox.shrink();
+                      final imageFile = _isImageDocument(url);
+                      final name = _documentName(doc, url);
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 9),
+                        elevation: 0,
+                        color: const Color(0xFFF7F8FC),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                          side: const BorderSide(color: Color(0xFFE7E9EF)),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(13),
+                          onTap: () {
+                            if (imageFile) {
+                              _showDocumentImage(ctx, url);
+                            } else {
+                              _openDocument(url);
+                            }
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(9),
+                                  child: Container(
+                                    width: 58,
+                                    height: 58,
+                                    color: teal.withValues(alpha: .08),
+                                    child: imageFile
+                                        ? Image.network(
+                                      url,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                      const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.grey,
+                                        size: 30,
+                                      ),
+                                    )
+                                        : Icon(
+                                      _documentIcon(name.isNotEmpty ? name : url),
+                                      color: teal,
+                                      size: 31,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        imageFile
+                                            ? 'برای مشاهده تصویر لمس کنید'
+                                            : 'برای باز کردن فایل لمس کنید',
+                                        style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  imageFile
+                                      ? Icons.zoom_in_rounded
+                                      : Icons.open_in_new_rounded,
+                                  color: teal,
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }).toList(),
-                    ),
+                        ),
+                      );
+                    }),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    const Text('مدرکی پیوست نشده است'),
+                  ],
                 ],
               ),
             ),
@@ -834,7 +938,6 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
   final documentNo = TextEditingController();
   final details = TextEditingController();
 
-  final picker = ImagePicker();
   final List<File> files = [];
   final List<Map<String, dynamic>> existingDocuments = [];
   final Set<int> deletedDocumentIds = {};
@@ -995,7 +1098,7 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
     }
   }
 
-  Future<void> pickImages() async {
+  Future<void> pickFiles() async {
     if (saving) return;
 
     final remaining = 2 - existingDocuments.length - files.length;
@@ -1005,32 +1108,75 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
     }
 
     try {
-      final selected = await picker.pickMultiImage(imageQuality: 85);
+      // در نسخه فعلی file_picker پروژه، خروجی مستقیماً List<PlatformFile> است.
+      final selected = await FilePicker.pickFiles(type: FileType.any);
       if (!mounted || selected.isEmpty) return;
 
       var limitReached = false;
-
       setState(() {
-        for (final image in selected) {
-          if (files.any((f) => f.path == image.path)) continue;
+        for (final file in selected) {
+          final path = file.path;
+          if (path == null || path.isEmpty) continue;
+          if (files.any((f) => f.path == path)) continue;
 
           if (files.length >= remaining) {
             limitReached = true;
             break;
           }
-
-          files.add(File(image.path));
+          files.add(File(path));
         }
       });
 
       if (limitReached) {
         showMessage(
-          'با توجه به مدارک باقی‌مانده، امکان افزودن تصویر بیشتری وجود ندارد.',
+          'با توجه به مدارک باقی‌مانده، امکان افزودن فایل بیشتری وجود ندارد.',
           error: true,
         );
       }
     } catch (e) {
-      showMessage('انتخاب تصویر ناموفق بود: $e', error: true);
+      showMessage('انتخاب فایل ناموفق بود: $e', error: true);
+    }
+  }
+
+  bool _isImageFile(String path) {
+    final value = path.toLowerCase().split('?').first;
+    return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+        .any(value.endsWith);
+  }
+
+  String _fileName(String path) {
+    return path.split(Platform.pathSeparator).last;
+  }
+
+  IconData _fileIcon(String path) {
+    final value = path.toLowerCase();
+    if (value.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+    if (value.endsWith('.doc') || value.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+    if (value.endsWith('.xls') || value.endsWith('.xlsx')) {
+      return Icons.table_chart_rounded;
+    }
+    if (value.endsWith('.ppt') || value.endsWith('.pptx')) {
+      return Icons.slideshow_rounded;
+    }
+    if (value.endsWith('.zip') || value.endsWith('.rar') || value.endsWith('.7z')) {
+      return Icons.folder_zip_rounded;
+    }
+    return Icons.insert_drive_file_rounded;
+  }
+
+  Future<void> _openFormDocument(String url) async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        showMessage('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      showMessage('خطا در باز کردن فایل: $e', error: true);
     }
   }
 
@@ -1092,112 +1238,167 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
   Widget _existingDocumentTile(Map<String, dynamic> document) {
     final url = _resolveFormDocumentUrl(document);
     final documentId = int.tryParse('${document['id'] ?? ''}');
+    final name = (document['file_name'] ??
+        document['original_name'] ??
+        document['document_name'] ??
+        document['name'] ??
+        '')
+        .toString()
+        .trim();
+    final displayName = name.isNotEmpty
+        ? name
+        : (Uri.tryParse(url)?.path.split('/').last ?? 'فایل پیوست');
+    final isImage = _isImageFile(displayName.isNotEmpty ? displayName : url);
 
-    return Stack(
-      children: [
-        InkWell(
-          onTap: url.isEmpty ? null : () => _previewFormDocument(url),
-          borderRadius: BorderRadius.circular(12),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: url.isEmpty
-                ? Container(
-              width: 105,
-              height: 105,
-              color: Colors.grey.shade100,
-              child: const Icon(Icons.insert_drive_file_outlined),
-            )
-                : Image.network(
-              url,
-              width: 105,
-              height: 105,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 105,
-                height: 105,
-                color: Colors.grey.shade100,
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  size: 32,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (documentId != null)
-          Positioned(
-            top: 3,
-            left: 3,
-            child: Material(
-              color: Colors.white,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: saving
-                    ? null
-                    : () {
-                  setState(() {
-                    deletedDocumentIds.add(documentId);
-                    existingDocuments.remove(document);
-                  });
-                },
-                child: const Padding(
-                  padding: EdgeInsets.all(5),
-                  child: Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Colors.red,
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: url.isEmpty
+                ? null
+                : () {
+              if (isImage) {
+                _previewFormDocument(url);
+              } else {
+                _openFormDocument(url);
+              }
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 62,
+                height: 62,
+                color: teal.withValues(alpha: .08),
+                child: isImage && url.isNotEmpty
+                    ? Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.grey,
                   ),
+                )
+                    : Icon(
+                  _fileIcon(displayName),
+                  color: teal,
+                  size: 30,
                 ),
               ),
             ),
           ),
-      ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: InkWell(
+              onTap: url.isEmpty
+                  ? null
+                  : () {
+                if (isImage) {
+                  _previewFormDocument(url);
+                } else {
+                  _openFormDocument(url);
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    isImage
+                        ? 'برای مشاهده تصویر لمس کنید'
+                        : 'برای باز کردن فایل لمس کنید',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف پیوست',
+            onPressed: saving || documentId == null
+                ? null
+                : () {
+              setState(() {
+                deletedDocumentIds.add(documentId);
+                existingDocuments.remove(document);
+              });
+            },
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _newFileTile(File file, int index) {
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.file(
-            file,
-            width: 105,
-            height: 105,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: 105,
-              height: 105,
-              color: Colors.grey.shade100,
-              child: const Icon(Icons.broken_image_outlined),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 3,
-          left: 3,
-          child: Material(
-            color: Colors.white,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: saving
-                  ? null
-                  : () => setState(() => files.removeAt(index)),
-              child: const Padding(
-                padding: EdgeInsets.all(5),
-                child: Icon(
-                  Icons.close,
-                  size: 18,
-                  color: Colors.red,
+    final fileName = _fileName(file.path);
+    final isImage = _isImageFile(fileName);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 62,
+              height: 62,
+              color: teal.withValues(alpha: .08),
+              child: isImage
+                  ? Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.grey,
                 ),
-              ),
+              )
+                  : Icon(_fileIcon(fileName), color: teal, size: 30),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              fileName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          IconButton(
+            tooltip: 'حذف فایل',
+            onPressed: saving
+                ? null
+                : () => setState(() => files.removeAt(index)),
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1302,8 +1503,6 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final existingDocs = widget.item?['documents'];
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -1467,68 +1666,65 @@ class _MaintenanceFormSheetState extends State<_MaintenanceFormSheet> {
                         Icons.notes,
                       ),
                     ),
-                    if (editing) ...[
-                      const SizedBox(height: 14),
-                      const Text(
-                        'مدارک ثبت‌شده',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 10),
-                      if (existingDocuments.isEmpty)
-                        const Text(
-                          'مدرک قبلی باقی نمانده است.',
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'مدارک پیوست',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(
+                          '${fa('${existingDocuments.length + files.length}')}/۲',
+                          style: const TextStyle(
+                            color: teal,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (existingDocuments.isEmpty && files.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'مدرکی برای این تعمیر ثبت نشده است.',
                           style: TextStyle(
                             color: Colors.black54,
                             fontSize: 12,
                           ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: existingDocuments
-                              .map(_existingDocumentTile)
-                              .toList(),
                         ),
-                    ],
-                    const SizedBox(height: 18),
+                      ),
+                    ...existingDocuments.asMap().entries.map(
+                          (entry) => _existingDocumentTile(entry.value),
+                    ),
+                    const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton.icon(
                         onPressed: saving ||
                             (existingDocuments.length + files.length) >= 2
                             ? null
-                            : pickImages,
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                        label: const Text('افزودن تصویر پیوست'),
+                            : pickFiles,
+                        icon: const Icon(Icons.attach_file_rounded),
+                        label: const Text('افزودن تصویر یا فایل'),
                       ),
                     ),
                     Text(
-                      'مجموع مدارک ثبت‌شده و جدید حداکثر دو عدد باشد '
-                          '(${fa('${existingDocuments.length + files.length}')}/۲).',
+                      'حداکثر دو مدرک در مجموع برای هر تعمیر مجاز است.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
                     ),
                     if (files.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       const Text(
-                        'تصاویر جدید',
+                        'فایل‌های جدید',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: files
-                            .asMap()
-                            .entries
-                            .map((entry) => _newFileTile(
-                          entry.value,
-                          entry.key,
-                        ))
-                            .toList(),
+                      ...files.asMap().entries.map(
+                            (entry) => _newFileTile(entry.value, entry.key),
                       ),
                     ],
                     const SizedBox(height: 24),

@@ -1,12 +1,11 @@
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-
 import 'package:url_launcher/url_launcher.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
+import '../../config/api_config.dart';
 import '../../services/manager_payable_service.dart';
 
 class ManagerPayablesScreen extends StatefulWidget {
@@ -40,6 +39,91 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
   void dispose() {
     searchController.dispose();
     super.dispose();
+  }
+
+  String _payableDocumentUrl(dynamic value) {
+    final rawUrl = value?.toString().trim() ?? '';
+
+    if (rawUrl.isEmpty) return '';
+
+    final uri = Uri.tryParse(rawUrl);
+
+    if (uri != null && uri.hasScheme && uri.hasAuthority) {
+      return rawUrl;
+    }
+
+    final baseUrl = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+
+    return Uri.parse(baseUrl).resolve(rawUrl).toString();
+  }
+
+  bool _payableIsImage(String value) {
+    final path = Uri.tryParse(value)?.path.toLowerCase() ??
+        value.toLowerCase();
+
+    return [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.webp',
+      '.bmp',
+    ].any(path.endsWith);
+  }
+
+  String _payableDocumentName(
+      Map<String, dynamic> document,
+      String url,
+      ) {
+    final name = document['file_name'] ??
+        document['name'] ??
+        document['original_name'] ??
+        document['document_name'];
+
+    if (name != null && name.toString().trim().isNotEmpty) {
+      return name.toString();
+    }
+
+    if (url.isEmpty) return 'فایل پیوست';
+
+    final path = Uri.tryParse(url)?.path ?? url;
+    final parts = path.split('/').where((e) => e.isNotEmpty).toList();
+
+    if (parts.isEmpty) return 'فایل پیوست';
+
+    try {
+      return Uri.decodeComponent(parts.last);
+    } catch (_) {
+      return parts.last;
+    }
+  }
+
+  IconData _payableDocumentIcon(String value) {
+    final path = Uri.tryParse(value)?.path.toLowerCase() ??
+        value.toLowerCase();
+
+    if (path.endsWith('.pdf')) {
+      return Icons.picture_as_pdf_rounded;
+    }
+
+    if (path.endsWith('.doc') || path.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+
+    if (path.endsWith('.xls') ||
+        path.endsWith('.xlsx') ||
+        path.endsWith('.csv')) {
+      return Icons.table_chart_rounded;
+    }
+
+    if (_payableIsImage(value)) {
+      return Icons.image_outlined;
+    }
+
+    return Icons.insert_drive_file_rounded;
   }
 
   String cleanError(Object e) =>
@@ -295,6 +379,33 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
       message(cleanError(e), error: true);
     }
   }
+  Future<void> _openPayableAttachment(
+      String url,
+      String fileName,
+      ) async {
+    if (url.trim().isEmpty) {
+      message('آدرس فایل معتبر نیست.', error: true);
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened && mounted) {
+        message('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        message(
+          'باز کردن فایل $fileName با خطا مواجه شد.',
+          error: true,
+        );
+      }
+    }
+  }
   void _showDocumentImage(BuildContext context, String url) {
     showDialog<void>(
       context: context,
@@ -336,6 +447,21 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
   void showDetails(Map<String, dynamic> item) {
     final docs = item['documents'];
 
+    final documents = docs is List
+        ? docs.where((e) {
+      if (e is Map) {
+        final url = e['url'] ??
+            e['document'] ??
+            e['file'] ??
+            e['image'];
+
+        return url != null && url.toString().trim().isNotEmpty;
+      }
+
+      return e != null && e.toString().trim().isNotEmpty;
+    }).toList()
+        : <dynamic>[];
+
     showDialog<void>(
       context: context,
       builder: (ctx) => Directionality(
@@ -358,7 +484,10 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
                   'شماره فاکتور',
                   fa('${item['document_number'] ?? '—'}'),
                 ),
-                detail('وضعیت', isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده'),
+                detail(
+                  'وضعیت',
+                  isPaid(item) ? 'پرداخت‌شده' : 'پرداخت‌نشده',
+                ),
                 detail('دریافت‌کننده', item['receiver_name']),
                 detail('حساب بانکی', item['bank_name']),
                 detail('تاریخ پرداخت', dateText(item['payment_date'])),
@@ -367,7 +496,8 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
                   fa('${item['transaction_reference'] ?? '—'}'),
                 ),
                 detail('توضیحات', item['details']),
-                if (docs.isNotEmpty) ...[
+
+                if (documents.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Divider(),
                   const Text(
@@ -379,41 +509,122 @@ class _ManagerPayablesScreenState extends State<ManagerPayablesScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: docs.map<Widget>((doc) {
-                      final url = doc is Map
-                          ? (doc['url'] ?? '').toString()
-                          : doc.toString();
+                  ...documents.map((doc) {
+                    final document = doc is Map
+                        ? Map<String, dynamic>.from(
+                      doc.map(
+                            (key, value) =>
+                            MapEntry(key.toString(), value),
+                      ),
+                    )
+                        : <String, dynamic>{'url': doc.toString()};
 
-                      if (url.isEmpty) return const SizedBox.shrink();
+                    final rawUrl = document['url'] ??
+                        document['document'] ??
+                        document['file'] ??
+                        document['image'];
 
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _showDocumentImage(ctx, url),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            url,
-                            width: 105,
-                            height: 105,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 105,
-                              height: 105,
-                              color: Colors.grey.shade100,
-                              child: const Icon(
-                                Icons.broken_image_outlined,
-                                size: 35,
-                                color: Colors.grey,
+                    final url = _payableDocumentUrl(rawUrl);
+                    final fileName = _payableDocumentName(
+                      document,
+                      url,
+                    );
+
+                    final isImage = _payableIsImage(url);
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 9),
+                      elevation: 0,
+                      color: const Color(0xFFF7F8FC),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                        side: const BorderSide(
+                          color: Color(0xFFE7E9EF),
+                        ),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(13),
+                        onTap: url.isEmpty
+                            ? null
+                            : () {
+                          if (isImage) {
+                            _showDocumentImage(ctx, url);
+                          } else {
+                            _openPayableAttachment(
+                              url,
+                              fileName,
+                            );
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(9),
+                                child: Container(
+                                  width: 58,
+                                  height: 58,
+                                  color: teal.withValues(alpha: .08),
+                                  child: isImage && url.isNotEmpty
+                                      ? Image.network(
+                                    url,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.grey,
+                                        size: 30,
+                                      );
+                                    },
+                                  )
+                                      : Icon(
+                                    _payableDocumentIcon(url),
+                                    color: teal,
+                                    size: 31,
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      fileName,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      isImage
+                                          ? 'برای مشاهده تصویر لمس کنید'
+                                          : 'برای باز کردن فایل لمس کنید',
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                isImage
+                                    ? Icons.zoom_in_rounded
+                                    : Icons.open_in_new_rounded,
+                                color: teal,
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    );
+                  }),
                 ] else ...[
                   const SizedBox(height: 12),
                   const Text('مدرکی پیوست نشده است'),
@@ -797,9 +1008,8 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
   final description = TextEditingController();
   final details = TextEditingController();
   final documentNumber = TextEditingController();
-  final picker = ImagePicker();
-
   final List<File> files = [];
+
   final List<Map<String, dynamic>> existingDocs = [];
   final List<int> deletedDocumentIds = [];
 
@@ -938,7 +1148,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     }
   }
 
-  Future<void> pickImages() async {
+  Future<void> pickFiles() async {
     if (saving) return;
 
     final available = 2 - totalDocuments;
@@ -952,25 +1162,35 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     }
 
     try {
-      final selected = await picker.pickMultiImage(
-        imageQuality: 85,
+      final selected = await FilePicker.pickFiles(
+        type: FileType.any,
       );
 
       if (!mounted || selected.isEmpty) return;
 
       var added = 0;
       var limitReached = false;
+      var invalidPath = false;
 
       setState(() {
-        for (final image in selected) {
-          if (files.any((f) => f.path == image.path)) continue;
+        for (final file in selected) {
+          final path = file.path;
+
+          if (path == null || path.trim().isEmpty) {
+            invalidPath = true;
+            continue;
+          }
+
+          if (files.any((f) => f.path == path)) {
+            continue;
+          }
 
           if (totalDocuments >= 2) {
             limitReached = true;
             break;
           }
 
-          files.add(File(image.path));
+          files.add(File(path));
           added++;
         }
       });
@@ -980,12 +1200,17 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
           'حداکثر دو مدرک در مجموع قابل ثبت است.',
           error: true,
         );
+      } else if (invalidPath && added == 0) {
+        showMessage(
+          'مسیر فایل انتخاب‌شده قابل دسترسی نیست.',
+          error: true,
+        );
       } else if (added == 0) {
-        showMessage('تصویر جدیدی اضافه نشد.');
+        showMessage('فایل جدیدی اضافه نشد.');
       }
     } catch (e) {
       showMessage(
-        'انتخاب تصویر ناموفق بود: $e',
+        'انتخاب فایل ناموفق بود: $e',
         error: true,
       );
     }
@@ -1011,6 +1236,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     });
   }
 
+
   void showImage(String url) {
     if (url.trim().isEmpty) return;
 
@@ -1033,7 +1259,9 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                     if (progress == null) return child;
 
                     return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
                     );
                   },
                   errorBuilder: (_, __, ___) => const Padding(
@@ -1071,11 +1299,137 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     );
   }
 
+  // تشخیص تصویر
+  bool _payableIsImage(String value) {
+    final path = Uri.tryParse(value)?.path.toLowerCase() ??
+        value.toLowerCase();
+
+    return [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.webp',
+      '.bmp',
+    ].any(path.endsWith);
+  }
+
+  // آیکون متناسب با نوع فایل
+  IconData _payableDocumentIcon(String value) {
+    final path = Uri.tryParse(value)?.path.toLowerCase() ??
+        value.toLowerCase();
+
+    if (path.endsWith('.pdf')) {
+      return Icons.picture_as_pdf_rounded;
+    }
+
+    if (path.endsWith('.doc') || path.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+
+    if (path.endsWith('.xls') ||
+        path.endsWith('.xlsx') ||
+        path.endsWith('.csv')) {
+      return Icons.table_chart_rounded;
+    }
+
+    if (_payableIsImage(value)) {
+      return Icons.image_outlined;
+    }
+
+    return Icons.insert_drive_file_rounded;
+  }
+
+  // تبدیل آدرس نسبی فایل به آدرس کامل
+  String _existingDocumentUrl(dynamic value) {
+    final rawUrl = value?.toString().trim() ?? '';
+
+    if (rawUrl.isEmpty) return '';
+
+    final uri = Uri.tryParse(rawUrl);
+
+    if (uri != null && uri.hasScheme && uri.hasAuthority) {
+      return rawUrl;
+    }
+
+    final baseUrl = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+
+    return Uri.parse(baseUrl).resolve(rawUrl).toString();
+  }
+
+  // استخراج نام فایل
+  String _existingDocumentName(
+      Map<String, dynamic> document,
+      String url,
+      ) {
+    final name = document['file_name'] ??
+        document['name'] ??
+        document['original_name'] ??
+        document['document_name'];
+
+    if (name != null && name.toString().trim().isNotEmpty) {
+      return name.toString();
+    }
+
+    if (url.isEmpty) return 'فایل پیوست';
+
+    final path = Uri.tryParse(url)?.path ?? url;
+    final parts = path.split('/').where((e) => e.isNotEmpty).toList();
+
+    if (parts.isEmpty) return 'فایل پیوست';
+
+    try {
+      return Uri.decodeComponent(parts.last);
+    } catch (_) {
+      return parts.last;
+    }
+  }
+
+  // باز کردن فایل غیرتصویری
+  Future<void> _openExistingDocument(
+      String url,
+      String fileName,
+      ) async {
+    if (url.trim().isEmpty) {
+      showMessage('آدرس فایل معتبر نیست.', error: true);
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened && mounted) {
+        showMessage('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        showMessage(
+          'باز کردن فایل $fileName امکان‌پذیر نیست.',
+          error: true,
+        );
+      }
+    }
+  }
+
+  // نمایش مدارک قبلی
   Widget existingDocumentTile(
-      Map<String, dynamic> doc,
+      Map<String, dynamic> document,
       int index,
       ) {
-    final url = (doc['url'] ?? '').toString();
+    final rawUrl = document['url'] ??
+        document['document'] ??
+        document['file'] ??
+        document['image'];
+
+    final url = _existingDocumentUrl(rawUrl);
+    final fileName = _existingDocumentName(document, url);
+    final isImage = _payableIsImage(url);
 
     return Container(
       margin: const EdgeInsets.only(top: 10),
@@ -1083,62 +1437,91 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
       decoration: BoxDecoration(
         color: const Color(0xFFF5F8FC),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFE5EAF0)),
+        border: Border.all(
+          color: const Color(0xFFE5EAF0),
+        ),
       ),
       child: Row(
         children: [
           InkWell(
-            onTap: url.isEmpty ? null : () => showImage(url),
+            onTap: url.isEmpty
+                ? null
+                : () {
+              if (isImage) {
+                showImage(url);
+              } else {
+                _openExistingDocument(url, fileName);
+              }
+            },
             borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 62,
+                height: 62,
                 color: teal.withValues(alpha: .08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: url.isEmpty
-                  ? const Icon(Icons.insert_drive_file_outlined, color: teal)
-                  : Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.broken_image_outlined,
-                  color: Colors.grey,
-                  size: 28,
+                child: isImage && url.isNotEmpty
+                    ? Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.grey,
+                  ),
+                )
+                    : Icon(
+                  _payableDocumentIcon(fileName),
+                  color: teal,
+                  size: 30,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'مدرک قبلی ${fa('${index + 1}')}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+            child: InkWell(
+              onTap: url.isEmpty
+                  ? null
+                  : () {
+                if (isImage) {
+                  showImage(url);
+                } else {
+                  _openExistingDocument(url, fileName);
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  url.isEmpty ? 'آدرس مدرک موجود نیست' : 'برای مشاهده لمس کنید',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                  const SizedBox(height: 5),
+                  Text(
+                    isImage
+                        ? 'برای مشاهده تصویر لمس کنید'
+                        : 'برای باز کردن فایل لمس کنید',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           IconButton(
             tooltip: 'حذف پیوست',
-            onPressed: saving ? null : () => removeExistingDocument(index),
+            onPressed: saving
+                ? null
+                : () => removeExistingDocument(index),
             icon: const Icon(
-              Icons.delete_outline_rounded,
+              Icons.delete_outline,
               color: Colors.red,
             ),
           ),
@@ -1147,42 +1530,56 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
     );
   }
 
+  // نمایش فایل‌های جدید انتخاب‌شده
   Widget newFileTile(File file, int index) {
+    final fileName = file.path.split(Platform.pathSeparator).last;
+    final isImage = _payableIsImage(fileName);
+
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
         color: const Color(0xFFF5F8FC),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFE5EAF0)),
+        border: Border.all(
+          color: const Color(0xFFE5EAF0),
+        ),
       ),
       child: Row(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.file(
-              file,
+            child: Container(
               width: 62,
               height: 62,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox(
-                width: 62,
-                height: 62,
-                child: Icon(Icons.image_outlined, color: teal),
+              color: teal.withValues(alpha: .08),
+              child: isImage
+                  ? Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.grey,
+                ),
+              )
+                  : Icon(
+                _payableDocumentIcon(fileName),
+                color: teal,
+                size: 30,
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              file.path.split(Platform.pathSeparator).last,
+              fileName,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12),
             ),
           ),
           IconButton(
-            tooltip: 'حذف تصویر جدید',
+            tooltip: 'حذف فایل',
             onPressed: saving
                 ? null
                 : () => setState(() => files.removeAt(index)),
@@ -1195,6 +1592,7 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
       ),
     );
   }
+
 
   Future<void> save() async {
     if (saving || !formKey.currentState!.validate()) return;
@@ -1438,9 +1836,9 @@ class _PayableFormSheetState extends State<_PayableFormSheet> {
                       child: OutlinedButton.icon(
                         onPressed: saving || totalDocuments >= 2
                             ? null
-                            : pickImages,
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                        label: const Text('افزودن تصویر پیوست'),
+                            : pickFiles,
+                        icon: const Icon(Icons.attach_file_rounded),
+                        label: const Text('افزودن تصویر یا فایل'),
                       ),
                     ),
                     Text(

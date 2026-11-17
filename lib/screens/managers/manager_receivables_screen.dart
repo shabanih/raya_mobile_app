@@ -1,9 +1,12 @@
 
 import 'dart:io';
-
+import '../../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 import 'package:image_picker/image_picker.dart';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/manager_receivable_service.dart';
 
@@ -57,6 +60,145 @@ class _ManagerReceivablesScreenState
           backgroundColor: error ? Colors.red.shade700 : _teal,
         ),
       );
+  }
+
+  bool _isImageDocument(String url) {
+    final path = Uri.tryParse(url)?.path ?? url;
+
+    return RegExp(
+      r'\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$',
+      caseSensitive: false,
+    ).hasMatch(path);
+  }
+
+  // String _documentFileName(String url) {
+  //   if (url.trim().isEmpty) return 'فایل پیوست';
+  //
+  //   final uri = Uri.tryParse(url);
+  //   final path = uri?.path ?? url;
+  //   final parts = path.split('/').where((e) => e.isNotEmpty).toList();
+  //
+  //   return parts.isEmpty
+  //       ? 'فایل پیوست'
+  //       : Uri.decodeComponent(parts.last);
+  // }
+
+  Future<void> _downloadDocument(String url) async {
+    try {
+      final uri = Uri.tryParse(url);
+
+      if (uri == null || !uri.hasScheme) {
+        _message('آدرس فایل معتبر نیست.', error: true);
+        return;
+      }
+
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        _message('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      _message('خطا در دریافت فایل: $e', error: true);
+    }
+  }
+  // تبدیل آدرس نسبی به آدرس کامل فایل
+  String _fullDocumentUrl(dynamic value) {
+    final rawUrl = value?.toString().trim() ?? '';
+
+    if (rawUrl.isEmpty) return '';
+
+    final uri = Uri.tryParse(rawUrl);
+
+    if (uri != null && uri.hasScheme && uri.hasAuthority) {
+      return rawUrl;
+    }
+
+    final baseUrl = ApiConfig.baseUrl.replaceFirst(
+      RegExp(r'/api/?$'),
+      '',
+    );
+
+    return Uri.parse(baseUrl).resolve(rawUrl).toString();
+  }
+
+
+
+// آیکون نوع فایل
+  IconData _documentFileIcon(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+
+    if (path.endsWith('.pdf')) {
+      return Icons.picture_as_pdf_rounded;
+    }
+
+    if (path.endsWith('.doc') || path.endsWith('.docx')) {
+      return Icons.description_rounded;
+    }
+
+    if (path.endsWith('.xls') ||
+        path.endsWith('.xlsx') ||
+        path.endsWith('.csv')) {
+      return Icons.table_chart_rounded;
+    }
+
+    if (_isImageDocument(url)) {
+      return Icons.image_outlined;
+    }
+
+    return Icons.insert_drive_file_rounded;
+  }
+
+// استخراج نام فایل
+  String _documentFileName(
+      Map<String, dynamic> document,
+      String url,
+      ) {
+    final name = document['file_name'] ??
+        document['name'] ??
+        document['original_name'] ??
+        document['document_name'];
+
+    if (name != null && name.toString().trim().isNotEmpty) {
+      return name.toString();
+    }
+
+    if (url.trim().isEmpty) return 'فایل پیوست';
+
+    final path = Uri.tryParse(url)?.path ?? url;
+    final parts = path.split('/').where((e) => e.isNotEmpty).toList();
+
+    return parts.isEmpty
+        ? 'فایل پیوست'
+        : Uri.decodeComponent(parts.last);
+  }
+
+// باز کردن فایل غیرتصویری
+  Future<void> _openReceivableAttachment(
+      String url,
+      String fileName,
+      ) async {
+    if (url.trim().isEmpty) {
+      _message('آدرس فایل معتبر نیست.', error: true);
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened && mounted) {
+        _message('باز کردن فایل امکان‌پذیر نیست.', error: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        _message('خطا در باز کردن فایل $fileName', error: true);
+      }
+    }
   }
 
   String _normalize(String value) {
@@ -355,53 +497,128 @@ class _ManagerReceivablesScreenState
                 if (documents.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Divider(),
+
                   const Text(
-                    'تصاویر پیوست‌شده',
+                    'مدارک پیوست‌شده:',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: documents.map((doc) {
-                      final url = doc['url'].toString();
 
-                      return InkWell(
+                  const SizedBox(height: 10),
+
+                  ...documents.map((doc) {
+                    final url = _fullDocumentUrl(
+                      doc['url'] ??
+                          doc['document'] ??
+                          doc['file'] ??
+                          doc['image'],
+                    );
+
+                    final fileName = _documentFileName(doc, url);
+                    final isImage = _isImageDocument(url);
+
+                    return Card(
+                      elevation: 1,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () => _showDocumentImage(context, url),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            url,
-                            width: 105,
-                            height: 105,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 105,
-                              height: 105,
-                              color: Colors.grey.shade100,
-                              child: const Icon(
-                                Icons.broken_image_outlined,
-                                size: 35,
-                                color: Colors.grey,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: url.isEmpty
+                            ? null
+                            : () {
+                          if (isImage) {
+                            _showDocumentImage(context, url);
+                          } else {
+                            _openReceivableAttachment(url, fileName);
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Row(
+                            children: [
+                              if (isImage && url.isNotEmpty)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 58,
+                                    height: 58,
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) {
+                                        return const Icon(
+                                          Icons.broken_image_outlined,
+                                          size: 35,
+                                          color: Colors.grey,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    color: _teal.withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    _documentFileIcon(url),
+                                    size: 29,
+                                    color: _teal,
+                                  ),
+                                ),
+
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      fileName,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 5),
+
+                                    Text(
+                                      isImage
+                                          ? 'برای مشاهده تصویر لمس کنید'
+                                          : 'برای باز کردن یا دریافت فایل لمس کنید',
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+
+                              const SizedBox(width: 6),
+
+                              Icon(
+                                isImage
+                                    ? Icons.zoom_in_rounded
+                                    : Icons.download_rounded,
+                                color: _purple,
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'برای مشاهده تصویر در اندازه بزرگ‌تر، آن را لمس کنید.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
+                      ),
+                    );
+                  }),
                 ],
               ],
             ),
@@ -929,6 +1146,47 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
         .replaceAll('٫', '.')
         .trim();
   }
+  bool _isImageFile(String path) {
+    final extension = path.split('.').last.toLowerCase();
+
+    return [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+    ].contains(extension);
+  }
+
+  IconData _fileIcon(String path) {
+    final extension = path.split('.').last.toLowerCase();
+
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return Icons.table_chart_rounded;
+
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'bmp':
+        return Icons.image_outlined;
+
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
 
   String _fa(String value) {
     const digits = '۰۱۲۳۴۵۶۷۸۹';
@@ -971,10 +1229,8 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
   Future<void> _pickImages() async {
     if (_saving) return;
 
-    final capacity = 2 - _totalDocuments;
-
-    if (capacity <= 0) {
-      _message('حداکثر دو تصویر قابل پیوست است.', error: true);
+    if (_totalDocuments >= 2) {
+      _message('حداکثر دو پیوست قابل انتخاب است.', error: true);
       return;
     }
 
@@ -989,13 +1245,13 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
 
       setState(() {
         for (final image in images) {
-          if (_selectedFiles.any((f) => f.path == image.path)) {
-            continue;
-          }
-
           if (_totalDocuments >= 2) {
             limitReached = true;
             break;
+          }
+
+          if (_selectedFiles.any((f) => f.path == image.path)) {
+            continue;
           }
 
           _selectedFiles.add(File(image.path));
@@ -1003,13 +1259,63 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
       });
 
       if (limitReached) {
-        _message(
-          'مجموع تصاویر پیوست نمی‌تواند بیشتر از دو عدد باشد.',
-          error: true,
-        );
+        _message('مجموع پیوست‌ها نمی‌تواند بیشتر از دو فایل باشد.');
       }
     } catch (e) {
       _message('انتخاب تصویر ناموفق بود: $e', error: true);
+    }
+  }
+
+  Future<void> _pickFiles() async {
+    final remaining = 2 - _totalDocuments;
+
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('حداکثر دو فایل پیوست مجاز است.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.any,
+      );
+
+      if (result.isEmpty) return;
+
+      final selected = <File>[];
+
+      for (final pickedFile in result) {
+        if (selected.length >= remaining) break;
+
+        final path = pickedFile.path;
+
+        if (path != null && path.isNotEmpty) {
+          selected.add(File(path));
+        }
+      }
+
+      if (selected.isEmpty) return;
+
+      setState(() {
+        _selectedFiles.addAll(selected);
+      });
+
+      if (result.length > remaining) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('حداکثر دو فایل پیوست مجاز است.'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطا در انتخاب فایل: $e'),
+        ),
+      );
     }
   }
 
@@ -1215,14 +1521,17 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
+
         const Text(
-          'تصاویر جدید انتخاب‌شده',
+          'پیوست‌های جدید انتخاب‌شده',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),
         ),
+
         const SizedBox(height: 10),
+
         ..._selectedFiles.asMap().entries.map((entry) {
           final index = entry.key;
           final file = entry.value;
@@ -1230,10 +1539,13 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
           final fileName =
               file.path.split(Platform.pathSeparator).last;
 
+          final isImage = _isImageFile(file.path);
+
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
-              leading: InkWell(
+              leading: isImage
+                  ? InkWell(
                 onTap: () => _showLocalImage(file),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -1242,17 +1554,43 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_not_supported_outlined,
+                      size: 35,
+                    ),
                   ),
                 ),
+              )
+                  : Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _teal.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _fileIcon(file.path),
+                  color: _teal,
+                  size: 28,
+                ),
               ),
+
               title: Text(
                 fileName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+
+              subtitle: Text(
+                isImage ? 'تصویر پیوست' : 'فایل پیوست',
+                style: const TextStyle(fontSize: 11),
+              ),
+
               trailing: IconButton(
-                tooltip: 'حذف تصویر',
-                onPressed: _saving ? null : () => _removeFile(index),
+                tooltip: 'حذف پیوست',
+                onPressed: _saving
+                    ? null
+                    : () => _removeFile(index),
                 icon: const Icon(
                   Icons.delete_outline,
                   color: Colors.red,
@@ -1278,7 +1616,7 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
 
     if (_totalDocuments > 2) {
       _message(
-        'مجموع تصاویر پیوست نمی‌تواند بیشتر از دو عدد باشد.',
+        'مجموع پیوست‌ها نمی‌تواند بیشتر از دو فایل باشد.',
         error: true,
       );
       return;
@@ -1445,17 +1783,41 @@ class _ReceivableFormSheetState extends State<_ReceivableFormSheet> {
 
                     Align(
                       alignment: Alignment.centerRight,
-                      child: OutlinedButton.icon(
-                        onPressed:
-                        _saving || _totalDocuments >= 2
-                            ? null
-                            : _pickImages,
-                        icon: const Icon(
-                          Icons.add_photo_alternate_outlined,
-                        ),
-                        label: const Text('افزودن تصویر پیوست'),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _saving || _totalDocuments >= 2
+                                ? null
+                                : _pickImages,
+                            icon: const Icon(Icons.add_photo_alternate_outlined),
+                            label: const Text('افزودن تصویر'),
+                          ),
+
+                          OutlinedButton.icon(
+                            onPressed: _saving || _totalDocuments >= 2
+                                ? null
+                                : _pickFiles,
+                            icon: const Icon(Icons.attach_file_rounded),
+                            label: const Text('افزودن فایل'),
+                          ),
+                        ],
                       ),
                     ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'امکان پیوست عکس و فایل وجود دارد؛ مجموع پیوست‌ها حداکثر دو مورد است.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+
+                    _buildExistingDocuments(),
+                    _buildSelectedFiles(),
 
                     const SizedBox(height: 6),
                     Text(
